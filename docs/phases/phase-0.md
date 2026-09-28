@@ -15,7 +15,7 @@ Build
 - [x] First unchanged build; confirm image on ghcr.io
 - [ ] Visible change: wallpaper + [OS NAME] placeholder branding
 - [ ] Stub systemd user unit for brain-d that only logs "brain-d started"
-- [ ] Build ISO with bootc-image-builder
+- [x] Build ISO with bootc-image-builder
 - [ ] Set up dev / beta / stable tags (installer `disk_config/iso.toml` currently points at `:latest`)
 - [ ] Enforce signature verification on installed machines (ship `cosign.pub` + containers policy in the image)
 
@@ -34,3 +34,6 @@ Build
 - 2026-09-28: Collaborator `muhammadrashid4587` invited with write access.
 - 2026-09-28 (task 3): Base switched to `ghcr.io/ublue-os/aurora:stable` pinned by digest (version 44.20260922.1, Fedora 44). Aurora is published for amd64 only, so ARM VMs on the Mac are not an option; test VM must be x86_64 hardware or slow emulation. Image renamed to `aios` (must match repo name, `build-disk.yml` assumes it). Template bug: `build-disk.yml` expects `disk_config/iso.toml` but the template ships `iso-kde.toml`/`iso-gnome.toml`; renamed KDE one to `iso.toml`, removed GNOME. Docs-only pushes no longer trigger builds.
 - 2026-09-28: First Aurora-based build succeeded (run 36460943270): `ghcr.io/rhkrohan/aios:latest` is signed (verified with `cosign verify`) and public (anonymous pull works).
+- 2026-09-28 (ISO): First `build-disk.yml` run failed after ~4 min with `mount: /run/osbuild/tree/dev: permission denied` (and many `fchownat() ... Operation not permitted`). Cause: template moved runners to ubuntu-26.04, whose stricter security blocks osbuild's mounts (upstream ublue-os/image-template#269). Fix: disk workflow on `ubuntu-24.04`; main image build stays on 26.04. Retry succeeded in ~15 min (run 36464767862), ISO about 5.2 GB.
+- 2026-09-28 (ISO): Template bug: both matrix jobs (qcow2, anaconda-iso) upload an artifact named `artifact` with `overwrite: true`, so the last job wins (this time the ISO). Fix later: name artifacts per disk type.
+- 2026-09-28: bootc-image-builder is archived upstream; its successor is `osbuild/image-builder` (see ublue-os/image-template#229). Fine for Phase 0; migration logged in ideas.
