@@ -9,7 +9,7 @@ Active phase: **Phase 0, Bootable base**. Details and learned notes: `docs/phase
 - [ ] 4. Set up a test VM (x86_64 host) and pick a test laptop
 
 ## Build
-- [ ] 5. First unchanged build pushed to ghcr.io by GitHub Actions (signed)
+- [x] 5. First unchanged build pushed to ghcr.io by GitHub Actions (signed)
 - [ ] 6. One visible change (wallpaper, [OS NAME] placeholder)
 - [ ] 7. Stub brain-d systemd unit that only logs "brain-d started"
 - [ ] 8. Build an ISO with bootc-image-builder (via `build-disk.yml`)
