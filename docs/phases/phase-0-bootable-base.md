@@ -6,7 +6,7 @@ Goal: our own image builds, boots in a VM and on a laptop, and bootc updates and
 ### Setup
 - [x] 1. Create repo from `ublue-os/image-template` and clone it
 - [x] 2. Generate cosign key and add it as repo secret `SIGNING_SECRET` (builds fail at signing without it)
-- [ ] 3. Set the `FROM` line (Aurora first) and fill in `image-template.env`
+- [x] 3. Set the `FROM` line (Aurora first) and fill in `image-template.env`
 - [ ] 4. Set up a test VM and pick a test laptop
 
 ### Build
@@ -28,3 +28,4 @@ Goal: our own image builds, boots in a VM and on a laptop, and bootc updates and
 - 2026-09-28: The `!` prefix only works in the Claude Code prompt. In a normal zsh terminal `!` negates the exit status, so `! cd x && cmd` skips `cmd`.
 - 2026-09-28 (task 5): First signed build succeeded (run 36456196070, about 14 min), pushed as `ghcr.io/rhkrohan/image-template:latest` (still Bazzite base, template name). Verified locally with `cosign verify --key cosign.pub`. Every push to main, even docs-only, triggers a full build; consider adding `docs/**`, `*.md` to `paths-ignore` in `build.yml`.
 - 2026-09-28: Collaborator `muhammadrashid4587` invited with write access.
+- 2026-09-28 (task 3): Base switched to `ghcr.io/ublue-os/aurora:stable` pinned by digest (version 44.20260922.1, Fedora 44). Aurora is published for amd64 only, so ARM VMs on the Mac are not an option; test VM must be x86_64 hardware or slow emulation. Image renamed to `aios` (must match repo name, `build-disk.yml` assumes it). Template bug: `build-disk.yml` expects `disk_config/iso.toml` but the template ships `iso-kde.toml`/`iso-gnome.toml`; renamed KDE one to `iso.toml`, removed GNOME. Docs-only pushes no longer trigger builds.

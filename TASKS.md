@@ -5,8 +5,8 @@ Active phase: **Phase 0, Bootable base**. Details and learned notes: `docs/phase
 ## Setup
 - [x] 1. Create repo from `ublue-os/image-template` (`rhkrohan/aios`, public) and clone it
 - [x] 2. Generate cosign key pair and add the private key as repo secret `SIGNING_SECRET`
-- [ ] 3. Set the `FROM` line to Aurora (template default is Bazzite) and fill in `image-template.env`
-- [ ] 4. Set up a test VM (x86_64 host) and pick a test laptop
+- [x] 3. Set the `FROM` line to Aurora (template default is Bazzite) and fill in `image-template.env`
+- [ ] 4. Set up a test VM (x86_64 host required: Aurora is amd64 only) and pick a test laptop
 
 ## Build
 - [x] 5. First unchanged build pushed to ghcr.io by GitHub Actions (signed)
