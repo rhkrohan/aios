@@ -1,8 +1,10 @@
 # Plan changelog
 
-One dated line per plan change. Each change gets its own commit starting with `plan:`.
+Newest first. One line per change.
 
-- 2026-09-28: Plan pack created from handoff. Phase 0 task 1 done (repo `rhkrohan/aios` created from ublue-os/image-template).
-- 2026-09-28: Phase 0 task 2 done (cosign key, `SIGNING_SECRET`). Added idea: enforce signature verification on installed machines.
-- 2026-09-28: Phase 0 task 5 done (first signed build on ghcr.io). Collaborator muhammadrashid4587 invited (write).
-- 2026-09-28: Phase 0 task 3 done (Aurora base, image renamed to aios). Confirmed Aurora is amd64 only; test VM needs x86_64.
+- 2026-09-28: Plan v2 adopted in repo, merged with Phase 0 progress (cosign, Aurora base, first signed public build, collaborator). Added risk: Aurora amd64 only vs arm64 Mac. Added Phase 0 task and idea: enforce signature verification. Dropped: kinoite-main alternative, "Phase 4 before 3" option.
+- 2026-09-28: Phase 0: first signed build on ghcr.io; base switched to Aurora; image renamed aios; ISO config path fixed.
+- 2026-09-28: Phase 0: cosign key and SIGNING_SECRET set up.
+- 2026-09-28: Plan v2. Added strategy (tunnel-first), brain, tunnel and tools, security, base OS, UX, memory, glossary docs. Roadmap revised (Phase 2 = Tunnel v1 + broker). Decisions D12 to D18 accepted.
+- 2026-09-28: Repo created from ublue-os/image-template.
+- 2026-09-28: Plan v1 created (vision, architecture, D1 to D11, roadmap, risks, ideas).

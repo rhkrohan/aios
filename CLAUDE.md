@@ -1,53 +1,66 @@
-# CLAUDE.md
+# [OS NAME]: AI-native desktop OS
 
-Guidance for Claude Code working in this repo.
+A Linux-based desktop OS built so any AI can use the computer safely and easily.
+Humans use the normal desktop. AI uses "the tunnel": typed tools that reach apps, files, settings and services directly, without clicking.
 
-## Project
-[OS NAME] (placeholder, repo `rhkrohan/aios`) is an AI-native desktop OS built on Linux. The AI "brain" (brain-d) is a core system service, not an app. It runs locally by default, can optionally use cloud AIs, and the OS should run most Windows apps.
+## Start of every session
+1. Read `TASKS.md`.
+2. Read the active phase file in `docs/phases/` (see Status line in each).
+3. Before choosing any tool, library or approach, check `docs/plan/11-decisions.md`.
+4. Unfamiliar term? Check `docs/plan/glossary.md`.
 
-Full plan: `docs/plan/`. Current work: `TASKS.md` and the active phase file in `docs/phases/`.
-
-Active phase: **Phase 0, Bootable base** (`docs/phases/phase-0-bootable-base.md`).
-
-## Working with the user
-- CS undergrad, new to Linux internals. Explain every command, file and concept in plain English, with simple analogies where helpful.
+## How we work
 - Small, verifiable steps. One task at a time.
-- Before writing code or running commands that change things, show a short plan and wait for approval.
-- Concise and direct replies. No em dashes.
-- The user's machine is an Apple Silicon Mac (arm64). Image builds run on GitHub Actions. Test VMs should run on x86_64 hardware.
+- Before writing code, show a short plan and wait for approval.
+- Explain commands and files in plain English. The owner is new to Linux internals.
+- After each task: tick it in `TASKS.md` and the phase file, add notes under "Learned".
+- A phase is done only when every Gate item passes on a VM or real hardware.
+- New ideas go to `docs/plan/ideas.md` first. Never straight into code.
+- Every plan change: one dated line in `docs/plan/changelog.md`, own commit prefixed `plan:`.
+- End of session: give a 10-line status summary for the planning chat.
+- No em dashes in docs or replies.
+- Big design decisions happen in the owner's separate planning chat; plan updates pasted from it are merged here as above.
+- The owner's machine is an Apple Silicon Mac (arm64). Images build on GitHub Actions. Aurora is amd64 only, so test VMs need an x86_64 host (or slow emulation).
 
-## Hard rules
-- Never modify the kernel or write kernel modules.
-- Never write to /usr at runtime (it comes from the image, read-only). Config in /etc, models in /var, user memory in the user's home. Adding files under `system_files/usr` at build time is fine.
-- Never capture global keystrokes or the screen directly. Use AT-SPI and permission portals.
-- Every brain action goes through the permission broker.
-- For every new component, answer the component checklist below before building it.
+## Core design rules (never break these)
+1. The OS enforces, the model suggests. Memory lookup, snapshots, verification, permissions and valid tool names are enforced by code, never left to the model.
+2. The tunnel is the product. Tools are typed, coarse-grained and connected by shared types.
+3. Any model can drive. Local small model for everyday/private work, cloud for hard tasks, chosen by the router.
+4. Every action goes through the permission broker. No shortcuts.
+5. Credentials never enter model context or brain-d memory.
+6. Never modify the kernel. Never write to `/usr` at runtime.
+7. Never capture global keystrokes or the raw screen. Use accessibility (AT-SPI) and portals.
+8. Data locations: binaries in the image (`/usr`), config `/etc`, models `/var`, user data and memory in the user's home.
 
-## Component checklist
-1. Which layer (see `docs/plan/01-architecture.md`)?
-2. Which process and which user owns it?
-3. Who can call it, and over what channel (D-Bus, Unix socket, HTTP/MCP)?
-4. Does it need broker approval?
-5. Where does its data live?
-6. What happens offline or on crash?
-7. How does it update and roll back?
+## Checklist for every new component
+Which layer? Which process and user owns it? Who can call it, over what channel (D-Bus, Unix socket, HTTP/MCP)? Does it need broker approval? Where does its data live? What happens offline or on crash? How does it update and roll back?
 
-## Repo layout
-- `Containerfile`: the image recipe (`FROM` line picks the base image).
-- `build_files/build.sh`: runs inside the image at build time.
-- `system_files/`: copied into the image as-is (`etc/`, `usr/`).
-- `image-template.env`: image name, owner, description.
-- `Justfile`: shortcut commands (`just build`, `just build-iso`, ...).
-- `.github/workflows/build.yml`: builds, pushes to ghcr.io, signs with cosign (`SIGNING_SECRET`).
-- `.github/workflows/build-disk.yml`: builds installer ISOs/disk images.
-- `disk_config/`: installer and disk image settings.
-- `docs/plan/`, `docs/phases/`, `TASKS.md`: the plan.
+## Plan map
+docs/plan/00-vision.md            product, editions, non-goals
+docs/plan/01-strategy.md          why tunnel-first, competition, moat
+docs/plan/02-architecture.md      layers, processes, IPC, data locations
+docs/plan/03-brain.md             orchestration, router, Reflex, planner, recipes
+docs/plan/04-tunnel-and-tools.md  tool spec, adapters, shared types, catalog v0
+docs/plan/05-security.md          broker, permissions, credentials, undo, audit
+docs/plan/06-base-os.md           Fedora, bootc, image build, customization
+docs/plan/07-windows-compat.md    Wine/Proton and VM tiers
+docs/plan/08-ux.md                screens and UX principles
+docs/plan/09-memory.md            Vault as context engine
+docs/plan/10-roadmap.md           phases, tracks, gates
+docs/plan/11-decisions.md         decisions log
+docs/plan/12-risks.md             risks and open questions
+docs/plan/ideas.md                backlog
+docs/plan/glossary.md             plain-English terms
+docs/plan/changelog.md            plan history
+docs/phases/phase-N.md            tasks and gates per phase
 
-## Maintaining the plan
-- The repo is the single source of truth. Plan lives in `docs/plan/`, phase work in `docs/phases/`.
-- After each task: tick it in `TASKS.md`, update the active phase file, add a "Learned" note.
-- New ideas go to `docs/plan/ideas.md` first (Exploring, Accepted, Parked).
-- Decisions go to `docs/plan/02-decisions.md`. Never delete entries; mark them Superseded and link the replacement.
-- Every plan change: one dated line in `docs/plan/changelog.md`, and its own git commit starting with `plan:`.
-- Big design decisions happen in the user's separate planning chat. Plan updates pasted from it are applied as above.
-- End of each session: give a 10-line status summary the user can paste back into the planning chat.
+## Repo layout (image build)
+Containerfile                     image recipe; FROM line picks the base (Aurora, pinned by digest)
+build_files/build.sh              runs inside the image at build time
+system_files/                     copied into the image as-is (etc/, usr/)
+image-template.env                image name (aios), owner (rhkrohan), description
+Justfile                          shortcut commands (just build, just build-iso, ...)
+.github/workflows/build.yml       builds, pushes to ghcr.io/rhkrohan/aios, signs with cosign (SIGNING_SECRET); skips docs-only pushes
+.github/workflows/build-disk.yml  builds ISO and qcow2 from the pushed image (manual run)
+disk_config/                      installer (iso.toml) and disk image (disk.toml) settings
+cosign.pub                        public signing key (cosign.key is git-ignored, never commit it)

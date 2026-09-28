@@ -1,25 +1,29 @@
-# Phase 0: Bootable base (ACTIVE)
+# Phase 0: Bootable base
+Status: Active
 
-Goal: our own image builds, boots in a VM and on a laptop, and bootc updates and rolls back.
+## Goal
+Our own image boots in a VM and on one laptop, and updates and rolls back atomically. No AI yet.
 
 ## Tasks
-### Setup
-- [x] 1. Create repo from `ublue-os/image-template` and clone it
-- [x] 2. Generate cosign key and add it as repo secret `SIGNING_SECRET` (builds fail at signing without it)
-- [x] 3. Set the `FROM` line (Aurora first) and fill in `image-template.env`
-- [ ] 4. Set up a test VM and pick a test laptop
-
-### Build
-- [x] 5. First unchanged build pushed to ghcr.io by GitHub Actions
-- [ ] 6. One visible change (wallpaper, name placeholder)
-- [ ] 7. Stub brain-d systemd unit that only logs "brain-d started"
-- [ ] 8. Build an ISO with bootc-image-builder
+Setup
+- [x] Create repo from ublue-os/image-template
+- [x] Generate cosign key pair; add private key to repo secrets
+- [x] Set Containerfile FROM line to Aurora (KDE)
+- [ ] Set up test VM (virt-manager or GNOME Boxes on an x86_64 Linux host; UTM emulation on the Mac as fallback)
+- [ ] Choose test laptop
+Build
+- [x] First unchanged build; confirm image on ghcr.io
+- [ ] Visible change: wallpaper + [OS NAME] placeholder branding
+- [ ] Stub systemd user unit for brain-d that only logs "brain-d started"
+- [ ] Build ISO with bootc-image-builder
+- [ ] Set up dev / beta / stable tags (installer `disk_config/iso.toml` currently points at `:latest`)
+- [ ] Enforce signature verification on installed machines (ship `cosign.pub` + containers policy in the image)
 
 ## Gate
-- [ ] Install in VM: desktop loads, brain-d stub ran
-- [ ] Install on laptop: Wi-Fi, GPU, sleep work
-- [ ] Push a second version and update into it
-- [ ] Roll back and confirm it boots
+- [ ] Install from ISO in VM; desktop loads; brain-d stub ran
+- [ ] Install on laptop; Wi-Fi, GPU, sleep work
+- [ ] Push second version; `bootc upgrade`; reboot into it
+- [ ] `bootc rollback`; previous version boots
 
 ## Learned
 - 2026-09-28 (task 1): Repo `rhkrohan/aios` (public) created from the template with `gh repo create --template`. The template's default base is **Bazzite**, not Aurora, so task 3 must change the `FROM` line. `image-template.env` still has placeholders (`image-template`, `alice-and-bob`), and `disk_config/iso-*.toml` points at `ghcr.io/ublue-os/image-template`. Creating the repo triggered a build automatically; it is expected to fail at signing until task 2. Template ships Apache-2.0.
@@ -29,3 +33,4 @@ Goal: our own image builds, boots in a VM and on a laptop, and bootc updates and
 - 2026-09-28 (task 5): First signed build succeeded (run 36456196070, about 14 min), pushed as `ghcr.io/rhkrohan/image-template:latest` (still Bazzite base, template name). Verified locally with `cosign verify --key cosign.pub`. Every push to main, even docs-only, triggers a full build; consider adding `docs/**`, `*.md` to `paths-ignore` in `build.yml`.
 - 2026-09-28: Collaborator `muhammadrashid4587` invited with write access.
 - 2026-09-28 (task 3): Base switched to `ghcr.io/ublue-os/aurora:stable` pinned by digest (version 44.20260922.1, Fedora 44). Aurora is published for amd64 only, so ARM VMs on the Mac are not an option; test VM must be x86_64 hardware or slow emulation. Image renamed to `aios` (must match repo name, `build-disk.yml` assumes it). Template bug: `build-disk.yml` expects `disk_config/iso.toml` but the template ships `iso-kde.toml`/`iso-gnome.toml`; renamed KDE one to `iso.toml`, removed GNOME. Docs-only pushes no longer trigger builds.
+- 2026-09-28: First Aurora-based build succeeded (run 36460943270): `ghcr.io/rhkrohan/aios:latest` is signed (verified with `cosign verify`) and public (anonymous pull works).

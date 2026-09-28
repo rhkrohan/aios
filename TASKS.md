@@ -1,21 +1,22 @@
-# TASKS
+# Tasks
 
-Active phase: **Phase 0, Bootable base**. Details and learned notes: `docs/phases/phase-0-bootable-base.md`.
+## Active
+- [ ] **Set up test VM on an x86_64 Linux host (virt-manager or GNOME Boxes), or UTM emulation on the Mac as fallback** - Phase 0, Aurora is amd64 only
+- [ ] **Stub brain-d systemd user unit that logs "brain-d started"** - Phase 0
+- [ ] **Visible change: wallpaper + [OS NAME] placeholder** - Phase 0
+- [ ] **Build ISO with bootc-image-builder** - Phase 0
 
-## Setup
-- [x] 1. Create repo from `ublue-os/image-template` (`rhkrohan/aios`, public) and clone it
-- [x] 2. Generate cosign key pair and add the private key as repo secret `SIGNING_SECRET`
-- [x] 3. Set the `FROM` line to Aurora (template default is Bazzite) and fill in `image-template.env`
-- [ ] 4. Set up a test VM (x86_64 host required: Aurora is amd64 only) and pick a test laptop
+## Waiting On
 
-## Build
-- [x] 5. First unchanged build pushed to ghcr.io by GitHub Actions (signed)
-- [ ] 6. One visible change (wallpaper, [OS NAME] placeholder)
-- [ ] 7. Stub brain-d systemd unit that only logs "brain-d started"
-- [ ] 8. Build an ISO with bootc-image-builder (via `build-disk.yml`)
+## Someday
+- [ ] **Pick the OS name** - candidates in docs/plan/ideas.md
+- [ ] **Choose test laptop for Phase 0 gate**
+- [ ] **List 10 Windows apps for the Phase 5 test list**
+- [ ] **Decide core license (Apache-2.0 vs GPL)**
 
-## Gate
-- [ ] 9. Install in VM: desktop loads, brain-d stub ran
-- [ ] 10. Install on laptop: Wi-Fi, GPU, sleep work
-- [ ] 11. Push a second version and update into it (`bootc upgrade`)
-- [ ] 12. Roll back (`bootc rollback`) and confirm it boots
+## Done
+- [x] ~~Generate cosign key pair, add SIGNING_SECRET~~ (2026-09-28)
+- [x] ~~Set FROM line to Aurora, rename image to aios, fix ISO config path~~ (2026-09-28)
+- [x] ~~First build, signed, public at ghcr.io/rhkrohan/aios:latest~~ (2026-09-28)
+- [x] ~~Invite collaborator muhammadrashid4587 (write)~~ (2026-09-28)
+- [x] ~~Create repo from ublue-os/image-template~~ (2026-09-28)
