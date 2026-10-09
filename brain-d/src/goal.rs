@@ -68,6 +68,7 @@ struct Run<'a> {
     model_calls: u32,
     request: String,
     principal: String,
+    own: bool,
     history: String,
     /// What memory said, and how names are hidden from the model.
     recall: crate::memory::Recall,
@@ -99,17 +100,17 @@ impl Run<'_> {
 }
 
 /// Run a goal to the end. Returns what the conversation should remember.
-pub fn run(ctx: &Ctx, g: &Shared, request: &str, principal: &str, history: &str, last_goal: Option<String>) -> Turn {
+/// `own`: decided by where the goal came from (the owner's shell, a watcher, a helper), never by its name.
+pub fn run(ctx: &Ctx, g: &Shared, request: &str, principal: &str, own: bool, history: &str, last_goal: Option<String>) -> Turn {
     let mut turn = Turn { request: request.to_string(), ..Default::default() };
     match Model::from_env() {
         Ok(model) => {
             // readahead: what this requester may remember about this request
             let privacy = ctx.system.lock().unwrap()["privacy"].as_u64().unwrap_or(1);
             let who = if principal == "owner" { format!("{} (via brain-d)", model.name) } else { principal.to_string() };
-            let own = principal == "owner" || principal.starts_with("Watcher");
             let recall = crate::memory::recall(&ctx.capd, request, &who, own, privacy);
             emit(g, json!({ "t": "recall", "shown": recall.shown, "held_back": recall.held_back, "hidden_names": recall.redactor.active(), "privacy": privacy }));
-            let mut r = Run { ctx, g, model, start: Instant::now(), model_calls: 0, request: request.to_string(), principal: principal.to_string(), history: history.to_string(), recall };
+            let mut r = Run { ctx, g, model, start: Instant::now(), model_calls: 0, request: request.to_string(), principal: principal.to_string(), own, history: history.to_string(), recall };
             if let Err(e) = run_inner(&mut r, &mut turn, last_goal) {
                 emit(g, json!({ "t": "error", "message": e }));
             }
@@ -187,7 +188,7 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
         let ai = if r.principal == "owner" { format!("{} (via brain-d)", r.model.name) } else { r.principal.clone() };
         let pass = r.ctx.capd.call(
             "request_pass",
-            json!({ "principal": ai, "goal": r.request, "tools": tools, "paths": paths, "ttl": 900, "uses": n * 4 + 4, "budget": n * 4 + 4, "no_egress": !egress, "whole_home": paths.iter().any(|p| p.is_empty()), "own": r.principal == "owner" || r.principal.starts_with("Watcher") }),
+            json!({ "principal": ai, "goal": r.request, "tools": tools, "paths": paths, "ttl": 900, "uses": n * 4 + 4, "budget": n * 4 + 4, "no_egress": !egress, "whole_home": paths.iter().any(|p| p.is_empty()), "own": r.own }),
         )?;
         let token = pass["token"].as_str().unwrap_or_default().to_string();
         let pass_id = pass["id"].as_str().unwrap_or_default().to_string();

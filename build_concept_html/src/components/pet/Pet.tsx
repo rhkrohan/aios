@@ -12,8 +12,10 @@ import { useTour } from "@/lib/tour";
 import type { FileKind, Run, Step } from "@/lib/types";
 import { FileIcon } from "../icons/Icons";
 import { StringOrb } from "../icons/StringOrb";
+import { Crown, Hearts, Mouth } from "./PetFace";
+import { useTeam } from "@/lib/team";
 
-const SIZE = 58;
+const SIZE = 76;
 
 // ---------------------------------------------------------------- where to go
 
@@ -58,6 +60,8 @@ export function Pet() {
   const windows = useOS((s) => s.windows);
   const approval = useOS((s) => s.approval);
   const [eye, setEye] = useState({ x: 0, y: 0 });
+  const [hearts, setHearts] = useState<number[]>([]);
+  const leads = useTeam((s) => s.helpers.length > 0);
   const lastActivity = useRef(0);
   const drag = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const seenRun = useRef<string | null>(null);
@@ -195,6 +199,10 @@ export function Pet() {
     pet.setHeld(false);
     lastActivity.current = Date.now();
     if (!wasDrag) {
+      // a little love every time you tap it
+      const burst = [Date.now(), Date.now() + 1, Date.now() + 2];
+      setHearts(burst);
+      setTimeout(() => setHearts((h) => h.filter((x) => !burst.includes(x))), 1500);
       pet.setChatOpen(!pet.chatOpen);
       if (pet.mood === "sleeping") pet.setMood("idle");
     }
@@ -218,7 +226,7 @@ export function Pet() {
             initial={{ opacity: 0, y: 6, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="glass absolute bottom-[calc(100%+10px)] right-1/2 translate-x-1/2 whitespace-nowrap max-w-[260px] truncate rounded-2xl rounded-br-md bg-glass-strong backdrop-blur-xl border border-glass-line shadow-pop px-3 py-1.5 text-[12.5px] font-medium"
+            className="glass absolute bottom-[calc(100%+12px)] right-0 w-max max-w-[260px] rounded-2xl rounded-br-md bg-glass-strong backdrop-blur-xl border border-glass-line shadow-pop px-3 py-1.5 text-[12.5px] font-medium leading-snug line-clamp-3"
           >
             {pet.bubble}
           </motion.div>
@@ -239,12 +247,13 @@ export function Pet() {
         onPointerUp={onPointerUp}
         animate={
           pet.mood === "happy"
-            ? { y: [0, -14, 0, -8, 0], rotate: [0, -6, 6, 0] }
+            ? { y: [0, -16, 0, -8, 0], rotate: [0, -6, 6, 0], scaleX: [1, 0.92, 1.1, 0.96, 1], scaleY: [1, 1.1, 0.9, 1.04, 1] }
             : pet.mood === "sleeping"
-              ? { y: [0, 2, 0], scale: [1, 1.03, 1] }
+              ? { y: [0, 2, 0], scaleX: [1, 1.05, 1], scaleY: [1, 0.97, 1] }
               : flying
                 ? { y: [0, -3, 0], rotate: [-4, 4, -4] }
-                : { y: [0, -5, 0] }
+                : // squash and stretch, like it's breathing and bouncing on its toes
+                  { y: [0, -6, 0, 0], scaleX: [1, 0.96, 1.06, 1], scaleY: [1, 1.05, 0.94, 1] }
         }
         transition={{ duration: pet.mood === "happy" ? 0.9 : pet.mood === "sleeping" ? 3.2 : flying ? 0.6 : 2.4, repeat: pet.mood === "happy" ? 0 : Infinity, ease: "easeInOut" }}
         className="relative cursor-grab active:cursor-grabbing"
@@ -252,11 +261,17 @@ export function Pet() {
         role="button"
         aria-label={`${BRAND.name} buddy`}
       >
-        <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_40%_35%,rgba(255,255,255,.55),rgba(160,170,255,.25)_45%,rgba(90,100,240,.12))] ring-1 ring-white/40 shadow-[0_8px_22px_-8px_rgba(60,60,200,.6)] backdrop-blur-sm" />
-        <span className="absolute inset-0 grid place-items-center">
-          <StringOrb size={SIZE} busy={busy} strands={18} />
+        {/* the pet is the SIOS orb itself, a little bigger than its box so the strands can reach out */}
+        <span className="absolute -inset-[14%] grid place-items-center drop-shadow-[0_6px_14px_rgba(80,90,230,.45)]">
+          <StringOrb size={Math.round(SIZE * 1.28)} busy={busy} strands={22} lively={1} />
         </span>
-        <Eyes mood={pet.mood} eye={eye} />
+        {/* the eyes were drawn for a 58px pet: scale them with it */}
+        <span className="absolute inset-0 pointer-events-none" style={{ transform: `scale(${SIZE / 58})` }}>
+          <Eyes mood={pet.mood} eye={eye} />
+        </span>
+        <Mouth mood={pet.mood} size={SIZE} />
+        {leads && <Crown size={SIZE} />}
+        <Hearts burst={hearts} />
         {pet.mood === "sleeping" && <Zzz />}
       </motion.div>
 

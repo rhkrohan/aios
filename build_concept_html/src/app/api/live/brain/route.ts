@@ -10,6 +10,11 @@ const ACTIONS: Record<string, string> = {
   watch_list: "watch.list",
   watch_add: "watch.add",
   watch_remove: "watch.remove",
+  helpers_list: "helpers.list",
+  helpers_add: "helpers.add",
+  helpers_update: "helpers.update",
+  helpers_remove: "helpers.remove",
+  helpers_run_now: "helpers.run_now",
 };
 
 export async function POST(req: Request) {

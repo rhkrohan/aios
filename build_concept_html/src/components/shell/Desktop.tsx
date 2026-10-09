@@ -37,6 +37,7 @@ import { TerminalApp } from "../apps/TerminalApp";
 import { CommandBar } from "../command/CommandBar";
 import { TaskPill } from "../command/TaskPill";
 import { Pet } from "../pet/Pet";
+import { PetTeam } from "../pet/PetTeam";
 import { Dock } from "./Dock";
 import { Toasts } from "./Toasts";
 import { TopBar } from "./TopBar";
@@ -167,6 +168,7 @@ export function Desktop() {
       <CommandBar />
       <Launcher />
       <TaskPill />
+      <PetTeam />
       <Pet />
       <ApprovalSheet />
       <Toasts />

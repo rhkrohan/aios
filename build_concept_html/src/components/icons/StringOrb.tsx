@@ -8,7 +8,11 @@ import { useEffect, useRef } from "react";
  * together they weave a sphere. A few strands reach past the edge as loose
  * filaments. Calm when idle; faster and wilder while the assistant works.
  */
-export function StringOrb({ size = 72, busy = false, strands = 24 }: { size?: number; busy?: boolean; strands?: number }) {
+export function StringOrb({ size = 72, busy = false, strands = 24, lively = 0 }: { size?: number; busy?: boolean; strands?: number; lively?: number }) {
+  const livelyRef = useRef(lively);
+  useEffect(() => {
+    livelyRef.current = lively;
+  }, [lively]);
   const ref = useRef<HTMLCanvasElement>(null);
   const busyRef = useRef(busy);
   useEffect(() => {
@@ -49,7 +53,10 @@ export function StringOrb({ size = 72, busy = false, strands = 24 }: { size?: nu
       const dt = Math.min(64, now - last) / 1000;
       last = now;
       energy += ((busyRef.current ? 1 : 0) - energy) * Math.min(1, dt * 3);
-      t += dt * (0.35 + energy * 1.1);
+      // "lively" (the pets): the strands sweep faster and wider, and the whole ball breathes
+      const live = livelyRef.current;
+      t += dt * (0.35 + live * 0.75 + energy * 1.1);
+      const breathe = 1 + live * 0.05 * Math.sin(t * 1.3);
 
       ctx.clearRect(0, 0, size, size);
 
@@ -66,7 +73,7 @@ export function StringOrb({ size = 72, busy = false, strands = 24 }: { size?: nu
       ctx.globalCompositeOperation = "lighter";
       ctx.lineWidth = Math.max(0.6, size / 140);
       for (const s of seeds) {
-        const amp = 0.05 + s.reach * (0.6 + energy * 0.7) + energy * 0.04;
+        const amp = 0.05 + live * 0.07 + s.reach * (0.6 + live * 0.5 + energy * 0.7) + energy * 0.04;
         const grad = ctx.createLinearGradient(c - R, c - R, c + R, c + R);
         grad.addColorStop(0, `hsla(${195 + s.hue * 30}, 95%, 72%, ${0.5 + energy * 0.2})`);
         grad.addColorStop(0.5, `hsla(${232 + s.hue * 20}, 90%, 66%, ${0.55 + energy * 0.2})`);
@@ -77,11 +84,11 @@ export function StringOrb({ size = 72, busy = false, strands = 24 }: { size?: nu
         for (let k = 0; k <= steps; k++) {
           const a = (k / steps) * Math.PI * 2;
           const wobble = Math.sin(3 * a + s.phase + t) * amp + Math.sin(2 * a - s.phase * 1.3 - t * 0.8) * amp * 0.35;
-          const r = R * (0.16 + 0.82 * s.base + wobble * (0.45 + 0.55 * s.base));
+          const r = R * breathe * (0.16 + 0.82 * s.base + wobble * (0.45 + 0.55 * s.base));
           // squash into an ellipse and rotate: many tilted ellipses read as a sphere
           const x = Math.cos(a) * r;
           const y = Math.sin(a) * r * (0.35 + 0.65 * Math.abs(Math.cos(s.tilt + t * 0.15)));
-          const rot = s.tilt + t * 0.2;
+          const rot = s.tilt + t * (0.2 + live * 0.15);
           const px = c + x * Math.cos(rot) - y * Math.sin(rot);
           const py = c + x * Math.sin(rot) + y * Math.cos(rot);
           if (k === 0) ctx.moveTo(px, py);

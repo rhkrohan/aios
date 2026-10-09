@@ -9,6 +9,7 @@
 mod briefing;
 mod capd;
 mod goal;
+mod helpers;
 mod mcp;
 mod memory;
 mod model;
@@ -49,6 +50,8 @@ pub struct Brain {
     /// Conversations: what each recent turn asked, understood and did.
     pub threads: Arc<Mutex<HashMap<String, Vec<goal::Turn>>>>,
     pub watchers: Mutex<Vec<Watcher>>,
+    /// The pet team: helpers with long-running jobs.
+    pub helpers: helpers::Shared,
     /// Newest last: (goal, request, who asked). The shell picks up goals outside AIs start.
     pub recent: Mutex<Vec<(String, String, String)>>,
 }
@@ -67,12 +70,13 @@ impl Brain {
             goals: Mutex::new(HashMap::new()),
             threads: Arc::new(Mutex::new(HashMap::new())),
             watchers: Mutex::new(std::fs::read(state.join("watchers.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()),
+            helpers: Arc::new(Mutex::new(helpers::Helpers::open(state.join("helpers.json")))),
             recent: Mutex::new(Vec::new()),
         }
     }
 
     /// Start a goal on its own thread, as part of a conversation; returns (goal, thread).
-    pub fn start(&self, request: &str, principal: &str, thread: Option<&str>) -> (String, String) {
+    pub fn start(&self, request: &str, principal: &str, own: bool, thread: Option<&str>) -> (String, String) {
         let thread = thread.filter(|t| !t.is_empty()).map(String::from).unwrap_or_else(|| format!("t{:x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)));
         let turns = self.threads.lock().unwrap().get(&thread).cloned().unwrap_or_default();
         let history = if turns.is_empty() {
@@ -92,7 +96,7 @@ impl Brain {
         let threads = self.threads.clone();
         let (request, principal, th) = (request.to_string(), principal.to_string(), thread.clone());
         std::thread::spawn(move || {
-            let turn = goal::run(&ctx, &shared, &request, &principal, &history, last_goal);
+            let turn = goal::run(&ctx, &shared, &request, &principal, own, &history, last_goal);
             threads.lock().unwrap().entry(th).or_default().push(turn);
         });
         (id, thread)
@@ -116,7 +120,11 @@ impl Brain {
             "goal.start" => match p["request"].as_str().map(str::trim).filter(|s| !s.is_empty()) {
                 // "principal" is attribution (who asked); the broker still needs the owner's grant
                 Some(r) => {
-                    let (goal, thread) = self.start(&r.chars().take(2000).collect::<String>(), p["principal"].as_str().unwrap_or("owner"), p["thread"].as_str());
+                    // over the socket: the owner's shell, or an outside AI through the MCP door.
+                    // Anything that isn't plainly the owner is labeled an outside AI and is never "own".
+                    let asked = p["principal"].as_str().unwrap_or("owner");
+                    let (principal, own) = if asked == "owner" { ("owner".to_string(), true) } else if asked.ends_with("(MCP)") { (asked.to_string(), false) } else { (format!("{asked} (MCP)"), false) };
+                    let (goal, thread) = self.start(&r.chars().take(2000).collect::<String>(), &principal, own, p["thread"].as_str());
                     Ok(json!({ "goal": goal, "thread": thread }))
                 }
                 None => Err("empty request".into()),
@@ -129,6 +137,27 @@ impl Brain {
             "routines.clear" => {
                 self.ctx.routines.lock().unwrap().clear();
                 Ok(json!({ "cleared": true }))
+            }
+            "helpers.list" => Ok(helpers::status(self)),
+            "helpers.add" => self.helpers.lock().unwrap().add(p).map(|h| json!(h)),
+            "helpers.update" => {
+                let mut hs = self.helpers.lock().unwrap();
+                let out = hs.list.iter_mut().find(|h| h.id == p["id"].as_str().unwrap_or("")).map(|h| {
+                    if let Some(a) = p["active"].as_bool() {
+                        h.active = a;
+                    }
+                    json!(h)
+                });
+                hs.save();
+                out.ok_or_else(|| "no such helper".to_string())
+            }
+            "helpers.remove" => {
+                let mut hs = self.helpers.lock().unwrap();
+                let id = p["id"].as_str().unwrap_or("").to_string();
+                hs.list.retain(|h| h.id != id);
+                hs.running.remove(&id);
+                hs.save();
+                Ok(json!({ "removed": id }))
             }
             "watch.list" => Ok(json!(*self.watchers.lock().unwrap())),
             "watch.add" => {
@@ -190,6 +219,7 @@ fn serve() {
     }
     println!("brain-d listening on {}", sock.display());
     spawn_watchers(brain.clone());
+    helpers::spawn(brain.clone());
     for conn in listener.incoming().flatten() {
         let brain = brain.clone();
         std::thread::spawn(move || {
@@ -198,7 +228,19 @@ fn serve() {
                 if line.trim().is_empty() {
                     continue;
                 }
-                let resp = serde_json::from_str::<Value>(&line).map(|r| brain.handle(&r)).unwrap_or_else(|e| json!({ "error": format!("not JSON: {e}") }));
+                let resp = serde_json::from_str::<Value>(&line)
+                    .map(|r| {
+                        // "Run now" needs the shared brain to start a goal
+                        if r["method"] == "helpers.run_now" {
+                            match helpers::run_now(&brain, r["params"]["id"].as_str().unwrap_or("")) {
+                                Some(goal) => json!({ "ok": { "goal": goal } }),
+                                None => json!({ "error": "that helper is busy or doesn't exist" }),
+                            }
+                        } else {
+                            brain.handle(&r)
+                        }
+                    })
+                    .unwrap_or_else(|e| json!({ "error": format!("not JSON: {e}") }));
                 if writeln!(w, "{resp}").is_err() {
                     break;
                 }
@@ -229,7 +271,7 @@ fn spawn_watchers(brain: Arc<Brain>) {
                 if fresh.is_empty() || busy {
                     continue;
                 }
-                let (id, _) = brain.start(&w.request, &format!("Watcher ({})", w.folder), None);
+                let (id, _) = brain.start(&w.request, &format!("Watcher ({})", w.folder), true, None);
                 if let Some(g) = brain.goals.lock().unwrap().get(&id).cloned() {
                     running.insert(w.id.clone(), g);
                 }
