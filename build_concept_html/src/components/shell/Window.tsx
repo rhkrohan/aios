@@ -47,7 +47,7 @@ export function Window({ win, active, children, toolbar }: { win: Win; active: b
       onPointerDown={() => !active && focus(win.id)}
       style={{ ...frame, zIndex: win.z, pointerEvents: win.minimized ? "none" : "auto" }}
       className={clsx(
-        "fixed flex flex-col overflow-hidden bg-surface text-fg",
+        "fixed flex flex-col overflow-clip bg-surface text-fg",
         max ? "rounded-none" : "rounded-[14px]",
         "shadow-window transition-[filter] duration-200",
       )}

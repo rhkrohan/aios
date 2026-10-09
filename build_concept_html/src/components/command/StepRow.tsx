@@ -10,6 +10,8 @@ import {
   Gauge,
   History,
   LoaderCircle,
+  GitBranch,
+  ScanSearch,
   ShieldCheck,
   Sparkles,
   Wrench,
@@ -17,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { BrokerDecision, Step, StepKind } from "@/lib/types";
+import type { BrokerDecision, PolicyCheck, Step, StepKind } from "@/lib/types";
 import { Chip, type Tone } from "../ui";
 
 const KIND_ICON: Record<StepKind, LucideIcon> = {
@@ -29,10 +31,12 @@ const KIND_ICON: Record<StepKind, LucideIcon> = {
   tool: Wrench,
   verify: ShieldCheck,
   think: Sparkles,
+  guard: ScanSearch,
+  delegate: GitBranch,
 };
 
 export const BROKER_LABEL: Record<BrokerDecision, { text: string; tone: Tone }> = {
-  allowed: { text: "Read only", tone: "neutral" },
+  allowed: { text: "Allowed", tone: "neutral" },
   remembered: { text: "Already allowed", tone: "neutral" },
   "asked-once": { text: "You allowed once", tone: "ok" },
   "asked-session": { text: "You allowed", tone: "ok" },
@@ -109,7 +113,8 @@ export function StepRow({ step, details, last, cloud }: { step: Step; details: b
                 {step.tool.snapshot && <Chip tone="ok">snapshot</Chip>}
               </span>
             </div>
-            <pre className="px-2.5 py-1.5 text-fg-2 whitespace-pre-wrap break-all">
+            {step.checks && <CheckTrace checks={step.checks} />}
+            <pre className="px-2.5 py-1.5 text-fg-2 whitespace-pre-wrap break-all border-t border-line">
               <span className="text-fg-3">→ </span>
               {JSON.stringify(step.tool.input)}
               {done && step.tool.output && (
@@ -124,5 +129,28 @@ export function StepRow({ step, details, last, cloud }: { step: Step; details: b
         )}
       </div>
     </motion.li>
+  );
+}
+
+const CHECK_DOT: Record<PolicyCheck["result"], string> = {
+  pass: "bg-ok",
+  ask: "bg-accent",
+  fail: "bg-danger",
+  skip: "bg-line-strong",
+};
+
+/** The broker's reasoning, one line per check, in the order it ran. */
+export function CheckTrace({ checks }: { checks: PolicyCheck[] }) {
+  return (
+    <ol className="px-2.5 py-2 grid gap-1 font-sans text-[12px]">
+      {checks.map((c) => (
+        <li key={c.id} className={clsx("flex gap-2", c.result === "skip" && "opacity-45")}>
+          <span className={clsx("mt-[5px] size-1.5 rounded-full shrink-0", CHECK_DOT[c.result])} />
+          <span className="min-w-0">
+            <span className="font-medium text-fg">{c.label}</span> <span className="text-fg-2">{c.detail}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

@@ -2,7 +2,11 @@
 
 import { create } from "zustand";
 import { initialFs, NETWORKS } from "./seed";
+import { GENESIS, chainHash, payloadOf } from "./audit";
+import { SEED_TRUST, type TrustRecord } from "./trust";
 import type {
+  AuditEntry,
+  Lease,
   AppId,
   ApprovalAnswer,
   ApprovalRequest,
@@ -16,13 +20,16 @@ import type {
 } from "./types";
 
 const APP_DEFAULTS: Record<AppId, { title: string; w: number; h: number }> = {
-  files: { title: "Files", w: 820, h: 520 },
+  files: { title: "Files", w: 1120, h: 640 },
   activity: { title: "Activity", w: 760, h: 600 },
   settings: { title: "Settings", w: 860, h: 580 },
   mail: { title: "Mail", w: 860, h: 560 },
   browser: { title: "Browser", w: 900, h: 600 },
   store: { title: "Store", w: 1040, h: 660 },
   security: { title: "Security Center", w: 1060, h: 680 },
+  goals: { title: "Goals", w: 1100, h: 680 },
+  systemmap: { title: "System Map", w: 1180, h: 700 },
+  memory: { title: "Memory", w: 980, h: 640 },
   terminal: { title: "Terminal", w: 680, h: 420 },
 };
 
@@ -38,6 +45,12 @@ export interface Settings {
   offlineFallback: boolean;
   onlineAi: "Claude" | "ChatGPT" | "Gemini" | null;
   showDetails: boolean;
+  /** Send requests that match no scripted demo to the live planner. */
+  liveAi: boolean;
+  /** Send every request to the live planner, even scripted ones. */
+  liveAll: boolean;
+  /** Requests go to a real model on real files, through capd. */
+  liveMachine: boolean;
 }
 
 export interface Installed {
@@ -79,6 +92,12 @@ interface OSState {
   schedules: Record<string, string | null>;
   setupOpen: boolean;
   dnd: boolean;
+  volume: number;
+  brightness: number;
+  bluetooth: boolean;
+  setVolume: (v: number) => void;
+  setBrightness: (v: number) => void;
+  setBluetooth: (on: boolean) => void;
   power: Power;
   /** After shutting down, boot into the lock screen instead of the desktop. */
   bootTo: "on" | "locked";
@@ -86,6 +105,16 @@ interface OSState {
   aiPaused: boolean;
   /** Default rule per place, from the Security Center access map. */
   scopeRules: Record<string, ScopeRule>;
+  leases: Lease[];
+  audit: AuditEntry[];
+  /** Live machine: capd's own verdict on its log (null when simulated). */
+  liveIntact: boolean | null;
+  pausedPrincipals: string[];
+  /** Connected AI apps and the areas each may use. */
+  connectedApps: Record<string, { since: string; areas: string[] }>;
+  trust: Record<string, TrustRecord>;
+  /** Goals the user stopped from the Goals app; the engine checks before each step. */
+  cancelledRuns: string[];
   wifi: { connected: string | null; networks: Network[] };
   fs: Record<string, FileItem[]>;
   mail: MailMessage[];
@@ -95,11 +124,19 @@ interface OSState {
   windows: Win[];
   zTop: number;
   commandOpen: boolean;
+  /** The search launcher (apps, files, settings, actions). */
+  launcherOpen: boolean;
   focusedRunId: string | null;
 
   // brain
   runs: Run[];
   approval: PendingApproval | null;
+  /** Approvals waiting behind the current one (several goals can ask at once). */
+  approvalQueue: PendingApproval[];
+  /** Who is using a file right now. Agents wait their turn (coordination). */
+  locks: Record<string, { holder: string; since: number }>;
+  /** Files you dropped on the orb: the next request is about them. */
+  askFiles: { id: string; dir: string; name: string }[];
   grants: string[];
   /** Standing rules the user set: tools that never need to ask. */
   standingRules: string[];
@@ -114,6 +151,7 @@ interface OSState {
   moveWindow: (id: string, x: number, y: number) => void;
   setWindowProps: (id: string, props: Record<string, string>) => void;
   setCommandOpen: (open: boolean) => void;
+  setLauncherOpen: (open: boolean) => void;
   setFocusedRun: (id: string | null) => void;
 
   // machine actions
@@ -133,6 +171,15 @@ interface OSState {
   setPower: (p: Power, bootTo?: "on" | "locked") => void;
   setAiPaused: (on: boolean) => void;
   setScopeRule: (path: string, rule: ScopeRule) => void;
+  addLease: (l: Omit<Lease, "id" | "createdAt">) => Lease;
+  revokeLease: (id: string) => void;
+  consumeLease: (id: string) => void;
+  appendAudit: (e: Omit<AuditEntry, "id" | "seq" | "at" | "prevHash" | "hash">) => void;
+  togglePrincipal: (id: string) => void;
+  setConnectedApp: (id: string, v: { since: string; areas: string[] } | null) => void;
+  adjustTrust: (principal: string, delta: number, why: string) => void;
+  cancelRun: (id: string) => void;
+  setTrustOverride: (principal: string, level: number | null) => void;
   setFs: (fs: Record<string, FileItem[]>) => void;
   setWifi: (ssid: string | null) => void;
   addMail: (m: MailMessage) => void;
@@ -144,6 +191,9 @@ interface OSState {
   updateStep: (runId: string, stepId: string, patch: Partial<Step>) => void;
   askApproval: (req: ApprovalRequest) => Promise<ApprovalAnswer>;
   answerApproval: (a: ApprovalAnswer) => void;
+  lock: (path: string, holder: string) => void;
+  setAskFiles: (files: { id: string; dir: string; name: string }[]) => void;
+  unlock: (path: string) => void;
   grant: (tool: string) => void;
   revokeGrants: () => void;
   removeStandingRule: (tool: string) => void;
@@ -174,6 +224,9 @@ export const useOS = create<OSState>((set, get) => ({
   schedules: {},
   setupOpen: false,
   dnd: false,
+  volume: 45,
+  brightness: 72,
+  bluetooth: true,
   power: "booting",
   bootTo: "on",
   aiPaused: false,
@@ -187,18 +240,29 @@ export const useOS = create<OSState>((set, get) => ({
     "network": "allow",
     "settings": "ask",
   },
+  leases: [],
+  audit: [],
+  liveIntact: null,
+  pausedPrincipals: [],
+  connectedApps: { "claude-desktop": { since: "Connected 3 days ago", areas: ["Files", "Settings"] } },
+  trust: SEED_TRUST,
+  cancelledRuns: [],
   wifi: { connected: "Drexel-Guest", networks: NETWORKS },
   fs: initialFs(),
   mail: [],
-  settings: { privacy: 1, askBeforeCloud: true, offlineFallback: true, onlineAi: "Claude", showDetails: false },
+  settings: { privacy: 1, askBeforeCloud: true, offlineFallback: true, onlineAi: "Claude", showDetails: false, liveAi: true, liveAll: false, liveMachine: false },
 
   windows: [],
   zTop: 10,
   commandOpen: false,
+  launcherOpen: false,
   focusedRunId: null,
 
   runs: [],
   approval: null,
+  approvalQueue: [],
+  locks: {},
+  askFiles: [],
   grants: [],
   standingRules: ["gmail.draft"],
   recipes: [],
@@ -251,7 +315,8 @@ export const useOS = create<OSState>((set, get) => ({
   moveWindow: (id, x, y) => set({ windows: get().windows.map((w) => (w.id === id ? { ...w, x, y } : w)) }),
   setWindowProps: (id, props) =>
     set({ windows: get().windows.map((w) => (w.id === id ? { ...w, props: { ...w.props, ...props } } : w)) }),
-  setCommandOpen: (open) => set({ commandOpen: open }),
+  setCommandOpen: (open) => set({ commandOpen: open, launcherOpen: open ? false : get().launcherOpen }),
+  setLauncherOpen: (open) => set({ launcherOpen: open, commandOpen: open ? false : get().commandOpen }),
   setFocusedRun: (id) => set({ focusedRunId: id }),
 
   setTheme: (t) => set({ theme: t }),
@@ -277,9 +342,62 @@ export const useOS = create<OSState>((set, get) => ({
   setSchedule: (recipe, when) => set({ schedules: { ...get().schedules, [recipe]: when } }),
   setSetupOpen: (open) => set({ setupOpen: open }),
   setDnd: (on) => set({ dnd: on }),
+  setVolume: (v) => set({ volume: Math.max(0, Math.min(100, Math.round(v))) }),
+  setBrightness: (v) => set({ brightness: Math.max(0, Math.min(100, Math.round(v))) }),
+  setBluetooth: (on) => set({ bluetooth: on }),
   setPower: (p, bootTo) => set({ power: p, ...(bootTo ? { bootTo } : {}) }),
   setAiPaused: (on) => set({ aiPaused: on }),
   setScopeRule: (path, rule) => set({ scopeRules: { ...get().scopeRules, [path]: rule } }),
+  addLease: (l) => {
+    const lease: Lease = { ...l, id: uid("lease"), createdAt: Date.now() };
+    set({ leases: [lease, ...get().leases] });
+    return lease;
+  },
+  revokeLease: (id) => {
+    const lease = get().leases.find((l) => l.id === id);
+    const leases = get().leases.filter((l) => l.id !== id);
+    const stillSession = lease && leases.some((l) => l.tool === lease.tool && l.kind === "session");
+    set({ leases, grants: lease && !stillSession ? get().grants.filter((g) => g !== lease.tool) : get().grants });
+  },
+  consumeLease: (id) =>
+    set({
+      leases: get()
+        .leases.map((l) => (l.id === id && l.usesLeft !== null ? { ...l, usesLeft: l.usesLeft - 1 } : l))
+        .filter((l) => l.usesLeft === null || l.usesLeft > 0),
+    }),
+  appendAudit: (e) => {
+    const log = get().audit;
+    const prevHash = log[0]?.hash ?? GENESIS;
+    const base = { ...e, id: uid("aud"), seq: (log[0]?.seq ?? 0) + 1, at: Date.now() };
+    const hash = chainHash(prevHash, payloadOf(base));
+    set({ audit: [{ ...base, prevHash, hash }, ...log] });
+  },
+  togglePrincipal: (id) => {
+    const p = get().pausedPrincipals;
+    set({ pausedPrincipals: p.includes(id) ? p.filter((x) => x !== id) : [...p, id] });
+  },
+  cancelRun: (id) => {
+    const st = get();
+    // a goal waiting on an approval is answered "no" so it can stop cleanly
+    if (st.approval?.request.runId === id) st.answerApproval("deny");
+    set({ cancelledRuns: Array.from(new Set([...get().cancelledRuns, id])) });
+  },
+  adjustTrust: (principal, delta, why) => {
+    if (principal === "owner") return;
+    const cur = get().trust[principal] ?? { score: 10, override: null, history: [] };
+    const score = Math.max(0, Math.min(100, cur.score + delta));
+    set({ trust: { ...get().trust, [principal]: { ...cur, score, history: [{ at: Date.now(), delta, why }, ...cur.history].slice(0, 20) } } });
+  },
+  setTrustOverride: (principal, level) => {
+    const cur = get().trust[principal] ?? { score: 10, override: null, history: [] };
+    set({ trust: { ...get().trust, [principal]: { ...cur, override: level } } });
+  },
+  setConnectedApp: (id, v) => {
+    const next = { ...get().connectedApps };
+    if (v) next[id] = v;
+    else delete next[id];
+    set({ connectedApps: next });
+  },
   setFs: (fs) => set({ fs }),
   setWifi: (ssid) => set({ wifi: { ...get().wifi, connected: ssid } }),
   addMail: (m) => set({ mail: [m, ...get().mail] }),
@@ -295,16 +413,26 @@ export const useOS = create<OSState>((set, get) => ({
     }),
   askApproval: (request) =>
     new Promise<ApprovalAnswer>((resolve) => {
-      set({ approval: { request, resolve } });
+      const pending = { request, resolve };
+      if (get().approval) set({ approvalQueue: [...get().approvalQueue, pending] });
+      else set({ approval: pending });
     }),
   answerApproval: (a) => {
     const p = get().approval;
     if (!p) return;
-    set({ approval: null });
+    const [next, ...rest] = get().approvalQueue;
+    set({ approval: next ?? null, approvalQueue: rest });
     p.resolve(a);
   },
+  setAskFiles: (files) => set({ askFiles: files }),
+  lock: (path, holder) => set({ locks: { ...get().locks, [path]: { holder, since: Date.now() } } }),
+  unlock: (path) => {
+    const next = { ...get().locks };
+    delete next[path];
+    set({ locks: next });
+  },
   grant: (tool) => set({ grants: Array.from(new Set([...get().grants, tool])) }),
-  revokeGrants: () => set({ grants: [] }),
+  revokeGrants: () => set({ grants: [], leases: get().leases.filter((l) => l.kind === "standing") }),
   removeStandingRule: (tool) => set({ standingRules: get().standingRules.filter((t) => t !== tool) }),
   saveRecipe: (id) => set({ recipes: Array.from(new Set([...get().recipes, id])) }),
 
@@ -319,6 +447,29 @@ export const useOS = create<OSState>((set, get) => ({
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));
 
+/**
+ * Data-only snapshot of the starting machine, taken once at load. The guided
+ * demo resets to it so every run looks the same.
+ */
+const INITIAL = Object.fromEntries(Object.entries(useOS.getState()).filter(([, v]) => typeof v !== "function")) as Partial<OSState>;
+
+export function resetMachine() {
+  useOS.setState({
+    ...INITIAL,
+    fs: initialFs(),
+    power: "on",
+    windows: [],
+    toasts: [],
+    notifications: [],
+    approval: null,
+    approvalQueue: [],
+    locks: {},
+    commandOpen: false,
+    focusedRunId: null,
+  });
+}
+
+
 /** The run the brain pill should reflect: anything waiting first, then running. */
 export function selectBrainState(s: OSState): "idle" | "working" | "waiting" | "paused" {
   if (s.aiPaused) return "paused";
@@ -326,3 +477,6 @@ export function selectBrainState(s: OSState): "idle" | "working" | "waiting" | "
   if (s.runs.some((r) => r.status === "running")) return "working";
   return "idle";
 }
+
+// QA hook: open the app with ?debug to inspect the machine from the console.
+if (typeof window !== "undefined" && window.location.search.includes("debug")) (window as unknown as { __os: typeof useOS }).__os = useOS;

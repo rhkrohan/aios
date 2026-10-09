@@ -1,0 +1,9 @@
+{
+  "name": "big-folder",
+  "title": "Big folder",
+  "about": "An Archive folder with 500 small reports. Tests the briefing staying small, search by name, and moving many files in one step.",
+  "try": ["Move all the 2024 reports in Archive into Archive/2024", "Find the reports about invoices", "How many files are in Archive?"],
+  "generate": [
+    { "folder": "Archive", "count": 500, "name": "report-{year}-{n}.txt", "text": "Report {n} for {year}: {topic}.\n" }
+  ]
+}

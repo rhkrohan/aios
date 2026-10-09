@@ -1,15 +1,26 @@
 "use client";
 
 import { Monitor } from "lucide-react";
-import { FolderIcon, type FolderColor } from "../icons/Icons";
+import { type FolderColor } from "../icons/Icons";
+import { DesktopDisc } from "./DesktopDisc";
+import { Launcher } from "./Launcher";
+import { MachineSwitch } from "./MachineSwitch";
+import { useLiveMirror } from "@/lib/livemirror";
 import { Widgets } from "./Widgets";
 import { SetupFlow, markSetupSeen } from "./SetupFlow";
 import { PowerLayer } from "./Power";
+import { Tour } from "./Tour";
+import { useTour } from "@/lib/tour";
+import { Play } from "lucide-react";
 import { Wallpaper } from "./Wallpaper";
 import { AnimatePresence } from "motion/react";
 import { useEffect } from "react";
 import { BRAND } from "@/lib/brand";
 import { useOS } from "@/lib/store";
+import { MISSIONS } from "@/lib/missions";
+import { registerScenarios } from "@/lib/scenarios";
+
+registerScenarios(MISSIONS);
 import type { Win } from "@/lib/types";
 import { ApprovalSheet } from "../approval/ApprovalSheet";
 import { ActivityApp } from "../apps/ActivityApp";
@@ -18,8 +29,14 @@ import { MailApp } from "../apps/MailApp";
 import { SettingsApp } from "../apps/SettingsApp";
 import { StoreApp } from "../apps/StoreApp";
 import { SecurityApp } from "../apps/SecurityApp";
-import { BrowserApp, TerminalApp } from "../apps/SimpleApps";
+import { GoalsApp } from "../apps/GoalsApp";
+import { SystemMapApp } from "../apps/SystemMapApp";
+import { MemoryApp } from "../apps/MemoryApp";
+import { BrowserApp } from "../apps/SimpleApps";
+import { TerminalApp } from "../apps/TerminalApp";
 import { CommandBar } from "../command/CommandBar";
+import { TaskPill } from "../command/TaskPill";
+import { Pet } from "../pet/Pet";
 import { Dock } from "./Dock";
 import { Toasts } from "./Toasts";
 import { TopBar } from "./TopBar";
@@ -36,13 +53,19 @@ function AppBody({ win }: { win: Win }) {
     case "mail":
       return <MailApp />;
     case "browser":
-      return <BrowserApp />;
+      return <BrowserApp win={win} />;
     case "terminal":
-      return <TerminalApp />;
+      return <TerminalApp win={win} />;
     case "store":
       return <StoreApp win={win} />;
     case "security":
       return <SecurityApp win={win} />;
+    case "goals":
+      return <GoalsApp win={win} />;
+    case "systemmap":
+      return <SystemMapApp win={win} />;
+    case "memory":
+      return <MemoryApp />;
   }
 }
 
@@ -56,12 +79,13 @@ const DESKTOP_ITEMS: { label: string; path: string; color?: FolderColor; thumb?:
 ];
 
 export function Desktop() {
+  useLiveMirror();
   const theme = useOS((s) => s.theme);
   const windows = useOS((s) => s.windows);
   const commandOpen = useOS((s) => s.commandOpen);
   const setCommandOpen = useOS((s) => s.setCommandOpen);
   const openApp = useOS((s) => s.openApp);
-  const fs = useOS((s) => s.fs);
+  const tourActive = useTour((s) => s.active);
   const approval = useOS((s) => s.approval);
 
   useEffect(() => {
@@ -106,33 +130,25 @@ export function Desktop() {
       <div className="absolute inset-x-0 top-[19%] grid justify-items-center pointer-events-none text-white [text-shadow:0_2px_24px_rgba(20,30,50,.45),0_1px_3px_rgba(20,30,50,.35)]">
         <div className="font-display font-extralight text-[clamp(56px,7.2vw,104px)] leading-none tracking-[.5em] pl-[.5em]">{BRAND.name}</div>
         <div className="mt-5 font-display font-normal text-[13px] tracking-[.62em] pl-[.62em] uppercase text-white/85">{BRAND.tagline}</div>
+        {!tourActive && (
+        <button
+          onClick={() => useTour.getState().start()}
+          className="pointer-events-auto mt-7 h-10 pl-3 pr-4 rounded-full flex items-center gap-2 text-[13.5px] font-semibold text-white bg-white/15 hover:bg-white/25 backdrop-blur-xl ring-1 ring-white/35 [text-shadow:none] transition-colors"
+        >
+          <span className="size-6 rounded-full bg-white text-[#1d1f24] grid place-items-center">
+            <Play size={11} fill="currentColor" />
+          </span>
+          Watch it in action
+        </button>
+        )}
       </div>
 
+      <MachineSwitch />
+
       {/* desktop items */}
-      <div className="absolute top-[52px] left-3 grid gap-1">
+      <div className="absolute top-[52px] left-3 grid gap-3">
         {DESKTOP_ITEMS.map((d) => (
-          <button
-            key={d.label}
-            onDoubleClick={() => openApp("files", { path: d.path })}
-            className="group w-[96px] flex flex-col items-center rounded-2xl py-2 outline-none"
-          >
-            <span className="rounded-2xl p-1 transition-colors group-focus:bg-white/25">
-              {d.thumb ? (
-                <span className="block size-[58px] rounded-[10px] overflow-hidden ring-[3px] ring-white shadow-[0_6px_14px_-4px_rgba(0,0,0,.45)] rotate-[-3deg] my-[3px]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={d.thumb} alt="" className="size-full object-cover" draggable={false} />
-                </span>
-              ) : (
-                <FolderIcon size={64} color={d.color} />
-              )}
-            </span>
-            <span className="mt-0.5 text-[13px] font-semibold px-1.5 rounded-md text-white [text-shadow:0_1px_3px_rgba(0,0,0,.55)] group-focus:bg-accent group-focus:[text-shadow:none]">
-              {d.label}
-            </span>
-            <span className="text-[11.5px] text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,.55)]">
-              {fs[d.path]?.length ?? 0} items
-            </span>
-          </button>
+          <DesktopDisc key={d.label} label={d.label} path={d.path} photo={d.thumb} onOpen={() => openApp("files", { path: d.path })} />
         ))}
       </div>
 
@@ -149,10 +165,14 @@ export function Desktop() {
 
       <Dock />
       <CommandBar />
+      <Launcher />
+      <TaskPill />
+      <Pet />
       <ApprovalSheet />
       <Toasts />
       <SetupFlow />
       <PowerLayer />
+      <Tour />
 
       {/* phones: this is a desktop OS mock */}
       <div className="md:hidden fixed inset-0 z-[2000] grid place-items-center bg-surface-2 p-6 text-center">

@@ -17,7 +17,7 @@ interface Client {
 }
 
 const CLIENTS: Client[] = [
-  { id: "claude", name: "Claude Desktop", kind: "AI app on this computer", tile: <LogoTile logo="claude" size={44} /> },
+  { id: "claude-desktop", name: "Claude Desktop", kind: "AI app on this computer", tile: <LogoTile logo="claude" size={44} /> },
   { id: "chatgpt", name: "ChatGPT", kind: "AI app on this computer", tile: <Tile bg="linear-gradient(160deg,#3c4148,#15181c)">G</Tile> },
   { id: "phone", name: "Your phone", kind: "Ask from anywhere on your home network", tile: <Tile bg="linear-gradient(160deg,#6fb4ff,#3d6fe0)"><Smartphone size={18} /></Tile> },
   { id: "custom", name: "Custom app", kind: "Anything that speaks MCP", tile: <Tile bg="linear-gradient(160deg,#a6adb7,#6b737e)"><SquareCode size={18} /></Tile> },
@@ -37,9 +37,9 @@ function Tile({ bg, children }: { bg: string; children: React.ReactNode }) {
  */
 export function ConnectionsPage() {
   const pushToast = useOS((s) => s.pushToast);
-  const [connected, setConnected] = useState<Record<string, { since: string; areas: string[] }>>({
-    claude: { since: "Connected 3 days ago", areas: ["Files", "Mail", "Settings"] },
-  });
+  // Shared with the broker: these areas are what lib/policy.ts enforces.
+  const connected = useOS((s) => s.connectedApps);
+  const setApp = useOS((s) => s.setConnectedApp);
   const [pairing, setPairing] = useState<Client | null>(null);
   const [copied, setCopied] = useState(false);
   const endpoint = `http://${BRAND.device}.local:7801/mcp`;
@@ -70,9 +70,7 @@ export function ConnectionsPage() {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      const next = { ...connected };
-                      delete next[c.id];
-                      setConnected(next);
+                      setApp(c.id, null);
                       pushToast({ title: `${c.name} disconnected`, body: "It can no longer use this computer.", tone: "info" });
                     }}
                   >
@@ -88,13 +86,13 @@ export function ConnectionsPage() {
                 <div className="mt-3 pl-[58px]">
                   <div className="text-[12px] font-semibold text-fg-2 mb-1.5">Can use</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {["Files", "Mail", "Settings", "Network", "Apps"].map((a) => {
+                    {["Files", "Mail", "Settings", "Network", "Apps", "Web"].map((a) => {
                       const has = on.areas.includes(a);
                       return (
                         <button
                           key={a}
                           onClick={() =>
-                            setConnected({ ...connected, [c.id]: { ...on, areas: has ? on.areas.filter((x) => x !== a) : [...on.areas, a] } })
+                            setApp(c.id, { ...on, areas: has ? on.areas.filter((x) => x !== a) : [...on.areas, a] })
                           }
                           className={clsx(
                             "h-7 px-3 rounded-full text-[12.5px] border transition-colors flex items-center gap-1",
@@ -146,7 +144,7 @@ export function ConnectionsPage() {
             client={pairing}
             onClose={() => setPairing(null)}
             onDone={() => {
-              setConnected({ ...connected, [pairing.id]: { since: "Connected just now", areas: ["Files", "Settings"] } });
+              setApp(pairing.id, { since: "Connected just now", areas: ["Files", "Settings"] });
               pushToast({ title: `${pairing.name} connected`, body: "It can use Files and Settings. Change that anytime.", tone: "ok" });
               setPairing(null);
             }}

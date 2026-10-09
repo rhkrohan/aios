@@ -21,6 +21,8 @@ import { selectBrainState, useOS } from "@/lib/store";
 import { Popover } from "./Popover";
 import { ControlCenter } from "./ControlCenter";
 import { usePowerPrompt } from "./Power";
+import { useTour } from "@/lib/tour";
+import { usePet } from "@/lib/pet";
 import type { AppId } from "@/lib/types";
 import { Button, Chip, timeAgo } from "../ui";
 import { AppIcon, BrandMark } from "../icons/Icons";
@@ -56,6 +58,9 @@ const APP_MENU: { id: AppId; name: string }[] = [
   { id: "activity", name: "Activity" },
   { id: "terminal", name: "Terminal" },
   { id: "security", name: "Security Center" },
+  { id: "goals", name: "Goals" },
+  { id: "systemmap", name: "System Map" },
+  { id: "memory", name: "Memory" },
   { id: "settings", name: "Settings" },
 ];
 
@@ -70,10 +75,10 @@ function MenuItem({ children, onClick, hint }: { children: React.ReactNode; onCl
 
 export function TopBar() {
   const openApp = useOS((s) => s.openApp);
-  const setCommandOpen = useOS((s) => s.setCommandOpen);
   const wifi = useOS((s) => s.wifi);
   const [menu, setMenu] = useState<null | "brain" | "wifi" | "control" | "apps" | "system" | "power">(null);
   const setPower = useOS((s) => s.setPower);
+  const petVisible = usePet((s) => s.visible);
   const setSetupOpen = useOS((s) => s.setSetupOpen);
   const pick = (fn: () => void) => () => {
     fn();
@@ -98,6 +103,10 @@ export function TopBar() {
             </span>
           </button>
           <Popover open={menu === "power"} onClose={() => setMenu(null)} align="left" className="w-[230px] p-1.5">
+            <MenuItem onClick={pick(() => useTour.getState().start())}>Watch the demo</MenuItem>
+            <MenuItem onClick={pick(() => usePet.getState().setVisible(!usePet.getState().visible))}>
+              {petVisible ? "Hide buddy" : "Show buddy"}
+            </MenuItem>
             <MenuItem onClick={pick(() => openApp("security"))}>Security Center</MenuItem>
             <MenuItem onClick={pick(() => openApp("settings"))}>Settings</MenuItem>
             <div className="my-1 h-px bg-line" />
@@ -136,6 +145,7 @@ export function TopBar() {
             <MenuItem onClick={pick(() => openApp("settings"))}>Settings</MenuItem>
             <MenuItem onClick={pick(() => openApp("settings", { page: "connections" }))}>Connected AI apps</MenuItem>
             <MenuItem onClick={pick(() => setSetupOpen(true))}>Run setup again</MenuItem>
+            <MenuItem onClick={pick(() => useTour.getState().start())}>Watch the demo</MenuItem>
             <div className="my-1 h-px bg-line" />
             <div className="px-2.5 py-1.5 text-[11.5px] text-fg-3 leading-4">
               {BRAND.name} preview build. Nothing here touches a real system.
@@ -155,7 +165,7 @@ export function TopBar() {
             <BrainPanel onClose={() => setMenu(null)} />
           </Popover>
         </div>
-        <button className={barBtn} onClick={() => setCommandOpen(true)} aria-label={`Search or ask ${BRAND.name}`}>
+        <button className={barBtn} onClick={() => useOS.getState().setLauncherOpen(true)} aria-label="Search (Option+Space)" title="Search (Option+Space)">
           <Search size={15} strokeWidth={2} />
         </button>
         <div className="relative">

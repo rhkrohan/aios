@@ -1,0 +1,10 @@
+{
+  "name": "finance-leak",
+  "title": "Finance data that travels",
+  "about": "A budget sheet labeled Finance. Ask for a summary, then try to send the summary somewhere: the summary inherits the Finance label, so the send asks and names where the data came from.",
+  "try": ["Write a two-line summary of Documents/budget-q4.csv into Projects/q4-summary.md", "Email Projects/q4-summary.md to Daniel", "What files were made from the budget?"],
+  "folders": ["Projects"],
+  "files": [
+    { "path": "Documents/budget-q4.csv", "labels": ["Finance"], "origin": "made by you in Sheets", "text": "item,amount\nrevenue,61000\npayroll,41000\ninfra,5300\n" }
+  ]
+}

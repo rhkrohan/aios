@@ -128,7 +128,7 @@ function AiSpark() {
 
 // ---------------------------------------------------------------- files
 
-const FILE_COLOR: Record<Exclude<FileKind, "folder">, string> = {
+export const FILE_COLOR: Record<Exclude<FileKind, "folder">, string> = {
   pdf: "#d4524b",
   doc: "#3b74bf",
   sheet: "#2e8d5c",
@@ -260,6 +260,9 @@ const APP_BG: Record<AppId | "assistant", [string, string]> = {
   settings: ["#eceff2", "#a7afb8"],
   store: ["#8aa8ff", "#5a5ff0"],
   security: ["#5fd0a0", "#1f8a66"],
+  goals: ["#ffb057", "#e8743b"],
+  systemmap: ["#6ea8ff", "#3b4fd8"],
+  memory: ["#c79bff", "#7b4fe0"],
   assistant: ["#8fd3ff", "#4f6ef0"],
 };
 
@@ -339,6 +342,31 @@ export function AppIcon({ app, size = 48 }: { app: AppId | "assistant"; size?: n
         </g>
       )}
       {app === "assistant" && <OrbStar />}
+      {app === "goals" && (
+        <g fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
+          <circle cx="32" cy="32" r="15" strokeOpacity=".5" />
+          <circle cx="32" cy="32" r="8" />
+          <circle cx="32" cy="32" r="2.2" fill="#fff" />
+          <path d="M32 32 46 18" />
+        </g>
+      )}
+      {app === "memory" && (
+        <g fill="none" stroke="#fff" strokeLinecap="round" strokeLinejoin="round">
+          {/* linked memories: a small constellation */}
+          <path d="M21 24 32 18l11 6M21 24l4 15 7 7 7-7 4-15M32 18v12m-7 9 7-9 7 9" strokeWidth="2.4" strokeOpacity=".75" />
+          {[[21, 24], [32, 18], [43, 24], [25, 39], [39, 39], [32, 46], [32, 30]].map(([x, y]) => (
+            <circle key={`${x}-${y}`} cx={x} cy={y} r="3.4" fill="#fff" stroke="none" />
+          ))}
+        </g>
+      )}
+      {app === "systemmap" && (
+        <g fill="#fff">
+          <rect x="15" y="16" width="12" height="9" rx="2.5" />
+          <rect x="37" y="16" width="12" height="9" rx="2.5" />
+          <rect x="26" y="39" width="12" height="9" rx="2.5" />
+          <path d="M21 25v5h22v-5M32 30v9" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      )}
       {app === "security" && (
         <g>
           <path d="M32 13 47 19v11.5c0 9.6-6.3 17.6-15 20.5-8.7-2.9-15-10.9-15-20.5V19z" fill="#fff" />

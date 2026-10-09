@@ -2,7 +2,8 @@
 
 import clsx from "clsx";
 import { Activity, Folder, Globe, Mail, Settings, ShoppingBag, type LucideIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "motion/react";
+import { useRef, useState } from "react";
 import { BRAND } from "@/lib/brand";
 import { selectBrainState, useOS } from "@/lib/store";
 import type { AppId } from "@/lib/types";
@@ -19,7 +20,11 @@ const RIGHT: { id: AppId; name: string; icon: LucideIcon }[] = [
   { id: "settings", name: "Settings", icon: Settings },
 ];
 
-/** One quiet bar: line icons on both sides, the assistant raised in the middle. */
+const BASE = 44; // resting slot size
+const PEAK = 66; // size right under the pointer
+const REACH = 130; // how far the magnification spreads, in px
+
+/** A slim bar. Icons grow as the pointer passes over them, like macOS. */
 export function Dock() {
   const windows = useOS((s) => s.windows);
   const openApp = useOS((s) => s.openApp);
@@ -28,16 +33,18 @@ export function Dock() {
   const visible = windows.filter((w) => !w.minimized);
   const topZ = Math.max(0, ...visible.map((w) => w.z));
   const focused = visible.find((w) => w.z === topZ)?.app;
+  const mouseX = useMotionValue(Infinity);
 
   const item = (app: (typeof LEFT)[number]) => {
     const win = windows.find((w) => w.app === app.id);
     return (
-      <BarItem
+      <DockIcon
         key={app.id}
+        mouseX={mouseX}
         label={app.name}
-        icon={app.icon}
         focused={focused === app.id}
         running={!!win}
+        icon={app.icon}
         onClick={() => {
           if (!win) return openApp(app.id);
           if (!win.minimized && win.z === topZ) return minimize(win.id);
@@ -48,94 +55,142 @@ export function Dock() {
   };
 
   return (
-    <nav aria-label="Dock" className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[960]">
-      <div className="glass relative flex items-center h-[84px] px-3 rounded-[34px] bg-glass-strong backdrop-blur-3xl backdrop-saturate-150 border border-glass-line shadow-[0_1px_0_rgba(255,255,255,.7)_inset,0_28px_60px_-22px_rgba(10,20,40,.55)]">
-        <div className="flex items-center gap-1">{LEFT.map(item)}</div>
-        <AskButton />
-        <div className="flex items-center gap-1">{RIGHT.map(item)}</div>
+    <nav aria-label="Dock" className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[960]">
+      <div
+        onMouseMove={(e) => mouseX.set(e.clientX)}
+        onMouseLeave={() => mouseX.set(Infinity)}
+        className="glass flex items-end gap-1 h-[58px] px-2 pb-[7px] rounded-[22px] bg-glass-strong backdrop-blur-3xl backdrop-saturate-150 border border-glass-line shadow-[0_1px_0_rgba(255,255,255,.6)_inset,0_18px_40px_-16px_rgba(10,20,40,.45)]"
+      >
+        {LEFT.map(item)}
+        <span className="w-px h-6 self-center bg-fg/10 mx-1" />
+        <AskButton mouseX={mouseX} />
+        <span className="w-px h-6 self-center bg-fg/10 mx-1" />
+        {RIGHT.map(item)}
       </div>
     </nav>
   );
 }
 
-function BarItem({
+function useMagnify(mouseX: MotionValue<number>, ref: React.RefObject<HTMLElement | null>) {
+  const distance = useTransform(mouseX, (x) => {
+    const b = ref.current?.getBoundingClientRect();
+    return b ? x - b.left - b.width / 2 : Infinity;
+  });
+  const target = useTransform(distance, [-REACH, 0, REACH], [BASE, PEAK, BASE]);
+  const size = useSpring(target, { mass: 0.12, stiffness: 190, damping: 14 });
+  const scale = useTransform(size, (s) => s / BASE);
+  return { size, scale };
+}
+
+function DockIcon({
+  mouseX,
   label,
-  icon: Icon,
   focused,
   running,
+  icon: Icon,
   onClick,
 }: {
+  mouseX: MotionValue<number>;
   label: string;
-  icon: LucideIcon;
   focused: boolean;
   running: boolean;
+  icon: LucideIcon;
   onClick: () => void;
 }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const { size, scale } = useMagnify(mouseX, ref);
+  const [hover, setHover] = useState(false);
   return (
-    <button
+    <motion.button
+      ref={ref}
+      style={{ width: size, height: size }}
       onClick={onClick}
+      onHoverStart={() => setHover(true)}
+      onHoverEnd={() => setHover(false)}
       aria-label={label}
       className={clsx(
-        "group relative w-[76px] h-[66px] flex flex-col items-center justify-center gap-1.5 rounded-[20px] transition-all duration-200 outline-none",
-        "focus-visible:ring-2 focus-visible:ring-accent/40",
-        focused
-          ? "bg-white/90 [:root[data-theme=dark]_&]:bg-white/12 shadow-[0_1px_0_rgba(255,255,255,.9)_inset,0_8px_20px_-8px_rgba(30,40,80,.35)]"
-          : "hover:bg-black/[.04] [:root[data-theme=dark]_&]:hover:bg-white/[.06]",
+        "relative grid place-items-center rounded-[14px] outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+        focused && "bg-white/85 [:root[data-theme=dark]_&]:bg-white/12 shadow-[0_1px_0_rgba(255,255,255,.9)_inset,0_4px_12px_-6px_rgba(30,40,80,.35)]",
       )}
     >
-      <Icon size={23} strokeWidth={1.6} className={clsx("transition-colors", focused ? "text-ai-ink" : "text-fg")} />
-      <span className={clsx("text-[12px] leading-none", focused ? "font-semibold text-fg" : "font-medium text-fg-2 group-hover:text-fg")}>
-        {label}
-      </span>
-      <span className={clsx("absolute bottom-1 size-1 rounded-full bg-fg/45 transition-opacity", running && !focused ? "opacity-100" : "opacity-0")} />
-    </button>
+      <Tooltip show={hover} label={label} />
+      <motion.span style={{ scale }} className="grid place-items-center">
+        <Icon size={20} strokeWidth={1.7} className={focused ? "text-ai-ink" : "text-fg"} />
+      </motion.span>
+      <span className={clsx("absolute -bottom-[5px] size-1 rounded-full bg-fg/50 transition-opacity", running ? "opacity-100" : "opacity-0")} />
+    </motion.button>
   );
 }
 
-function AskButton() {
+function Tooltip({ show, label }: { show: boolean; label: string }) {
+  return (
+    <motion.span
+      initial={false}
+      animate={{ opacity: show ? 1 : 0, y: show ? 0 : 4 }}
+      transition={{ duration: 0.12 }}
+      className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#1b2027]/92 px-2.5 py-1 text-[12px] font-medium text-white"
+    >
+      {label}
+    </motion.span>
+  );
+}
+
+function AskButton({ mouseX }: { mouseX: MotionValue<number> }) {
   const open = useOS((s) => s.commandOpen);
   const setOpen = useOS((s) => s.setCommandOpen);
   const brain = useOS(selectBrainState);
   const busy = brain === "working" || brain === "waiting";
+  const ref = useRef<HTMLButtonElement>(null);
+  const { size, scale } = useMagnify(mouseX, ref);
+  const [hover, setHover] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const setAskFiles = useOS((s) => s.setAskFiles);
+  const fs = useOS((s) => s.fs);
+  const label = dropping ? "Ask about these" : brain === "paused" ? "AI paused" : brain === "waiting" ? "Needs your OK" : busy ? "Working" : `Ask ${BRAND.name}  ⌘K`;
 
   return (
-    <div className="relative w-[136px] h-[84px] mx-2">
-      <motion.button
-        aria-label={`Ask ${BRAND.name}`}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        whileHover={{ y: -2 }}
-        whileTap={{ scale: 0.97 }}
-        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-        className="glass absolute left-0 -top-[30px] w-[136px] h-[136px] rounded-full flex flex-col items-center justify-center gap-0.5 bg-glass-strong backdrop-blur-3xl border border-glass-line shadow-[0_1px_0_rgba(255,255,255,.8)_inset,0_22px_44px_-18px_rgba(40,40,120,.55)] outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-      >
-        <StringOrb size={84} busy={busy} />
-        <span className="text-[13px] font-semibold text-fg">{brain === "paused" ? "Paused" : brain === "waiting" ? "Needs you" : busy ? "Working" : `Ask ${BRAND.name}`}</span>
-      </motion.button>
-    </div>
-  );
-}
-
-/** A soft 3D sphere. Breathes while the assistant works. */
-export function OrbSphere({ size = 64, busy = false }: { size?: number; busy?: boolean }) {
-  return (
-    <span className="relative grid place-items-center" style={{ width: size, height: size }}>
-      <span
-        className={clsx("absolute -inset-2 rounded-full blur-xl transition-opacity duration-500", busy ? "opacity-90 animate-pulse" : "opacity-45")}
-        style={{ background: "radial-gradient(closest-side, rgba(110,98,255,.65), transparent)" }}
-      />
-      <motion.span
-        className="relative rounded-full"
-        style={{
-          width: size,
-          height: size,
-          background:
-            "radial-gradient(circle at 34% 28%, #f2efff 0%, #b9b0ff 14%, #7c6cff 38%, #4a46e8 64%, #2b2fb3 88%, #232690 100%)",
-          boxShadow: "inset -6px -8px 16px rgba(20,20,90,.45), inset 4px 6px 12px rgba(255,255,255,.35), 0 8px 18px -6px rgba(60,50,200,.55)",
-        }}
-        animate={busy ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-        transition={busy ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.4 }}
-      />
-    </span>
+    <motion.button
+      ref={ref}
+      aria-label={`Ask ${BRAND.name}`}
+      aria-expanded={open}
+      onClick={() => setOpen(!open)}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("application/x-sios")) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setDropping(true);
+      }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDropping(false);
+        try {
+          const list = JSON.parse(e.dataTransfer.getData("application/x-sios")) as { id: string; dir: string }[];
+          const files = list
+            .map(({ id, dir }) => ({ id, dir, name: fs[dir]?.find((x) => x.id === id)?.name ?? "" }))
+            .filter((x) => x.name);
+          if (files.length) {
+            setAskFiles(files);
+            setOpen(true);
+          }
+        } catch {
+          /* not ours */
+        }
+      }}
+      onHoverStart={() => setHover(true)}
+      onHoverEnd={() => setHover(false)}
+      style={{ width: size, height: size }}
+      className={clsx(
+        "relative grid place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+        "bg-white/70 [:root[data-theme=dark]_&]:bg-white/10 border border-glass-line",
+        busy && "ring-2 ring-ai/40",
+        dropping && "ring-4 ring-ai/60 scale-110",
+      )}
+    >
+      <Tooltip show={hover || dropping} label={label} />
+      <motion.span style={{ scale }} className="grid place-items-center">
+        <StringOrb size={30} busy={busy} strands={16} />
+      </motion.span>
+    </motion.button>
   );
 }

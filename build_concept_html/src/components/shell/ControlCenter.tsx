@@ -2,7 +2,6 @@
 
 import clsx from "clsx";
 import { Bluetooth, CircleAlert, CircleCheck, Info, Moon, MoonStar, Sun, Volume2, Wifi, WifiOff, type LucideIcon } from "lucide-react";
-import { useState } from "react";
 import { useOS } from "@/lib/store";
 import { timeAgo } from "../ui";
 
@@ -16,9 +15,12 @@ export function ControlCenter() {
   const setDnd = useOS((s) => s.setDnd);
   const notes = useOS((s) => s.notifications);
   const clear = useOS((s) => s.clearNotifications);
-  const [bt, setBt] = useState(true);
-  const [bright, setBright] = useState(72);
-  const [vol, setVol] = useState(45);
+  const bt = useOS((s) => s.bluetooth);
+  const setBt = useOS((s) => s.setBluetooth);
+  const bright = useOS((s) => s.brightness);
+  const setBright = useOS((s) => s.setBrightness);
+  const vol = useOS((s) => s.volume);
+  const setVol = useOS((s) => s.setVolume);
 
   return (
     <div className="p-3 w-[340px]">

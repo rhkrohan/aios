@@ -1,0 +1,28 @@
+{
+  "name": "messy-downloads",
+  "title": "Messy Downloads",
+  "about": "Twenty mixed files dumped in Downloads: invoices, photos, installers, notes, some from the web. Tests sorting, labels carried along, and one big organize step.",
+  "try": ["Clean up my Downloads", "Put all the money files in Documents/Finance", "Move every installer to the Trash"],
+  "files": [
+    { "path": "Downloads/invoice-1001.pdf", "labels": ["Finance"], "untrusted": true, "origin": "email attachment from billing@hostco.example", "text": "Invoice 1001, $120\n" },
+    { "path": "Downloads/invoice-1002.pdf", "labels": ["Finance"], "untrusted": true, "origin": "email attachment from billing@hostco.example", "text": "Invoice 1002, $86\n" },
+    { "path": "Downloads/receipt-coffee.txt", "labels": ["Finance"], "origin": "made by you", "text": "Coffee, $4.50\n" },
+    { "path": "Downloads/bank-statement-sep.pdf", "labels": ["Finance", "Sensitive"], "origin": "downloaded from your bank", "text": "September statement (demo)\n" },
+    { "path": "Downloads/beach.jpg", "labels": ["Personal"], "origin": "made by you, phone sync", "text": "(photo)\n" },
+    { "path": "Downloads/dog.jpg", "labels": ["Personal"], "origin": "made by you, phone sync", "text": "(photo)\n" },
+    { "path": "Downloads/concert.jpg", "labels": ["Personal"], "origin": "made by you, phone sync", "text": "(photo)\n" },
+    { "path": "Downloads/setup-tool-2.1.rpm", "untrusted": true, "origin": "downloaded from tools.example", "text": "(installer)\n" },
+    { "path": "Downloads/editor-installer.AppImage", "untrusted": true, "origin": "downloaded from editor.example", "text": "(installer)\n" },
+    { "path": "Downloads/meeting-notes-oct.md", "labels": ["Work"], "origin": "made by you", "text": "Meeting notes, October\n" },
+    { "path": "Downloads/todo.txt", "origin": "made by you", "text": "- call mom\n- renew passport\n" },
+    { "path": "Downloads/paper-draft.docx", "labels": ["Work"], "origin": "made by you in Word", "text": "Draft paper on capability systems\n" },
+    { "path": "Downloads/slides-week3.pdf", "untrusted": true, "origin": "downloaded from course site", "text": "Week 3 slides\n" },
+    { "path": "Downloads/song.mp3", "untrusted": true, "origin": "downloaded from music.example", "text": "(audio)\n" },
+    { "path": "Downloads/data.csv", "labels": ["Work"], "origin": "made by you", "text": "a,b\n1,2\n" },
+    { "path": "Downloads/backup.zip", "origin": "made by you", "text": "(archive)\n" },
+    { "path": "Downloads/passport-scan.jpg", "labels": ["Sensitive", "Personal"], "origin": "made by you", "text": "(scan)\n" },
+    { "path": "Downloads/rent-receipt.pdf", "labels": ["Finance"], "origin": "email attachment from landlord", "untrusted": true, "text": "Rent receipt, October\n" },
+    { "path": "Downloads/readme-from-zip.txt", "untrusted": true, "origin": "downloaded from tools.example", "text": "Thanks for downloading!\n" },
+    { "path": "Downloads/recipe.txt", "labels": ["Personal"], "origin": "made by you", "text": "Pancakes: flour, milk, eggs\n" }
+  ]
+}

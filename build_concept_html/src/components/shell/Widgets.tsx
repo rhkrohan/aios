@@ -33,17 +33,29 @@ export function Widgets() {
   const openApp = useOS((s) => s.openApp);
   const dismissed = useOS((s) => s.suggestionDismissed);
   const dismiss = useOS((s) => s.dismissSuggestion);
-  const downloads = useOS((s) => s.fs["~/Downloads"].filter((x) => x.kind !== "folder").length);
-  const setCommandOpen = useOS((s) => s.setCommandOpen);
+  const downloads = useOS((s) => (s.fs["~/Downloads"] ?? []).filter((x) => x.kind !== "folder").length);
+  const live = useOS((s) => s.settings.liveMachine);
+  const fs = useOS((s) => s.fs);
   const left = todos.filter((t) => !t.done).length;
 
+  // live with nothing run yet: the real files that changed most recently
+  const RANK: Record<string, number> = { "Just now": 0, Today: 1, Yesterday: 2 };
+  const liveRecent = Object.entries(fs)
+    .filter(([d]) => d !== "~/Trash")
+    .flatMap(([d, items]) => items.filter((i) => i.kind !== "folder" && i.modified in RANK).map((i) => ({ d, i })))
+    .sort((a, b) => RANK[a.i.modified] - RANK[b.i.modified])
+    .slice(0, 3)
+    .map(({ d, i }) => ({ id: i.id, title: i.name, sub: `${i.modified === "Just now" ? "Changed just now" : `Changed ${i.modified.toLowerCase()}`} in ${d === "~" ? "Home" : d.replace(/^~\//, "")}`, area: null, file: { kind: (i.kind === "pdf" || i.kind === "slides" ? i.kind : "text") as "text" | "slides" | "pdf", name: i.name } }));
+  const fromRuns = runs.slice(0, 3).map((r) => ({ id: r.id, title: r.request, sub: `${timeAgo(r.startedAt)}, ${r.undone ? "undone" : r.status === "done" ? "done by " + BRAND.name : r.status}`, area: r.area, file: null as null | { kind: "text" | "slides" | "pdf"; name: string } }));
   const recent = runs.length
-    ? runs.slice(0, 3).map((r) => ({ id: r.id, title: r.request, sub: `${timeAgo(r.startedAt)}, ${r.undone ? "undone" : r.status === "done" ? "done by " + BRAND.name : r.status}`, area: r.area, file: null as null | { kind: "text" | "slides" | "pdf"; name: string } }))
-    : [
-        { id: "a", title: "SIOS design guidelines", sub: "Edited 2m ago in Documents", area: null, file: { kind: "pdf" as const, name: "guidelines.pdf" } },
-        { id: "b", title: "Product roadmap", sub: "Viewed 1h ago in Projects", area: null, file: { kind: "slides" as const, name: "roadmap.key" } },
-        { id: "c", title: "Q3 notes", sub: "Created 3h ago in Documents", area: null, file: { kind: "text" as const, name: "Q3 notes.md" } },
-      ];
+    ? fromRuns
+    : live
+      ? liveRecent
+      : [
+          { id: "a", title: "SIOS design guidelines", sub: "Edited 2m ago in Documents", area: null, file: { kind: "pdf" as const, name: "guidelines.pdf" } },
+          { id: "b", title: "Product roadmap", sub: "Viewed 1h ago in Projects", area: null, file: { kind: "slides" as const, name: "roadmap.key" } },
+          { id: "c", title: "Q3 notes", sub: "Created 3h ago in Documents", area: null, file: { kind: "text" as const, name: "Q3 notes.md" } },
+        ];
 
   return (
     <aside className="hidden xl:flex fixed right-4 top-[52px] z-[5] w-[316px] flex-col gap-3" aria-label="Widgets">
@@ -133,7 +145,6 @@ export function Widgets() {
                 variant="primary"
                 onClick={() => {
                   dismiss();
-                  setCommandOpen(true);
                   void runRequest("Clean up my Downloads");
                 }}
               >

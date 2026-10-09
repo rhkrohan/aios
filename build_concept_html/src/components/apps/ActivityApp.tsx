@@ -11,6 +11,7 @@ import { useOS } from "@/lib/store";
 import type { Run } from "@/lib/types";
 import { StepRow } from "../command/StepRow";
 import { RoutinesView } from "./RoutinesView";
+import { principalName } from "@/lib/policy";
 import { AREA_ICON, Button, Chip, timeAgo } from "../ui";
 
 type Filter = "all" | "changes" | "approvals";
@@ -176,7 +177,7 @@ function Entry({ run, open, onToggle }: { run: Run; open: boolean; onToggle: () 
             <dl className="mx-4 mb-4 grid grid-cols-[120px_1fr] gap-x-3 gap-y-1 rounded-xl bg-surface-2 border border-line p-3 text-[12px]">
               <dt className="text-fg-3">Asked by</dt>
               <dd className="flex items-center gap-1">
-                <User size={12} /> You, from the command bar
+                <User size={12} /> {run.principal === "owner" ? "You, from the command bar" : `${principalName(run.principal)}, a connected AI app`}
               </dd>
               <dt className="text-fg-3">Thinking</dt>
               <dd>{run.route === "cloud" ? `${onlineAi} (online), names removed first` : "Local model on this computer"}</dd>

@@ -15,17 +15,34 @@ import {
   Mic,
   Sparkles,
   Undo2,
+  X,
+  AppWindow,
+  BellRing,
+  Check,
+  FolderInput,
+  FolderOpen,
+  Hand,
+  Mail,
+  Moon,
+  Package,
+  SunMedium,
+  Trash2,
+  Volume2,
+  Wifi,
+  type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BRAND } from "@/lib/brand";
 import { runRequest, undoRun } from "@/lib/engine";
+import { doItYourself } from "@/lib/livemachine";
 import { SUGGESTED, matchScenario, type Scenario } from "@/lib/scenarios";
 import { useOS } from "@/lib/store";
 import type { AppId, Run } from "@/lib/types";
-import { AREA_ICON, Button, Chip, Toggle } from "../ui";
+import { AREA_ICON, Button, Chip, FileGlyph, Toggle } from "../ui";
 import { StepRow } from "./StepRow";
 import { StringOrb } from "../icons/StringOrb";
+import { principalName } from "@/lib/policy";
 
 function suggestionLabel(s: Scenario, theme: "light" | "dark") {
   if (s.id === "theme") return theme === "dark" ? "Turn on light mode" : "Turn on dark mode";
@@ -46,6 +63,9 @@ export function CommandBar() {
   const busy = useOS((s) => s.runs.some((r) => r.status === "running" || r.status === "waiting"));
   const pushToast = useOS((s) => s.pushToast);
   const openApp = useOS((s) => s.openApp);
+  const askFiles = useOS((s) => s.askFiles);
+  const fs = useOS((s) => s.fs);
+  const setAskFiles = useOS((s) => s.setAskFiles);
 
   const [text, setText] = useState("");
   const [sel, setSel] = useState(0);
@@ -62,22 +82,38 @@ export function CommandBar() {
   const items = useMemo(() => {
     const q = text.trim().toLowerCase();
     const list = SUGGESTED.map((s) => ({ s, label: suggestionLabel(s, theme) }));
-    if (!q) return list;
+    // Empty box: just the top two. Typing: anything whose words match.
+    if (!q) return list.slice(0, 2);
     const hit = matchScenario(q);
-    return list.filter(({ label, s }) => label.toLowerCase().includes(q) || s === hit);
+    const words = q.split(/\s+/).filter((w) => w.length > 2);
+    return list.filter(({ label, s }) => {
+      const hay = `${label} ${s.hint}`.toLowerCase();
+      return s === hit || hay.includes(q) || words.some((w) => hay.includes(w));
+    });
   }, [text, theme]);
 
+  const about = askFiles.length === 1 ? askFiles[0].name : `these ${askFiles.length} files`;
+  const fileRows = askFiles.length
+    ? [
+        { key: "f-sum", label: `Summarize ${about}`, hint: "Reads them, changes nothing" },
+        { key: "f-org", label: `Move ${about} into a sensible folder`, hint: "Asks before moving" },
+        { key: "f-send", label: `Email ${about} to Sara`, hint: "Sending always asks" },
+      ]
+    : [];
   const rows: { key: string; label: string; hint: string; scenario?: Scenario; typed?: boolean }[] = [
     ...(text.trim() ? [{ key: "typed", label: text.trim(), hint: "Ask in your own words", typed: true }] : []),
-    ...items.map(({ s, label }) => ({ key: s.id, label, hint: s.hint, scenario: s })),
+    ...(askFiles.length ? fileRows : items.map(({ s, label }) => ({ key: s.id, label, hint: s.hint, scenario: s }))),
   ];
 
   const submit = (value: string) => {
     if (!value.trim()) return;
     setText("");
     setSel(0);
-    setOpen(true);
-    void runRequest(value);
+    // the panel steps aside; the task pill above the bar shows progress
+    setOpen(false);
+    const files = askFiles.map((f) => `${f.dir}/${f.name}`);
+    setAskFiles([]);
+    void runRequest(value, { files });
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -135,7 +171,7 @@ export function CommandBar() {
             transition={{ type: "spring", stiffness: 480, damping: 36 }}
             style={{ transformOrigin: "50% 100%" }}
             className={clsx(
-              "glass fixed left-1/2 -translate-x-1/2 bottom-[146px] z-[950] w-[min(720px,calc(100vw-32px))] rounded-[26px] bg-glass-strong backdrop-blur-3xl backdrop-saturate-150 border border-glass-line shadow-pop",
+              "glass fixed left-1/2 -translate-x-1/2 bottom-[86px] z-[950] w-[min(720px,calc(100vw-32px))] rounded-[26px] bg-glass-strong backdrop-blur-3xl backdrop-saturate-150 border border-glass-line shadow-pop",
               run && (run.status === "running" || run.status === "waiting") && "ai-ring",
             )}
           >
@@ -144,6 +180,22 @@ export function CommandBar() {
                 <RunView run={run} onNew={() => { setFocusedRun(null); inputRef.current?.focus(); }} />
               ) : (
                 <Suggestions rows={rows} sel={sel} setSel={setSel} onPick={submit} typed={!!text.trim()} />
+              )}
+
+              {/* files dropped on the orb */}
+              {askFiles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-3 pt-2.5 border-t border-line">
+                  <span className="text-[12px] text-fg-3">About</span>
+                  {askFiles.map((f) => (
+                    <span key={f.id} className="inline-flex items-center gap-1.5 h-7 pl-1.5 pr-1 rounded-full bg-ai-soft text-ai-ink text-[12.5px] font-medium">
+                      <FileGlyph kind={fs[f.dir]?.find((x) => x.id === f.id)?.kind ?? "text"} name={f.name} size={15} />
+                      {f.name}
+                      <button aria-label={`Remove ${f.name}`} onClick={() => setAskFiles(askFiles.filter((x) => x.id !== f.id))} className="size-5 grid place-items-center rounded-full hover:bg-ai/15">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               )}
 
               {/* the input sits at the bottom, closest to the orb it came from */}
@@ -204,7 +256,7 @@ function Suggestions({
   return (
     <div>
       <div className="px-2 pt-2 pb-1 max-h-[46vh] overflow-auto scroll-thin">
-        <div className="px-3 pt-1.5 pb-1.5 text-[12.5px] font-semibold text-fg-2">{typed ? "Run" : "Things you can ask"}</div>
+        <div className="px-3 pt-1.5 pb-1.5 text-[12.5px] font-semibold text-fg-2">{typed ? "Run" : "Try one, or type anything"}</div>
         <ul>
           {rows.map((r, i) => {
             const Icon = r.scenario ? AREA_ICON[r.scenario.area] : Sparkles;
@@ -297,13 +349,17 @@ function RunView({ run, onNew }: { run: Run; onNew: () => void }) {
         <div className="flex-1 min-w-0">
           <div className="text-[15px] font-semibold truncate">{run.request}</div>
           <div className="text-[12px] text-fg-2 flex items-center gap-1.5">
-            {run.route === "cloud" ? (
+            {run.plannedBy ? (
+              <>
+                <Cloud size={12} /> Planned by {run.plannedBy}, file names only
+              </>
+            ) : run.route === "cloud" ? (
               <>
                 <Cloud size={12} /> {settings.onlineAi}, personal details removed
               </>
             ) : (
               <>
-                <Cpu size={12} /> On this computer, private
+                <Cpu size={12} /> {run.principal !== "owner" ? `Asked by ${principalName(run.principal)}, through the broker` : "On this computer, private"}
               </>
             )}
           </div>
@@ -330,6 +386,7 @@ function RunView({ run, onNew }: { run: Run; onNew: () => void }) {
             className="mx-4 mb-3 mt-1"
           >
             <ResultCard run={run} onNew={onNew} onOpen={(app, props) => { openApp(app, props); setOpen(false); }} />
+            {run.manual && run.manual.length > 0 && <DoItYourself actions={run.manual} />}
           </motion.div>
         )}
       </AnimatePresence>
@@ -359,8 +416,65 @@ function StatusChip({ run }: { run: Run }) {
     case "stopped":
       return <Chip tone="neutral" icon={CircleSlash}>Stopped</Chip>;
     default:
-      return <Chip tone="warn" icon={CircleAlert}>Not available</Chip>;
+      return <Chip tone="warn" icon={CircleAlert}>Couldn&apos;t finish</Chip>;
   }
+}
+
+const DIY_ICON: [RegExp, LucideIcon][] = [
+  [/^fs\.(move|organize)/, FolderInput],
+  [/^fs\.trash|^fs\.delete/, Trash2],
+  [/^fs\.|^ui\.show_folder|^ui\.quick_look/, FolderOpen],
+  [/^mail\./, Mail],
+  [/volume/, Volume2],
+  [/brightness/, SunMedium],
+  [/^net\./, Wifi],
+  [/dnd|lock/, Moon],
+  [/^store\./, Package],
+  [/remind/, BellRing],
+  [/./, AppWindow],
+];
+
+/** When the AI can't (or shouldn't) do it: the same thing as one tap, done by you. */
+function DoItYourself({ actions }: { actions: NonNullable<Run["manual"]> }) {
+  const [done, setDone] = useState<string[]>([]);
+  return (
+    <div className="mt-3 rounded-2xl border border-line bg-surface-2/70 p-3.5">
+      <div className="flex items-center gap-2 text-[12.5px]">
+        <span className="size-6 rounded-full bg-ai-soft text-ai-ink grid place-items-center">
+          <Hand size={13} />
+        </span>
+        <span className="font-semibold">You can do this yourself</span>
+        <span className="text-fg-3">These only show you where; the rest is up to you</span>
+      </div>
+      <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+        {actions.map((a) => {
+          const Icon = DIY_ICON.find(([re]) => re.test(a.tool))?.[1] ?? AppWindow;
+          const did = done.includes(a.label);
+          return (
+            <button
+              key={a.label}
+              onClick={async () => {
+                await doItYourself(a.tool, a.args);
+                setDone((d) => [...d, a.label]);
+              }}
+              className={clsx(
+                "group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all",
+                did ? "border-ok-line bg-ok-soft/60" : "border-line bg-surface hover:border-ai-line hover:shadow-[0_6px_18px_-10px_rgba(79,123,247,.45)] hover:-translate-y-px",
+              )}
+            >
+              <span className={clsx("size-9 rounded-xl grid place-items-center shrink-0 transition-colors", did ? "bg-ok text-white" : "bg-ai-soft text-ai-ink group-hover:bg-ai group-hover:text-white")}>
+                {did ? <Check size={16} /> : <Icon size={16} />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-semibold truncate">{a.label}</span>
+                <span className="block text-[11.5px] text-fg-3 truncate font-mono">{a.tool}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ResultCard({
@@ -386,7 +500,12 @@ function ResultCard({
                   {run.resultAction.label}
                 </Button>
               )}
-              {!run.resultAction && SUGGESTED.slice(0, 4).map((s) => (
+              {run.scenarioId === "live-machine" && (
+                <Button size="sm" onClick={() => void runRequest(run.request)}>
+                  Try again
+                </Button>
+              )}
+              {!run.resultAction && run.scenarioId !== "live-machine" && SUGGESTED.slice(0, 4).map((s) => (
                 <Button key={s.id} size="sm" onClick={() => void runRequest(s.example)}>
                   {s.example}
                 </Button>

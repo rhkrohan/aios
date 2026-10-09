@@ -299,7 +299,6 @@ function Discover({
 function Detail({ cap, onBack, onInstall }: { cap: Capability; onBack: () => void; onInstall: () => void }) {
   const inst = useOS((s) => s.installed[cap.id]);
   const uninstall = useOS((s) => s.uninstall);
-  const setOpen = useOS((s) => s.setCommandOpen);
   const pushToast = useOS((s) => s.pushToast);
   const try_ = cap.id === "github";
 
@@ -326,7 +325,6 @@ function Detail({ cap, onBack, onInstall }: { cap: Capability; onBack: () => voi
                 <Button
                   variant="primary"
                   onClick={() => {
-                    setOpen(true);
                     void runRequest("Check my open pull requests");
                   }}
                 >
@@ -569,7 +567,6 @@ function InstallFlow({ cap, onClose }: { cap: Capability; onClose: () => void })
   const addCustom = useOS((s) => s.addCustomCap);
   const toggleTool = useOS((s) => s.toggleTool);
   const pushToast = useOS((s) => s.pushToast);
-  const setOpen = useOS((s) => s.setCommandOpen);
   const [step, setStep] = useState(0);
   const [off, setOff] = useState<string[]>([]);
   const [checks, setChecks] = useState(0);
@@ -796,7 +793,6 @@ function InstallFlow({ cap, onClose }: { cap: Capability; onClose: () => void })
                   variant="primary"
                   onClick={() => {
                     onClose();
-                    setOpen(true);
                     void runRequest("Check my open pull requests");
                   }}
                 >

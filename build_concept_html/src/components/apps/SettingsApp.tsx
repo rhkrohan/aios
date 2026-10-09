@@ -1,15 +1,18 @@
 "use client";
 
 import clsx from "clsx";
-import { Plug, Brain, ChevronDown, Cloud, Cpu, Lock, Moon, Palette, ShieldCheck, Sun, Wifi, X } from "lucide-react";
+import { FlaskConical, Plug, Brain, ChevronDown, Cloud, Cpu, Lock, Moon, Palette, ShieldCheck, Sun, Wifi, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BRAND } from "@/lib/brand";
+import { liveFetch, setDaemon } from "@/lib/livemachine";
 import { useOS, type Settings } from "@/lib/store";
 import type { Win } from "@/lib/types";
 import { Button, Chip, Toggle } from "../ui";
 import { BrandMark } from "../icons/Icons";
 import { ConnectionsPage } from "./ConnectionsPage";
+import { TestLab } from "./TestLab";
+import { LiveRules } from "./LiveRules";
 
 const PAGES = [
   { id: "brain", label: "Brain", icon: Brain },
@@ -17,6 +20,7 @@ const PAGES = [
   { id: "connections", label: "Connected AI apps", icon: Plug },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "wifi", label: "Wi-Fi", icon: Wifi },
+  { id: "lab", label: "Test lab", icon: FlaskConical },
 ] as const;
 
 export function SettingsApp({ win }: { win: Win }) {
@@ -46,6 +50,12 @@ export function SettingsApp({ win }: { win: Win }) {
           {page === "connections" && <ConnectionsPage />}
           {page === "appearance" && <AppearancePage />}
           {page === "wifi" && <WifiPage />}
+          {page === "lab" && (
+            <>
+              <H title="Test lab" sub="Real test files for the live machine: load a pack built for one feature, make your own file, or reset." />
+              <TestLab />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -160,7 +170,18 @@ function BrainPage() {
           <Row title="Fall back to this computer when offline" sub="Hard tasks get a simpler answer instead of failing.">
             <Toggle checked={s.offlineFallback} onChange={(v) => update({ offlineFallback: v })} label="Offline fallback" />
           </Row>
+          <Row
+            title="Plan new requests with live AI"
+            sub="Anything that isn't a built-in demo goes to your AI provider (OpenAI or Claude, from .env.local). It sees file names and settings, never file contents or passwords."
+          >
+            <Toggle checked={s.liveAi} onChange={(v) => update({ liveAi: v })} label="Live AI planning" />
+          </Row>
+          <Row title="Use live AI for everything" sub="Even the built-in demos get planned by the real model. Good for testing; slower and costs a little per request.">
+            <Toggle checked={s.liveAll} onChange={(v) => update({ liveAll: v, liveAi: v ? true : s.liveAi })} label="Live AI for everything" />
+          </Row>
         </Card>
+
+        <LiveMachineCard on={s.liveMachine} set={(v) => update({ liveMachine: v })} />
 
         <button onClick={() => setAdv((a) => !a)} className="flex items-center gap-1 text-[12.5px] text-fg-3 hover:text-fg-2 w-fit">
           <ChevronDown size={13} className={clsx("transition-transform", adv && "rotate-180")} /> Advanced
@@ -202,6 +223,8 @@ function PermissionsPage() {
   return (
     <>
       <H title="Permissions" sub="Every action goes through the permission broker. The AI can't skip it." />
+      <LiveRules />
+
       <Card>
         <div className="text-[13.5px] font-medium mb-2">How it decides</div>
         <div className="grid gap-2">
@@ -338,5 +361,71 @@ function WifiPage() {
         })}
       </Card>
     </>
+  );
+}
+
+/** The real machine: a real model on real files, every call decided by capd. */
+function LiveMachineCard({ on, set }: { on: boolean; set: (v: boolean) => void }) {
+  type Status = { up: boolean; key: boolean; sandbox: string; daemon?: { busy: string | null; error: string | null } };
+  const [st, setSt] = useState<Status | null>(null);
+  const [pending, setPending] = useState(false);
+  const load = () =>
+    liveFetch("/api/live/status")
+      .then((r) => r.json())
+      .then((j: Status) => setSt(j))
+      .catch(() => setSt({ up: false, key: false, sandbox: "~/SIOS-sandbox" }));
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 1500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const busy = pending || !!st?.daemon?.busy;
+  const act = async (action: "start" | "stop") => {
+    setPending(true);
+    await setDaemon(action).catch(() => null);
+    await load();
+    setPending(false);
+  };
+  const toggle = (v: boolean) => {
+    set(v);
+    if (v && st && !st.up) void act("start");
+  };
+  return (
+    <Card>
+      <Row
+        title="Live machine"
+        sub={`brain-d plans with OpenAI against the real files in ${st?.sandbox ?? "~/SIOS-sandbox"}. capd checks every step; you approve the plan once, and anything risky asks again.`}
+      >
+        <Toggle checked={on} onChange={toggle} label="Live machine" />
+      </Row>
+      <div className="px-4 pb-3.5 -mt-1 flex flex-wrap items-center gap-1.5 text-[12px]">
+        <span className={clsx("h-6 px-2 rounded-full inline-flex items-center gap-1.5", st?.up ? "bg-ok-soft text-ok" : busy ? "bg-ai-soft text-ai-ink" : "bg-warn-soft text-warn")}>
+          <span className={clsx("size-1.5 rounded-full bg-current", busy && "animate-pulse")} />
+          {st === null ? "Checking" : st.up ? "Running: capd and brain-d" : busy ? (st.daemon?.busy ?? "Starting") : "Stopped"}
+        </span>
+        <span className={clsx("h-6 px-2 rounded-full inline-flex items-center gap-1.5", st?.key ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn")}>
+          <span className="size-1.5 rounded-full bg-current" /> {st?.key ? "OpenAI key loaded" : "No OpenAI key"}
+        </span>
+        <span className="ml-auto flex gap-1.5">
+          {st && !st.up && (
+            <Button size="sm" onClick={() => act("start")} disabled={busy}>
+              {busy ? "Starting..." : "Start live machine"}
+            </Button>
+          )}
+          {st?.up && (
+            <Button size="sm" variant="secondary" onClick={() => act("stop")} disabled={busy}>
+              Stop
+            </Button>
+          )}
+        </span>
+      </div>
+      {st?.daemon?.error && <div className="mx-4 mb-3 rounded-xl bg-danger-soft text-danger px-3 py-2 text-[12.5px]">{st.daemon.error}</div>}
+      {st && !st.key && (
+        <div className="mx-4 mb-4 rounded-xl bg-surface-2 border border-line p-3 text-[12.5px] text-fg-2 leading-5">
+          Put OPENAI_API_KEY in build_concept_html/.env.local, then restart pnpm dev.
+        </div>
+      )}
+    </Card>
   );
 }

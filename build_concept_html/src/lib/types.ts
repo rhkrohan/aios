@@ -28,6 +28,31 @@ export interface FileItem {
   modified: string;
   /** Set briefly after the AI touches a file, so the Files window can highlight it. */
   touchedBy?: string;
+  // ---- object metadata (file system redesign) ----
+  /** Who made it and how: "you", "assistant", "web", an app name. */
+  origin?: { by: string; via?: string; at?: string };
+  /** Content from the web, email or unknown sources is untrusted until you say otherwise. */
+  trust?: "trusted" | "untrusted";
+  labels?: string[];
+  /** Goal (run id or GP id) that last changed it. */
+  goal?: string;
+  versions?: number;
+  /** Real change history, newest first. Every AI change appends one entry. */
+  history?: FileEvent[];
+  /** Set while the item is in the Trash, so it can be put back. */
+  trashedFrom?: string;
+  /** Imported from your computer: real contents live in lib/blobs.ts under this item's id. */
+  imported?: boolean;
+  mime?: string;
+  /** Lineage: ids of the files this one was made from. Labels and trust flow along it. */
+  from?: string[];
+}
+
+export interface FileEvent {
+  at: number;
+  by: string; // "you", "SIOS", an app name
+  action: string; // plain words: "Moved from Downloads to Documents/Finance"
+  goal?: string;
 }
 
 export interface Person {
@@ -54,7 +79,7 @@ export interface MailMessage {
   time: string;
 }
 
-export type AppId = "files" | "activity" | "settings" | "mail" | "browser" | "terminal" | "store" | "security";
+export type AppId = "files" | "activity" | "settings" | "mail" | "browser" | "terminal" | "store" | "security" | "goals" | "systemmap" | "memory";
 
 export interface Win {
   id: string;
@@ -72,7 +97,7 @@ export interface Win {
 
 // ---------- Brain runs ----------
 
-export type StepKind = "context" | "reflex" | "recipe" | "route" | "snapshot" | "tool" | "verify" | "think";
+export type StepKind = "context" | "reflex" | "recipe" | "route" | "snapshot" | "tool" | "verify" | "think" | "guard" | "delegate";
 export type StepStatus = "pending" | "active" | "done" | "blocked" | "skipped";
 
 /** What the broker decided for one step. */
@@ -94,6 +119,58 @@ export interface ToolCall {
   snapshot?: boolean;
 }
 
+// ---------- Policy ----------
+
+/** One line of the broker's reasoning. Every decision keeps its full trace. */
+export interface PolicyCheck {
+  id: string;
+  label: string; // plain question, e.g. "Is this part of what you asked?"
+  result: "pass" | "ask" | "fail" | "skip";
+  detail: string;
+}
+
+export type PolicyDecision = "allow" | "ask" | "block";
+
+export interface PolicyVerdict {
+  decision: PolicyDecision;
+  /** Why it asks, when it asks. */
+  askKind?: "reversible" | "irreversible" | "tainted";
+  reason: string;
+  checks: PolicyCheck[];
+  leaseId?: string;
+}
+
+/**
+ * A lease is a time- and use-bounded permission (v3 doc: "capability leases").
+ * "Allow for this session" and "Allow for 1 hour" both create one.
+ */
+export interface Lease {
+  id: string;
+  tool: string;
+  principal: string;
+  kind: "session" | "hour" | "once" | "standing";
+  createdAt: number;
+  expiresAt: number | null;
+  usesLeft: number | null;
+  goal: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  seq: number;
+  at: number;
+  principal: string;
+  goal: string;
+  tool: string;
+  target: string;
+  decision: PolicyDecision;
+  outcome: "allowed" | "asked-yes" | "asked-no" | "blocked";
+  reason: string;
+  checks: PolicyCheck[];
+  prevHash: string;
+  hash: string;
+}
+
 export interface Step {
   id: string;
   kind: StepKind;
@@ -105,6 +182,7 @@ export interface Step {
   broker?: BrokerDecision;
   ms?: number; // how long it took
   chips?: string[]; // small facts, e.g. memories injected
+  checks?: PolicyCheck[]; // the broker's trace for this step
 }
 
 export type RunStatus = "running" | "waiting" | "done" | "stopped" | "failed";
@@ -125,16 +203,52 @@ export interface Run {
   resultAction?: { label: string; app: AppId; props?: Record<string, string> };
   undoable: boolean;
   undone?: boolean;
+  /** Live machine: the capd goal id, for undo on the real sandbox. */
+  liveGoal?: string;
+  /** Live machine: things the owner can do themselves when the AI can't. */
+  manual?: { label: string; tool: string; args: Record<string, unknown> }[];
+  /** Live machine: the AI asked a question; the next request answers it. */
+  question?: boolean;
   irreversibleNote?: string;
   usedRecipe?: boolean;
   savedRecipe?: boolean;
   snapshotId?: string;
+  /** Who asked: "owner" for you, or a connected app id. */
+  principal: string;
+  /** True once the task has read content it shouldn't trust (web, email, unknown files). */
+  tainted?: boolean;
+  /** Live runs: which provider and model proposed the plan. */
+  plannedBy?: string;
+  // ---- the "car": delegation, data flow, coordination, budgets ----
+  /** Set when this goal was handed down by another goal. */
+  parentId?: string;
+  /** The slice of authority it was handed. Never more than the parent had. */
+  scope?: GoalScope;
+  /** Data this goal has read, so the broker can see where it's flowing (lineage). */
+  dataFrom?: DataSource[];
+  budget?: { cents: number; actions: number };
+  spent?: { cents: number; actions: number };
+  /** Shown while the goal waits for someone else to finish with a file. */
+  waitingOn?: string;
+}
+
+export interface GoalScope {
+  paths?: string[]; // may only touch these folders
+  tools?: string[]; // may only use these tools
+  noEgress?: boolean; // may not send anything off the computer
+}
+
+export interface DataSource {
+  name: string;
+  path: string;
+  labels: string[];
+  untrusted?: boolean;
 }
 
 // ---------- Approvals ----------
 
 export type ApprovalKind = "reversible" | "irreversible" | "cloud";
-export type ApprovalAnswer = "deny" | "once" | "session" | "approve";
+export type ApprovalAnswer = "deny" | "once" | "hour" | "session" | "approve" | "always";
 
 export interface ApprovalChange {
   text: string;
@@ -160,6 +274,21 @@ export interface ApprovalRequest {
   tool?: ToolCall;
   primaryLabel?: string;
   denyLabel?: string;
+  /** Who is asking, when it isn't you. */
+  principalName?: string;
+  /** The task read untrusted content before this. */
+  tainted?: boolean;
+  checks?: PolicyCheck[];
+  /** Data this action would carry out, by source. */
+  carries?: DataSource[];
+  /** One-time approvals only (the live machine): hide "Allow for 1 hour / Session". */
+  noDuration?: boolean;
+  /** Offer "always allow plans like this" (a standing rule). */
+  alwaysLabel?: string;
+  /** A capability pass being handed to an AI: shown as its own block. */
+  pass?: { tools: string[]; folders: string[]; limits: string; why?: string };
+  /** A whole plan to approve at once, with what the broker said about each step. */
+  plan?: { n: number; text: string; note?: string; tone: "ok" | "ask" | "block" }[];
 }
 
 export interface Toast {

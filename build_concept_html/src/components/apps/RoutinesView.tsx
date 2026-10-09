@@ -24,7 +24,6 @@ export function RoutinesView() {
   const recipes = useOS((s) => s.recipes);
   const schedules = useOS((s) => s.schedules);
   const setSchedule = useOS((s) => s.setSchedule);
-  const setOpen = useOS((s) => s.setCommandOpen);
   const state = useOS();
 
   // Prefer the steps that actually ran; rebuilding from current state could differ.
@@ -78,7 +77,6 @@ export function RoutinesView() {
                       size="sm"
                       variant="primary"
                       onClick={() => {
-                        setOpen(true);
                         void runRequest(sc.example);
                       }}
                     >
@@ -130,7 +128,6 @@ export function RoutinesView() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      setOpen(true);
                       void runRequest(sc.example);
                     }}
                   >
