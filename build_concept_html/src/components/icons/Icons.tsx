@@ -263,6 +263,7 @@ const APP_BG: Record<AppId | "assistant", [string, string]> = {
   goals: ["#ffb057", "#e8743b"],
   systemmap: ["#6ea8ff", "#3b4fd8"],
   memory: ["#c79bff", "#7b4fe0"],
+  team: ["#8fe3c9", "#3fae8c"],
   assistant: ["#8fd3ff", "#4f6ef0"],
 };
 
@@ -348,6 +349,16 @@ export function AppIcon({ app, size = 48 }: { app: AppId | "assistant"; size?: n
           <circle cx="32" cy="32" r="8" />
           <circle cx="32" cy="32" r="2.2" fill="#fff" />
           <path d="M32 32 46 18" />
+        </g>
+      )}
+      {app === "team" && (
+        <g fill="#fff">
+          {/* a leader and two little helpers */}
+          <circle cx="32" cy="27" r="9" />
+          <circle cx="18.5" cy="38" r="6" fillOpacity=".85" />
+          <circle cx="45.5" cy="38" r="6" fillOpacity=".85" />
+          <circle cx="29" cy="25.5" r="1.6" fill="#3fae8c" />
+          <circle cx="35" cy="25.5" r="1.6" fill="#3fae8c" />
         </g>
       )}
       {app === "memory" && (

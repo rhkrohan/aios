@@ -1,7 +1,7 @@
 "use client";
 
 // The cute parts every pet shares: blushing cheeks, a mouth that follows its
-// mood, hearts when you pet it, and the leader's little crown. Helpers are the
+// mood, and hearts when you pet it. Helpers are the
 // same orb in a soft pastel, a bit smaller.
 
 import { AnimatePresence, motion } from "motion/react";
@@ -30,27 +30,6 @@ export function Mouth({ mood, size }: { mood: string; size: number }) {
         </svg>
       )}
     </span>
-  );
-}
-
-export function Crown({ size }: { size: number }) {
-  const w = size * 0.42;
-  return (
-    <motion.svg
-      width={w}
-      height={w * 0.62}
-      viewBox="0 0 26 16"
-      className="absolute left-1/2 pointer-events-none drop-shadow-[0_1px_3px_rgba(200,150,0,.5)]"
-      style={{ top: -w * 0.42, x: "-50%" }}
-      animate={{ rotate: [-6, 4, -6] }}
-      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-      aria-hidden
-    >
-      <path d="M2 14 L4 4 L9 9 L13 1 L17 9 L22 4 L24 14 Z" fill="#ffd34d" stroke="#e8a800" strokeWidth="1.2" strokeLinejoin="round" />
-      <circle cx="13" cy="1.6" r="1.6" fill="#ff7a9a" />
-      <circle cx="4" cy="4" r="1.2" fill="#fff4c2" />
-      <circle cx="22" cy="4" r="1.2" fill="#fff4c2" />
-    </motion.svg>
   );
 }
 

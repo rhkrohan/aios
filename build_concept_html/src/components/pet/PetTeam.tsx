@@ -1,18 +1,18 @@
 "use client";
 
-// The pet team: helper pets that follow the leader like ducklings. Each one has
+// The pet team: helper pets parked in their own row. Each one has
 // a long-running job (watch a folder, run on a schedule, or one big job) and is
 // its own AI identity, "Pip (helper)", with its own passes and log lines. When a
-// run finishes, the helper hops over to the leader with the news.
+// run finishes, the helper hops in place and the leader announces the news.
 
 import clsx from "clsx";
-import { Clock, Eye, Pause, Play, Plus, RotateCw, Sparkles, Trash2, X } from "lucide-react";
+import { Clock, Eye, EyeOff, Pause, Play, Plus, RotateCw, Sparkles, Trash2, Users, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { liveFetch, switchMachine } from "@/lib/livemachine";
-import { usePet } from "@/lib/pet";
+import { homeSpot, usePet } from "@/lib/pet";
 import { useOS } from "@/lib/store";
-import { HELPER_NAMES, useTeam, type HelperStatus } from "@/lib/team";
+import { BRAINS, HELPER_NAMES, useTeam, type HelperStatus } from "@/lib/team";
 import { useTour } from "@/lib/tour";
 import { Button } from "../ui";
 import { HelperBody, Hearts, PASTELS } from "./PetFace";
@@ -20,20 +20,46 @@ import { HelperBody, Hearts, PASTELS } from "./PetFace";
 const LEADER = 76;
 const SIZE = 40;
 
-async function brainCtl(action: string, params: Record<string, unknown> = {}) {
+/** Which AI drives an agent. Connected ones can be picked; the rest are there for later. */
+export function BrainPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Brain">
+      <span className="text-fg-3 text-[12px] w-20">Brain</span>
+      {BRAINS.map((b) => (
+        <button
+          key={b.id}
+          role="radio"
+          aria-checked={value === b.id}
+          disabled={!b.connected}
+          title={b.note}
+          onClick={() => onChange(b.id)}
+          className={clsx(
+            "h-7 px-2.5 rounded-full text-[12px] font-medium border inline-flex items-center gap-1.5",
+            value === b.id ? "bg-ai text-white border-ai" : b.connected ? "border-line text-fg-2 hover:border-ai-line" : "border-dashed border-line text-fg-3 cursor-not-allowed",
+          )}
+        >
+          {b.label}
+          {!b.connected && <span className="text-[10px] opacity-80">soon</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export async function brainCtl(action: string, params: Record<string, unknown> = {}) {
   const r = await liveFetch("/api/live/brain", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...params }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || j.error) throw new Error(j.error ?? "brain-d refused");
   return j.ok;
 }
 
-function jobLine(h: HelperStatus["helper"]) {
+export function jobLine(h: HelperStatus["helper"]) {
   if (h.kind === "watch") return `Watches ${h.folder}: ${h.request}`;
   if (h.kind === "every") return `Every ${h.every_min >= 1440 ? `${Math.round(h.every_min / 1440)} day` : h.every_min >= 60 ? `${Math.round(h.every_min / 60)} h` : `${h.every_min} min`}: ${h.request}`;
   return `One big job: ${h.request}`;
 }
 
-function ago(secs: number) {
+export function ago(secs: number) {
   const d = Date.now() / 1000 - secs;
   if (d < 60) return "just now";
   if (d < 3600) return `${Math.round(d / 60)} min ago`;
@@ -84,13 +110,16 @@ export function PetTeam() {
 
   if (!pet.visible || tour) return null;
 
-  // the ducklings: in a little row behind the leader, wherever it goes
-  const spots = team.helpers.map((_, i) => ({ x: pet.x - (i + 1) * (SIZE + 10) + 6, y: pet.y + LEADER - SIZE + 4 }));
+  // their own spot: a row to the left of the leader's resting place, staying put
+  const home = homeSpot();
+  const shown = team.helpers.filter((h) => !h.helper.hidden);
+  // wherever you dragged it, or its place in the row
+  const spots = shown.map((s, i) => team.spots[s.helper.id] ?? { x: home.x - (i + 1) * (SIZE + 18) - 8, y: home.y + LEADER - SIZE + 4 });
 
   return (
     <>
-      {team.helpers.map((s, i) => (
-        <HelperPet key={s.helper.id} s={s} spot={spots[i]} leader={{ x: pet.x, y: pet.y }} index={i} />
+      {shown.map((s, i) => (
+        <HelperPet key={s.helper.id} s={s} spot={spots[i]} index={i} />
       ))}
 
       {/* the little plus: make a new helper */}
@@ -111,7 +140,7 @@ export function PetTeam() {
   );
 }
 
-/** A finished run: the helper hops to the leader, the leader says it out loud. */
+/** A finished run: the helper hops in place, the leader says it out loud. */
 function report(id: string, name: string, text: string, failed: boolean) {
   useTeam.getState().set({ reporting: { id, text } });
   setTimeout(() => {
@@ -128,23 +157,53 @@ function report(id: string, name: string, text: string, failed: boolean) {
   }));
 }
 
-function HelperPet({ s, spot, leader, index }: { s: HelperStatus; spot: { x: number; y: number }; leader: { x: number; y: number }; index: number }) {
+function HelperPet({ s, spot, index }: { s: HelperStatus; spot: { x: number; y: number }; index: number }) {
   const reporting = useTeam((t) => t.reporting?.id === s.helper.id);
   const set = useTeam((t) => t.set);
+  const moveTo = useTeam((t) => t.moveTo);
   const [hearts, setHearts] = useState<number[]>([]);
+  // drag it anywhere; a tap without moving opens its report card
+  const drag = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
+  const [held, setHeld] = useState<{ x: number; y: number } | null>(null);
+  const justDragged = useRef(false);
+  const at = held ?? spot;
   const mood = reporting ? "happy" : s.state === "working" ? "working" : s.state === "waiting" ? "waiting" : s.state === "paused" ? "paused" : "idle";
-  // hop over to the leader with news, then back in line
-  const at = reporting ? { x: leader.x - SIZE + 4, y: leader.y - 6 } : spot;
   return (
     <motion.div
       className="fixed z-[989] select-none"
       style={{ width: SIZE, height: SIZE }}
       animate={{ left: at.x, top: at.y }}
-      transition={{ type: "spring", stiffness: 60 - index * 6, damping: 12, mass: 0.8 + index * 0.1 }}
+      transition={held ? { duration: 0 } : { type: "spring", stiffness: 120, damping: 18 }}
     >
       <span className="absolute left-1/2 -translate-x-1/2 rounded-[50%] bg-black/20 blur-[2px]" style={{ bottom: -7, width: 26, height: 6 }} />
       <motion.button
-        onClick={() => {
+        onPointerDown={(e) => {
+          drag.current = { dx: e.clientX - at.x, dy: e.clientY - at.y, moved: false };
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current) return;
+          const nx = Math.max(4, Math.min(window.innerWidth - SIZE - 4, e.clientX - drag.current.dx));
+          const ny = Math.max(40, Math.min(window.innerHeight - SIZE - 30, e.clientY - drag.current.dy));
+          if (!drag.current.moved && Math.hypot(nx - at.x, ny - at.y) < 4) return;
+          drag.current.moved = true;
+          setHeld({ x: nx, y: ny });
+        }}
+        onPointerUp={() => {
+          const moved = drag.current?.moved;
+          drag.current = null;
+          if (moved && held) {
+            moveTo(s.helper.id, held.x, held.y);
+            setHeld(null);
+            justDragged.current = true; // the click that follows a drag isn't a tap
+          }
+        }}
+        onClick={(e) => {
+          if (justDragged.current) {
+            justDragged.current = false;
+            e.preventDefault();
+            return;
+          }
           const b = [Date.now(), Date.now() + 1];
           setHearts(b);
           setTimeout(() => setHearts((h) => h.filter((x) => !b.includes(x))), 1400);
@@ -152,7 +211,7 @@ function HelperPet({ s, spot, leader, index }: { s: HelperStatus; spot: { x: num
         }}
         aria-label={`${s.helper.name}, ${s.state}`}
         title={`${s.helper.name}: ${jobLine(s.helper)}`}
-        className="relative block"
+        className="relative block cursor-grab active:cursor-grabbing touch-none"
         style={{ width: SIZE, height: SIZE }}
         animate={
           reporting
@@ -210,13 +269,14 @@ function NewHelper({ live, anchor }: { live: boolean; anchor: { x: number; y: nu
   const [every, setEvery] = useState(60);
   const [request, setRequest] = useState("");
   const [busy, setBusy] = useState(false);
+  const [brain, setBrain] = useState("openai");
   const examples = { watch: "Sort new files into Documents/Finance and Documents/Notes", every: "Move anything older than a week in Downloads to the Trash and tell me what moved", once: "Organize everything in Downloads by type and year" };
   const pos = place(anchor, 360, live ? 470 : 200);
 
   const create = async () => {
     setBusy(true);
     try {
-      await brainCtl("helpers_add", { name, color, kind, folder, every_min: every, request: request.trim() || examples[kind] });
+      await brainCtl("helpers_add", { name, color, kind, folder, every_min: every, brain, request: request.trim() || examples[kind] });
       pushToast({ title: `${name} joined the team`, body: kind === "once" ? "Starting on the job now." : "It reports back when it has news.", tone: "ok" });
       set({ creating: false });
     } catch (e) {
@@ -301,6 +361,7 @@ function NewHelper({ live, anchor }: { live: boolean; anchor: { x: number; y: nu
               </select>
             </label>
           )}
+          <BrainPicker value={brain} onChange={setBrain} />
           <textarea value={request} onChange={(e) => setRequest(e.target.value)} rows={3} placeholder={examples[kind]} aria-label="The job" className="w-full rounded-xl border border-line bg-surface p-2.5 text-[13px]" />
           <p className="text-[11.5px] text-fg-3 leading-snug">It works as &ldquo;{name || "Helper"} (helper)&rdquo;: its own passes, its own lines in the log. It asks you before anything new, unless a standing rule covers it.</p>
           <Button className="w-full" disabled={busy || !name.trim()} onClick={create}>
@@ -373,6 +434,20 @@ function ReportCard({ s, anchor }: { s?: HelperStatus; anchor: { x: number; y: n
         <Button size="sm" variant="ghost" onClick={() => act("helpers_remove", { id: h.id }, `${h.name} retired`).then(() => set({ open: null }))}>
           <Trash2 size={12} /> Retire
         </Button>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[12px]">
+        <button onClick={() => act("helpers_update", { id: h.id, hidden: true }, `${h.name} is working out of sight`).then(() => set({ open: null }))} className="inline-flex items-center gap-1 text-fg-2 hover:text-fg">
+          <EyeOff size={12} /> Hide from desktop
+        </button>
+        <button
+          onClick={() => {
+            set({ open: null });
+            useOS.getState().openApp("team");
+          }}
+          className="inline-flex items-center gap-1 text-ai-ink font-medium"
+        >
+          <Users size={12} /> Manage team
+        </button>
       </div>
     </motion.div>
   );

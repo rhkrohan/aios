@@ -23,7 +23,17 @@ export interface Helper {
   created: number;
   last_run: number;
   runs: HelperRun[];
+  hidden: boolean;
+  brain: string;
 }
+
+/** The AIs an agent can run on. Only connected ones can be picked; the rest are slots for later (D15). */
+export const BRAINS: { id: string; label: string; note: string; connected: boolean }[] = [
+  { id: "openai", label: "OpenAI", note: "Connected", connected: true },
+  { id: "claude", label: "Claude", note: "Coming soon", connected: false },
+  { id: "muse", label: "Muse", note: "Coming soon", connected: false },
+  { id: "local", label: "Local model", note: "Coming soon: runs on this computer", connected: false },
+];
 export interface HelperStatus {
   helper: Helper;
   state: "idle" | "working" | "waiting" | "done" | "paused";
@@ -38,16 +48,38 @@ interface Team {
   reporting: { id: string; text: string } | null;
   open: string | null; // report card open for this helper
   creating: boolean;
+  /** Where you dragged each helper (kept in this browser). */
+  spots: Record<string, { x: number; y: number }>;
   set: (p: Partial<Team>) => void;
+  moveTo: (id: string, x: number, y: number) => void;
 }
 
-export const useTeam = create<Team>((set) => ({
+const SPOTS_KEY = "sios-helper-spots";
+function loadSpots(): Record<string, { x: number; y: number }> {
+  try {
+    return JSON.parse(localStorage.getItem(SPOTS_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+export const useTeam = create<Team>((set, get) => ({
   helpers: [],
   announced: {},
   reporting: null,
   open: null,
   creating: false,
+  spots: typeof window === "undefined" ? {} : loadSpots(),
   set: (p) => set(p),
+  moveTo: (id, x, y) => {
+    const spots = { ...get().spots, [id]: { x, y } };
+    set({ spots });
+    try {
+      localStorage.setItem(SPOTS_KEY, JSON.stringify(spots));
+    } catch {
+      /* private window: it just won't be remembered */
+    }
+  },
 }));
 
 export const HELPER_NAMES = ["Pip", "Momo", "Bean", "Tofu", "Mochi", "Nori", "Kiwi", "Pebble", "Biscuit", "Dot", "Sprout", "Juniper"];

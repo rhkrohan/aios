@@ -46,6 +46,27 @@ pub struct Helper {
     pub last_run: u64,
     #[serde(default)]
     pub runs: Vec<HelperRun>,
+    /// Off the desktop, still working (reports still come through the leader).
+    #[serde(default)]
+    pub hidden: bool,
+    /// Which AI drives it. Only connected brains can be chosen (D15: any model can drive).
+    #[serde(default = "default_brain")]
+    pub brain: String,
+}
+
+fn default_brain() -> String {
+    "openai".into()
+}
+
+/// The brains an agent can run on. Only connected ones can be picked; the rest are slots for later.
+pub const BRAINS: [(&str, bool); 4] = [("openai", true), ("claude", false), ("muse", false), ("local", false)];
+
+pub fn check_brain(b: &str) -> Result<(), String> {
+    match BRAINS.iter().find(|(id, _)| *id == b) {
+        Some((_, true)) => Ok(()),
+        Some((id, false)) => Err(format!("{id} isn't connected yet")),
+        None => Err(format!("there's no brain called {b}")),
+    }
 }
 
 impl Helper {
@@ -101,7 +122,10 @@ impl Helpers {
             created: now(),
             last_run: if kind == "every" { now() } else { 0 },
             runs: vec![],
+            hidden: false,
+            brain: p["brain"].as_str().unwrap_or("openai").to_string(),
         };
+        check_brain(&h.brain)?;
         self.list.push(h.clone());
         self.save();
         Ok(h)
@@ -241,5 +265,7 @@ mod tests {
         let every = hs.add(&json!({ "name": "Momo", "kind": "every", "every_min": 0, "request": "check big files" })).unwrap();
         assert_eq!(every.every_min, 1, "at least a minute apart");
         assert_eq!(Helpers::open(d.path().join("helpers.json")).list.len(), 2, "saved");
+        assert!(hs.add(&json!({ "name": "Bean", "kind": "once", "request": "x", "brain": "muse" })).is_err(), "muse isn't connected yet");
+        assert!(check_brain("openai").is_ok() && check_brain("claude").is_err() && check_brain("nope").is_err());
     }
 }

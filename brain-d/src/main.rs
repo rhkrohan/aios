@@ -139,17 +139,30 @@ impl Brain {
                 Ok(json!({ "cleared": true }))
             }
             "helpers.list" => Ok(helpers::status(self)),
+            "brains.list" => Ok(json!(helpers::BRAINS.iter().map(|(id, on)| json!({ "id": id, "connected": on })).collect::<Vec<_>>())),
             "helpers.add" => self.helpers.lock().unwrap().add(p).map(|h| json!(h)),
             "helpers.update" => {
                 let mut hs = self.helpers.lock().unwrap();
-                let out = hs.list.iter_mut().find(|h| h.id == p["id"].as_str().unwrap_or("")).map(|h| {
-                    if let Some(a) = p["active"].as_bool() {
-                        h.active = a;
+                let brain_ok = p["brain"].as_str().map(helpers::check_brain).unwrap_or(Ok(()));
+                match brain_ok {
+                    Err(e) => Err(e),
+                    Ok(()) => {
+                        let out = hs.list.iter_mut().find(|h| h.id == p["id"].as_str().unwrap_or("")).map(|h| {
+                            if let Some(a) = p["active"].as_bool() {
+                                h.active = a;
+                            }
+                            if let Some(v) = p["hidden"].as_bool() {
+                                h.hidden = v;
+                            }
+                            if let Some(b) = p["brain"].as_str() {
+                                h.brain = b.to_string();
+                            }
+                            json!(h)
+                        });
+                        hs.save();
+                        out.ok_or_else(|| "no such helper".to_string())
                     }
-                    json!(h)
-                });
-                hs.save();
-                out.ok_or_else(|| "no such helper".to_string())
+                }
             }
             "helpers.remove" => {
                 let mut hs = self.helpers.lock().unwrap();

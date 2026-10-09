@@ -61,6 +61,7 @@ const APP_MENU: { id: AppId; name: string }[] = [
   { id: "goals", name: "Goals" },
   { id: "systemmap", name: "System Map" },
   { id: "memory", name: "Memory" },
+  { id: "team", name: "Team" },
   { id: "settings", name: "Settings" },
 ];
 

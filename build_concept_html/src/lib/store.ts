@@ -30,6 +30,7 @@ const APP_DEFAULTS: Record<AppId, { title: string; w: number; h: number }> = {
   goals: { title: "Goals", w: 1100, h: 680 },
   systemmap: { title: "System Map", w: 1180, h: 700 },
   memory: { title: "Memory", w: 980, h: 640 },
+  team: { title: "Team", w: 940, h: 660 },
   terminal: { title: "Terminal", w: 680, h: 420 },
 };
 

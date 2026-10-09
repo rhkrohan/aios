@@ -79,7 +79,7 @@ export interface MailMessage {
   time: string;
 }
 
-export type AppId = "files" | "activity" | "settings" | "mail" | "browser" | "terminal" | "store" | "security" | "goals" | "systemmap" | "memory";
+export type AppId = "files" | "activity" | "settings" | "mail" | "browser" | "terminal" | "store" | "security" | "goals" | "systemmap" | "memory" | "team";
 
 export interface Win {
   id: string;

@@ -30,6 +30,7 @@ const APPS: { id: AppId; name: string; words: string }[] = [
   { id: "security", name: "Security Center", words: "permissions trust audit privacy iam" },
   { id: "goals", name: "Goals", words: "processes tasks running monitor" },
   { id: "systemmap", name: "System Map", words: "twin architecture simulate diagram" },
+  { id: "team", name: "Team", words: "agents helpers pets workers brains claude muse openai" },
   { id: "memory", name: "Memory", words: "remember vault facts people preferences history what do you know about me" },
   { id: "settings", name: "Settings", words: "preferences system control" },
 ];

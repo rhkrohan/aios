@@ -12,8 +12,7 @@ import { useTour } from "@/lib/tour";
 import type { FileKind, Run, Step } from "@/lib/types";
 import { FileIcon } from "../icons/Icons";
 import { StringOrb } from "../icons/StringOrb";
-import { Crown, Hearts, Mouth } from "./PetFace";
-import { useTeam } from "@/lib/team";
+import { Hearts, Mouth } from "./PetFace";
 
 const SIZE = 76;
 
@@ -61,7 +60,6 @@ export function Pet() {
   const approval = useOS((s) => s.approval);
   const [eye, setEye] = useState({ x: 0, y: 0 });
   const [hearts, setHearts] = useState<number[]>([]);
-  const leads = useTeam((s) => s.helpers.length > 0);
   const lastActivity = useRef(0);
   const drag = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const seenRun = useRef<string | null>(null);
@@ -270,7 +268,6 @@ export function Pet() {
           <Eyes mood={pet.mood} eye={eye} />
         </span>
         <Mouth mood={pet.mood} size={SIZE} />
-        {leads && <Crown size={SIZE} />}
         <Hearts burst={hearts} />
         {pet.mood === "sleeping" && <Zzz />}
       </motion.div>

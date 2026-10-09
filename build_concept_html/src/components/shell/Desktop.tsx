@@ -32,6 +32,7 @@ import { SecurityApp } from "../apps/SecurityApp";
 import { GoalsApp } from "../apps/GoalsApp";
 import { SystemMapApp } from "../apps/SystemMapApp";
 import { MemoryApp } from "../apps/MemoryApp";
+import { TeamApp } from "../apps/TeamApp";
 import { BrowserApp } from "../apps/SimpleApps";
 import { TerminalApp } from "../apps/TerminalApp";
 import { CommandBar } from "../command/CommandBar";
@@ -67,6 +68,8 @@ function AppBody({ win }: { win: Win }) {
       return <SystemMapApp win={win} />;
     case "memory":
       return <MemoryApp />;
+    case "team":
+      return <TeamApp />;
   }
 }
 
