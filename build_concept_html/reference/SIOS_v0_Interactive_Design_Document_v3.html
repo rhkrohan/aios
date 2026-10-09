@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SIOS v0 Interactive Design Document</title>
+<style>
+:root{
+--bg:#f4f4f2;
+--panel:#ffffff;
+--card:#fbfbfa;
+--text:#1d1d1f;
+--muted:#6b6b6b;
+--line:#d6d6d2;
+--system:#2f5d8a;
+--system-soft:#e8eef5;
+--hardware:#555;
+--success:#4d7a52;
+--warning:#8a6d2f;
+--danger:#9a4b4b;
+}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}.wrap{max-width:1160px;margin:auto;padding:24px}.nav{position:sticky;top:0;background:#f4f4f2ee;border-bottom:1px solid var(--line);z-index:10;backdrop-filter:blur(12px)}.navin{max-width:1160px;margin:auto;padding:10px 24px;display:flex;gap:16px;overflow:auto}.nav a{color:#474747;text-decoration:none;white-space:nowrap;font-size:13px}.hero{padding:54px 0 24px}.eyebrow{display:inline-block;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:#404040;background:#fff;font-size:12px;font-weight:800}.hero h1{font-size:clamp(42px,7vw,72px);line-height:.98;margin:14px 0}.lead{font-size:19px;color:#4f4f4f;max-width:850px}.section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:26px;margin:22px 0;box-shadow:0 8px 20px rgba(0,0,0,.04)}.kicker{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#555;font-weight:800}.section h2{font-size:30px;margin:4px 0 12px}.grid2,.grid3{display:grid;gap:16px}.grid2{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:repeat(3,1fr)}.card{background:#fbfbfa;border:1px solid var(--line);border-radius:12px;padding:16px}.muted{color:var(--muted)}pre{background:#f1f1ef;border:1px solid var(--line);border-radius:10px;padding:15px;overflow:auto;color:#242424}.status{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800}.frozen{color:#355d3a;border:1px solid #9db6a0;background:#eef4ef}.experimental{color:#6e5b2d;border:1px solid #c7b98e;background:#f7f3e8}.diagram{background:#f8f8f6;border:1px solid var(--line);border-radius:12px;padding:14px;overflow:auto}.diagram svg{width:100%;min-width:760px;height:auto}.node{cursor:pointer}.node.selected rect{stroke-width:4}.detail{margin-top:12px;background:#fbfbfa;border:1px solid var(--line);border-radius:10px;padding:15px}.flow{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}.step{flex:1 1 145px;background:#fbfbfa;border:1px solid var(--line);border-radius:10px;padding:13px}.arrow{align-self:center;color:#64748b;font-weight:800;font-size:22px}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{border-collapse:collapse;width:100%;min-width:760px}th,td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}th{background:#f0f0ed;color:#3b3b3b;font-size:12px;text-transform:uppercase}.check{list-style:none;padding:0}.check li{padding:8px 0 8px 26px;position:relative;border-bottom:1px dashed #334155}.check li:before{content:"✓";position:absolute;left:2px;color:#86efac;font-weight:900}@media(max-width:850px){.grid2,.grid3{grid-template-columns:1fr}.wrap{padding:16px}}
+
+/* --- SIOS production UI system --- */
+.sios-shell{
+  border:1px solid #cfcfca;
+  border-radius:18px;
+  overflow:hidden;
+  background:#f8f8f6;
+  box-shadow:0 18px 40px rgba(0,0,0,.08);
+}
+.sios-topbar{
+  height:38px;
+  background:#2f3338;
+  color:#f5f5f5;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 14px;
+  font-size:12px;
+}
+.sios-workspace{
+  background:linear-gradient(180deg,#ecece8,#e5e5df);
+  min-height:340px;
+  padding:22px;
+  position:relative;
+}
+.sios-dock{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:16px;
+  background:rgba(250,250,248,.92);
+  border:1px solid #d5d5cf;
+  border-radius:18px;
+  padding:10px 12px;
+  display:flex;
+  gap:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.10);
+}
+.sios-appicon{
+  width:48px;height:48px;border-radius:14px;
+  background:#fff;border:1px solid #d7d7d1;
+  display:grid;place-items:center;font-size:24px;color:#2e4f74;
+}
+.sios-desktop-icons{
+  display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;
+}
+.sios-desktop-icon{
+  width:84px;text-align:center;color:#2a2a2a;font-size:13px;
+}
+.sios-desktop-icon .glyph{
+  width:64px;height:64px;margin:0 auto 8px;border-radius:18px;
+  background:linear-gradient(180deg,#ffffff,#f1f1ed);
+  border:1px solid #d5d5cf;display:grid;place-items:center;
+  box-shadow:0 6px 14px rgba(0,0,0,.05);
+  font-size:30px;
+}
+.sios-voicebar{
+  position:absolute;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:88px;
+  width:min(620px,90%);
+  background:rgba(255,255,255,.96);
+  border:1px solid #d0d0ca;
+  border-radius:20px;
+  padding:14px;
+  box-shadow:0 20px 40px rgba(0,0,0,.12);
+  backdrop-filter:blur(10px);
+}
+.sios-row{display:flex;align-items:center;gap:12px}
+.sios-mic{
+  width:46px;height:46px;border-radius:50%;
+  display:grid;place-items:center;font-size:20px;
+  background:linear-gradient(180deg,#eff4fa,#e3ebf4);
+  border:1px solid #cad6e3;color:#2f5d8a;
+}
+.sios-kbd{
+  border:1px solid #cfcfc8;background:#f5f5f1;
+  border-radius:9px;padding:4px 8px;font-size:12px;
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.05);
+}
+.sios-btn{
+  border:1px solid #bfc8d2;
+  background:linear-gradient(180deg,#ffffff,#edf2f7);
+  color:#294664;
+  border-radius:11px;
+  padding:9px 13px;
+  font-weight:600;cursor:pointer;
+}
+.sios-subtle{
+  font-size:13px;color:#6a6a6a;
+}
+.sios-statebox{
+  margin-top:12px;padding:11px 12px;border-radius:12px;
+  background:#f4f6f8;border:1px solid #dde3e8;
+  color:#4a4a4a;font-size:13px;
+}
+.sios-panel{
+  background:linear-gradient(180deg,#fff,#fbfbf9);
+  border:1px solid #d6d6d0;border-radius:16px;padding:18px;
+  box-shadow:0 8px 18px rgba(0,0,0,.04);
+}
+.sios-panel-title{font-size:12px;color:#767676;letter-spacing:.06em;text-transform:uppercase}
+.sios-headline{font-size:24px;font-weight:760;letter-spacing:-.02em;margin-top:4px}
+.sios-metric{
+  display:grid;grid-template-columns:150px 1fr;gap:9px 14px;
+  font-size:14px;margin-top:14px;
+}
+.sios-timeline{
+  display:grid;gap:8px;margin-top:10px;font-size:14px;
+}
+.sios-timeline .trow{
+  display:grid;grid-template-columns:18px 76px 1fr;gap:10px;
+  align-items:start;padding:6px 0;border-bottom:1px solid #ecece7;
+}
+.sios-timeline .trow:last-child{border-bottom:none}
+.sios-store-shell{
+  border:1px solid #d6d6d0;border-radius:18px;overflow:hidden;background:#fff;
+  box-shadow:0 14px 30px rgba(0,0,0,.06);
+}
+.sios-store-nav{
+  display:flex;gap:6px;padding:10px;background:#f4f4f1;border-bottom:1px solid #dcdcd6;
+}
+.sios-store-tab{
+  padding:9px 14px;border-radius:10px;font-size:14px;color:#666;
+}
+.sios-store-tab.active{background:#fff;border:1px solid #d5d5cf;color:#222;font-weight:650}
+.sios-searchrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.sios-input, .sios-select{
+  border:1px solid #ccccc6;border-radius:12px;background:#fff;padding:11px 13px;
+  color:#555;
+}
+.sios-cap-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
+}
+.sios-cap-card{
+  border:1px solid #d8d8d2;border-radius:16px;background:linear-gradient(180deg,#fff,#fbfbf8);
+  padding:16px;display:flex;flex-direction:column;gap:10px;
+}
+.sios-cap-icon{
+  width:48px;height:48px;border-radius:14px;background:#f3f6fa;border:1px solid #d5dfeb;
+  display:grid;place-items:center;font-size:24px;
+}
+.sios-chip{
+  display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;
+  border:1px solid #d5dcd4;background:#f4f8f4;color:#47624b;font-size:12px;font-weight:600;
+}
+.sios-chip.warn{background:#faf6ea;border-color:#e3d8b8;color:#725c28}
+.sios-action{
+  margin-top:auto;border:1px solid #b8c4cf;background:#f8fbff;color:#2d4f73;
+  border-radius:10px;padding:9px 12px;font-weight:600;cursor:pointer;
+}
+.sios-split{
+  display:grid;grid-template-columns:1fr 1fr;gap:18px;
+}
+.sios-list{
+  display:grid;gap:8px;font-size:14px;
+}
+.sios-list label{display:flex;gap:10px;align-items:flex-start}
+.sios-info{
+  padding:12px;border-left:3px solid #5b7fa3;background:#f7f9fb;border-radius:8px;
+  color:#4d4d4d;font-size:14px;
+}
+.sios-flow-compare{
+  display:grid;grid-template-columns:1fr 1fr;gap:16px;
+}
+.sios-flow-card{
+  border:1px solid #d8d8d2;border-radius:16px;background:#fbfbf8;padding:16px;
+}
+.sios-canvas{
+  background:linear-gradient(180deg,#edede8,#e3e3dd);border:1px solid #d4d4cd;border-radius:16px;
+  min-height:280px;padding:24px;position:relative;
+}
+.sios-selection{
+  position:absolute;border:3px solid #5b7fa3;border-radius:12px;
+  box-shadow:0 0 0 2px rgba(255,255,255,.7) inset;
+}
+.sios-bubble{
+  position:absolute;right:20px;bottom:18px;width:360px;max-width:78%;
+  background:#fff;border:1px solid #cacac4;border-radius:14px;padding:14px;
+  box-shadow:0 10px 24px rgba(0,0,0,.08);
+}
+.sios-window{
+  width:min(720px,100%);background:#fff;border:1px solid #cfcfc9;border-radius:16px;
+  overflow:hidden;box-shadow:0 18px 34px rgba(0,0,0,.10);
+}
+.sios-windowbar{
+  height:38px;background:#f3f3f0;border-bottom:1px solid #ddddda;
+  display:flex;align-items:center;gap:10px;padding:0 14px;font-size:13px;color:#555;
+}
+.sios-traffic{display:flex;gap:6px}
+.sios-traffic span{width:10px;height:10px;border-radius:50%;display:block;background:#d2d2cc}
+@media(max-width:900px){
+  .sios-cap-grid,.sios-split,.sios-flow-compare{grid-template-columns:1fr}
+}
+
+</style>
+
+<style>
+.platform-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.platform-card,.ui-cardx{border:1px solid #d6d6d0;border-radius:14px;background:#fff;padding:16px}
+.ui-shell{border:1px solid #cecec8;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 12px 28px rgba(0,0,0,.06)}
+.ui-head{height:40px;background:#f1f1ee;border-bottom:1px solid #d8d8d2;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:13px}
+.ui-body{padding:16px;background:#fcfcfa}
+.ui-sidebar-layout{display:grid;grid-template-columns:185px 1fr;min-height:300px}
+.ui-sidebar{background:#f5f5f2;border-right:1px solid #ddd;padding:12px}
+.ui-sidebar div{padding:9px 10px;border-radius:9px;font-size:13px;color:#555;margin-bottom:4px}
+.ui-sidebar .active{background:#fff;border:1px solid #d7d7d1;color:#222;font-weight:700}
+.policy-row{display:grid;grid-template-columns:1.2fr 1fr 1fr .7fr;gap:8px;padding:10px;border:1px solid #deded8;border-radius:10px;background:#fff;font-size:13px;margin-bottom:8px}
+.badgex{display:inline-flex;padding:4px 8px;border-radius:999px;border:1px solid #d5d5cf;background:#f7f7f4;font-size:11px;font-weight:700}
+.allow{background:#eef5ef;border-color:#c4d6c7;color:#47624b}.ask{background:#faf5e9;border-color:#e5d7ad;color:#725d2d}.deny{background:#f8eded;border-color:#e2c4c4;color:#7c4444}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.metric{border:1px solid #d8d8d2;border-radius:12px;padding:12px;background:#fff}.metric b{font-size:22px;display:block}
+.event-row{display:grid;grid-template-columns:78px 110px 1fr auto;gap:10px;padding:9px 0;border-bottom:1px solid #ecece7;font-size:13px}
+.context-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.context-box{border:1px solid #d8d8d2;border-radius:12px;padding:12px;background:#fff}.context-box div{padding:7px 0;border-bottom:1px solid #efefeb;font-size:13px}
+@media(max-width:900px){.platform-grid,.ui-sidebar-layout,.metric-grid,.context-grid{grid-template-columns:1fr}.policy-row,.event-row{grid-template-columns:1fr}.ui-sidebar{border-right:none;border-bottom:1px solid #ddd}}
+</style>
+
+<style>
+/* --- SIOS AI-IAM / Security Center --- */
+.sec-shell{border:1px solid #cbc9c3;border-radius:18px;overflow:hidden;background:#fbfbf8;box-shadow:0 18px 40px rgba(0,0,0,.07)}
+.sec-top{height:44px;background:#25282c;color:#f4f4f1;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:13px}
+.sec-layout{display:grid;grid-template-columns:210px 1fr;min-height:420px}
+.sec-side{background:#f0f0ec;border-right:1px solid #d8d6d0;padding:14px}
+.sec-brand{font-weight:800;margin-bottom:14px;color:#222}
+.sec-nav{padding:9px 10px;border-radius:9px;color:#5a5a58;font-size:13px;margin:3px 0}
+.sec-nav.active{background:#fff;border:1px solid #d2d0ca;color:#202020;font-weight:700}
+.sec-main{padding:18px;background:#fcfcfa}
+.sec-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
+.sec-title{font-size:24px;line-height:1.1;font-weight:780;letter-spacing:-.025em}
+.sec-sub{font-size:13px;color:#70706c;margin-top:5px}
+.sec-btn{border:1px solid #b9c4ce;background:#f7fafc;color:#294a69;border-radius:10px;padding:9px 12px;font-weight:650}
+.sec-btn.dark{background:#30343a;color:#fff;border-color:#30343a}
+.sec-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sec-stat{border:1px solid #d8d6d0;background:#fff;border-radius:12px;padding:12px}
+.sec-stat span{font-size:12px;color:#767672;display:block}.sec-stat b{font-size:22px;display:block;margin:2px 0}
+.sec-card{border:1px solid #d8d6d0;background:#fff;border-radius:14px;padding:14px}
+.sec-table{display:grid;gap:7px}
+.sec-row{display:grid;grid-template-columns:1.2fr .9fr .9fr .8fr .7fr;gap:8px;align-items:center;padding:10px 11px;border:1px solid #dfddd7;border-radius:10px;background:#fff;font-size:13px}
+.sec-row.head{border:none;background:transparent;color:#777;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding-top:0}
+.sec-avatar{width:30px;height:30px;border-radius:9px;background:#edf1f4;border:1px solid #d4dbe1;display:grid;place-items:center;font-size:14px}
+.sec-principal{display:flex;align-items:center;gap:9px}
+.sec-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;border:1px solid #d3d1cb;background:#f7f7f4;font-size:11px;font-weight:700}
+.sec-chip.green{background:#eef5ef;border-color:#c5d5c7;color:#446248}
+.sec-chip.amber{background:#faf5e9;border-color:#e1d4ae;color:#725c2c}
+.sec-chip.red{background:#f8eded;border-color:#e0c1c1;color:#7d4141}
+.sec-chip.blue{background:#edf3f8;border-color:#c7d5e2;color:#355b7a}
+.perm-builder{display:grid;grid-template-columns:1fr 36px 1fr 36px 1fr;gap:8px;align-items:stretch}
+.perm-col{border:1px solid #d8d6d0;border-radius:12px;background:#fff;padding:13px}
+.perm-col h4{margin:0 0 10px;font-size:13px}
+.perm-item{padding:8px 9px;border:1px solid #e1dfda;border-radius:9px;margin-bottom:7px;font-size:12px;background:#fafaf8}
+.perm-arrow{display:grid;place-items:center;color:#888;font-size:20px}
+.decision-card{border:1px solid #d5d3cd;border-radius:16px;background:#fff;padding:16px}
+.decision-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.decision-grid{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:13px;margin-top:14px}
+.scope-tree{border-left:2px solid #d5d3cd;margin-left:8px;padding-left:14px}
+.scope-node{padding:7px 0;font-size:13px}
+.approval-modal{max-width:640px;margin:auto;border:1px solid #c9c7c1;border-radius:18px;background:#fff;box-shadow:0 20px 45px rgba(0,0,0,.12);overflow:hidden}
+.approval-head{padding:16px 18px;border-bottom:1px solid #e0ded8;background:#f7f7f4}
+.approval-body{padding:18px}
+.approval-actions{display:flex;justify-content:flex-end;gap:9px;padding:14px 18px;border-top:1px solid #e0ded8;background:#fafaf8}
+.riskbar{height:8px;background:#eceae5;border-radius:999px;overflow:hidden}.riskbar span{display:block;height:100%;width:58%;background:#9b8150}
+.incident-row{display:grid;grid-template-columns:90px 1fr 120px 110px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #eceae5;font-size:13px}
+@media(max-width:920px){
+ .sec-layout{grid-template-columns:1fr}.sec-side{border-right:none;border-bottom:1px solid #d8d6d0}
+ .sec-grid4{grid-template-columns:1fr 1fr}.sec-row,.sec-row.head,.incident-row{grid-template-columns:1fr}
+ .perm-builder{grid-template-columns:1fr}.perm-arrow{transform:rotate(90deg)}
+}
+</style>
+</head>
+<body>
+<nav class="nav"><div class="navin">
+<a href="#production-ui">Production UI</a><a href="#decision">Decision</a><a href="#literal">What You See</a><a href="#architecture">Architecture</a><a href="#vertical">First POC</a><a href="#input">Hand Input</a><a href="#components">Components</a><a href="#platform">Platform Layers</a><a href="#security-iam">AI-IAM</a><a href="#tunnel">Native Control Path</a><a href="#mcpstore">MCP Store</a><a href="#protocol">Protocol</a><a href="#build">Build</a><a href="#testing">Testing</a>
+</div></nav>
+
+<main class="wrap">
+<section class="hero">
+<span class="eyebrow">SIOS v0 · Working Architecture</span>
+<h1>Build one reliable computer action at a time.</h1>
+<p class="lead">The first SIOS proof of concept is a goal-oriented control layer on top of Fedora/Linux. It turns small outcomes like <b>“open my SIOS folder”</b> into typed, authorized, observable, and verified actions.</p>
+</section>
+
+
+
+<section id="production-ui" class="section">
+<div class="kicker">Production UI visualizations</div>
+<h2>SIOS interface concepts polished into one product language.</h2>
+<p class="muted">
+These mockups now use a more consistent SIOS visual system: neutral OS surfaces, structured panels, quiet system color, and interface patterns that feel like a real desktop product instead of isolated wireframes.
+</p>
+
+<h3>1. SIOS desktop shell + push-to-talk</h3>
+<div class="sios-shell">
+  <div class="sios-topbar">
+    <span>Activities</span>
+    <span><b>SIOS</b> · Desktop</span>
+    <span>12:19</span>
+  </div>
+  <div class="sios-workspace">
+    <div class="sios-desktop-icons">
+      <div class="sios-desktop-icon"><div class="glyph">📁</div>SIOS</div>
+      <div class="sios-desktop-icon"><div class="glyph">📁</div>Downloads</div>
+      <div class="sios-desktop-icon"><div class="glyph">🖥️</div>Terminal</div>
+      <div class="sios-desktop-icon"><div class="glyph">📄</div>Notes</div>
+    </div>
+
+    <div class="sios-voicebar">
+      <div class="sios-row">
+        <div class="sios-mic">🎙️</div>
+        <div style="flex:1">
+          <div style="font-weight:700">Push to talk</div>
+          <div class="sios-subtle">Voice stays off until you press <span class="sios-kbd">Super</span> + <span class="sios-kbd">Space</span>.</div>
+        </div>
+        <button type="button" id="demoTalkBtn" class="sios-btn">Demo</button>
+      </div>
+      <div id="voiceDemoState" class="sios-statebox">Idle</div>
+    </div>
+
+    <div class="sios-dock">
+      <div class="sios-appicon">⌂</div>
+      <div class="sios-appicon">📁</div>
+      <div class="sios-appicon">🧠</div>
+      <div class="sios-appicon">🛒</div>
+      <div class="sios-appicon">⚙️</div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">2. GoalProcess inspector</h3>
+<div class="sios-split">
+  <div class="sios-panel">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+      <div>
+        <div class="sios-panel-title">Goal GP-001</div>
+        <div class="sios-headline">Open my SIOS folder</div>
+      </div>
+      <span class="status frozen">RUNNING</span>
+    </div>
+
+    <div class="sios-metric">
+      <span class="muted">Target</span><b>📁 SIOS folder</b>
+      <span class="muted">Capability</span><code>folder.open</code>
+      <span class="muted">Authority</span><span>Allowed</span>
+      <span class="muted">Input</span><span>Push-to-talk</span>
+      <span class="muted">Controller</span><span>Local ~3B</span>
+      <span class="muted">Verifier</span><span>Waiting for folder window</span>
+    </div>
+  </div>
+
+  <div class="sios-panel">
+    <div class="sios-panel-title">Execution timeline</div>
+    <div class="sios-timeline">
+      <div class="trow"><span>✓</span><span>12:19:03</span><span>Voice captured</span></div>
+      <div class="trow"><span>✓</span><span>12:19:04</span><span>STT: “open my SIOS folder”</span></div>
+      <div class="trow"><span>✓</span><span>12:19:04</span><span>Action proposed: <code>folder.open</code></span></div>
+      <div class="trow"><span>✓</span><span>12:19:04</span><span>Resolved to <code>obj://sios-root</code></span></div>
+      <div class="trow"><span>✓</span><span>12:19:05</span><span>Authority allowed</span></div>
+      <div class="trow"><span>→</span><span>12:19:05</span><span>Waiting for verification</span></div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">3. SIOS Capability Store</h3>
+<div class="sios-store-shell">
+  <div class="sios-store-nav">
+    <div class="sios-store-tab active">Discover</div>
+    <div class="sios-store-tab">Installed</div>
+    <div class="sios-store-tab">Permissions</div>
+    <div class="sios-store-tab">Updates</div>
+  </div>
+  <div style="padding:18px">
+    <div class="sios-searchrow">
+      <input class="sios-input" value="Search capabilities..." aria-label="Search capabilities" style="flex:1;min-width:230px"/>
+      <select class="sios-select"><option>All categories</option><option>Developer</option><option>Communication</option><option>Productivity</option></select>
+    </div>
+
+    <div class="sios-cap-grid">
+      <div class="sios-cap-card">
+        <div class="sios-cap-icon">🐙</div>
+        <div>
+          <b>GitHub</b>
+          <div class="muted" style="font-size:13px">Repositories, issues, pull requests</div>
+        </div>
+        <div><span class="sios-chip">Verified publisher</span></div>
+        <button type="button" class="installDemo sios-action" data-name="GitHub">Install</button>
+      </div>
+
+      <div class="sios-cap-card">
+        <div class="sios-cap-icon">📅</div>
+        <div>
+          <b>Calendar</b>
+          <div class="muted" style="font-size:13px">Availability, events, scheduling</div>
+        </div>
+        <div><span class="sios-chip warn">Write access</span></div>
+        <button type="button" class="installDemo sios-action" data-name="Calendar">Install</button>
+      </div>
+
+      <div class="sios-cap-card">
+        <div class="sios-cap-icon">✉️</div>
+        <div>
+          <b>Email</b>
+          <div class="muted" style="font-size:13px">Read threads, draft, send messages</div>
+        </div>
+        <div><span class="sios-chip warn">Sensitive</span></div>
+        <button type="button" class="installDemo sios-action" data-name="Email">Install</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">4. Install + permission review</h3>
+<div class="sios-split">
+  <div class="sios-panel">
+    <div class="sios-panel-title">Install capability</div>
+    <div class="sios-headline" style="font-size:22px">GitHub</div>
+    <div class="sios-list" style="margin-top:12px">
+      <div><b>Publisher:</b> GitHub</div>
+      <div><b>Source:</b> Official MCP Registry</div>
+      <div><b>Execution:</b> Remote MCP</div>
+      <div><b>Authentication:</b> OAuth</div>
+      <div style="margin-top:4px"><b>Requested permissions</b></div>
+      <label><input type="checkbox" checked disabled> <span>Read repositories</span></label>
+      <label><input type="checkbox" checked disabled> <span>Read issues</span></label>
+      <label><input type="checkbox"> <span>Create issues</span></label>
+      <label><input type="checkbox"> <span>Modify pull requests</span></label>
+    </div>
+  </div>
+
+  <div class="sios-panel">
+    <div class="sios-panel-title">SIOS policy summary</div>
+    <div class="sios-headline" style="font-size:22px">What installation means</div>
+    <div class="sios-list" style="margin-top:12px">
+      <div>• The capability becomes available to SIOS.</div>
+      <div>• Credentials are stored by the SIOS secret broker.</div>
+      <div>• No GoalProcess automatically receives access.</div>
+      <div>• Each goal requests authority separately.</div>
+      <div>• The user can revoke the capability later.</div>
+    </div>
+    <div class="sios-info" style="margin-top:14px">
+      Installing a capability expands the system catalog. It does not bypass GoalProcess permissions.
+    </div>
+    <button type="button" class="sios-btn" style="margin-top:14px">Approve connection</button>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">5. Native control vs UI fallback</h3>
+<div class="sios-flow-compare">
+  <div class="sios-flow-card">
+    <div class="sios-panel-title">Preferred path</div>
+    <div class="sios-headline" style="font-size:21px">Native capability control</div>
+<pre>Goal: Open SIOS folder
+
+folder.open
+   ↓
+Authority
+   ↓
+Fedora / app interface
+   ↓
+Structured result
+   ↓
+Verifier</pre>
+    <p class="muted">Fast, inspectable, stable, and easy to verify.</p>
+  </div>
+
+  <div class="sios-flow-card">
+    <div class="sios-panel-title">Fallback path</div>
+    <div class="sios-headline" style="font-size:21px">Visual UI control</div>
+<pre>Goal: Operate legacy app
+
+Screenshot
+   ↓
+Vision / UI model
+   ↓
+Move pointer
+   ↓
+Click
+   ↓
+Observe pixels
+   ↓
+Verifier</pre>
+    <p class="muted">Supported when no structured interface exists, but not the primary SIOS control path.</p>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">6. Hand + voice together</h3>
+<div class="sios-canvas">
+  <div style="display:flex;gap:28px;color:#222">
+    <div style="text-align:center">
+      <div class="glyph" style="width:82px;height:82px;font-size:38px">📄</div>
+      <b>architecture.pdf</b>
+    </div>
+    <div style="text-align:center">
+      <div class="glyph" style="width:82px;height:82px;font-size:38px">📁</div>
+      <b>SIOS</b>
+    </div>
+  </div>
+
+  <div class="sios-selection" style="left:34px;top:108px;width:152px;height:104px"></div>
+  <div style="position:absolute;left:210px;top:122px;font-size:38px">☝️</div>
+
+  <div class="sios-bubble">
+    <div class="sios-panel-title">Push-to-talk</div>
+    <div style="font-weight:700;margin-top:4px">“Move this into SIOS.”</div>
+    <div class="sios-subtle" style="margin-top:8px">
+      Selected object = architecture.pdf<br>
+      Proposed action = file.move → SIOS
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">7. Example production window</h3>
+<div class="sios-window">
+  <div class="sios-windowbar">
+    <div class="sios-traffic"><span></span><span></span><span></span></div>
+    <b>SIOS Command Center</b>
+  </div>
+  <div style="padding:18px;background:#fcfcfa">
+    <div class="grid2">
+      <div class="sios-panel" style="padding:16px">
+        <div class="sios-panel-title">Current goal</div>
+        <div class="sios-headline" style="font-size:20px">Prepare SIOS workspace</div>
+        <div class="sios-list" style="margin-top:12px">
+          <div>✓ Open SIOS folder</div>
+          <div>✓ Launch VS Code</div>
+          <div>→ Open architecture notes</div>
+          <div>○ Start local controller</div>
+        </div>
+      </div>
+      <div class="sios-panel" style="padding:16px">
+        <div class="sios-panel-title">Capabilities in use</div>
+        <div style="margin-top:10px">
+          <span class="pill">folder.open</span>
+          <span class="pill">app.launch</span>
+          <span class="pill">window.focus</span>
+          <span class="pill">file.open</span>
+        </div>
+        <div class="sios-info" style="margin-top:14px">
+          SIOS is using native capabilities. No pixel automation is required for this flow.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section id="decision" class="section">
+
+<div class="kicker">01 · What we decided</div>
+<h2>Scope the first version aggressively.</h2>
+<div class="grid3">
+<div class="card"><span class="status frozen">FROZEN</span><h3>Fedora stays underneath</h3><p class="muted">Reuse Linux processes, filesystem, drivers, desktop, apps, Wayland, and cgroups.</p></div>
+<div class="card"><span class="status frozen">FROZEN</span><h3>Goals sit above processes</h3><p class="muted">GoalProcess tracks the outcome; Linux processes are temporary executors.</p></div>
+<div class="card"><span class="status frozen">FROZEN</span><h3>Use atomic capabilities</h3><p class="muted">Expose folder.open, file.open, app.launch, file.move, and similar typed operations.</p></div>
+<div class="card"><span class="status frozen">FROZEN</span><h3>Verify every result</h3><p class="muted">An operation only completes when SIOS observes the intended system state.</p></div>
+<div class="card"><span class="status frozen">FROZEN</span><h3>Input is interchangeable</h3><p class="muted">Mouse, hand tracking, keyboard, push-to-talk voice, and future inputs share one normalized interface.</p></div>
+<div class="card"><span class="status experimental">EXPERIMENTAL</span><h3>Reasoning stays optional</h3><p class="muted">v0 can be mostly deterministic. AI models plug in later where ambiguity exists.</p></div>
+</div>
+</section>
+
+
+<section class="section" id="literal">
+<div class="kicker">02 · What the user actually sees</div>
+<h2>Start from a normal desktop, not from an AI abstraction.</h2>
+<p class="muted">SIOS should feel understandable because every abstract component maps to something concrete on the machine.</p>
+
+<div class="grid2">
+  <div class="card">
+    <h3>Normal Fedora desktop</h3>
+    <div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#dfe3e6">
+      <div style="height:28px;background:#343434;color:#fff;font-size:12px;padding:5px 10px;display:flex;justify-content:space-between">
+        <span>Activities</span><span>10:42</span><span>System</span>
+      </div>
+      <div style="padding:18px;display:grid;grid-template-columns:repeat(3,86px);gap:18px;min-height:240px;background:#ececea">
+        <div style="text-align:center;color:#333"><div style="font-size:42px">📁</div><small>SIOS</small></div>
+        <div style="text-align:center;color:#333"><div style="font-size:42px">📁</div><small>Downloads</small></div>
+        <div style="text-align:center;color:#333"><div style="font-size:42px">🖥️</div><small>Terminal</small></div>
+      </div>
+    </div>
+    <p class="muted">Linux already knows how to render folders, windows, files, and applications.</p>
+  </div>
+
+  <div class="card">
+    <h3>What SIOS adds</h3>
+    <div style="border:1px solid var(--line);border-radius:12px;padding:18px;background:#f7f7f5;min-height:268px">
+      <div style="font-size:13px;color:#666;margin-bottom:8px">Goal</div>
+      <div style="font-size:22px;font-weight:750;margin-bottom:16px">Open my SIOS folder</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px 16px;font-size:14px">
+        <span>Target</span><b>📁 SIOS</b>
+        <span>Action</span><b>folder.open</b>
+        <span>Permission</span><b style="color:#355d3a">Allowed</b>
+        <span>State</span><b>Running</b>
+        <span>Expected result</span><b>SIOS window visible</b>
+      </div>
+      <div style="margin-top:18px;padding:10px;border-left:3px solid #5b7fa3;background:#fff">
+        SIOS does not replace the folder. It understands the outcome around it.
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section id="architecture" class="section">
+<div class="kicker">03 · Interactive architecture</div>
+<h2>SIOS v0 system path</h2>
+<p class="muted">Click any block to inspect it.</p>
+<div class="diagram">
+<svg viewBox="0 0 980 640" aria-label="SIOS architecture">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#64748b"/></marker></defs>
+<g stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#a)">
+<path d="M490 86V130"/><path d="M490 206V250"/><path d="M490 326V370"/><path d="M490 446V490"/><path d="M350 287H220V370"/><path d="M630 287H760V370"/><path d="M630 408H820V490"/>
+</g>
+<g class="node" data-key="input"><rect x="370" y="26" width="240" height="60" rx="13" fill="#ffffff" stroke="#5b7fa3" stroke-width="2"/><text x="490" y="52" text-anchor="middle" fill="#1d1d1f" font-weight="700">INPUT LAYER</text><text x="490" y="72" text-anchor="middle" fill="#6b6b6b" font-size="12">Hand · Mouse · Keyboard · Push-to-talk</text></g>
+<g class="node selected" data-key="goal"><rect x="335" y="130" width="310" height="76" rx="13" fill="#ffffff" stroke="#6c6c6c" stroke-width="2"/><text x="490" y="160" text-anchor="middle" fill="#1d1d1f" font-weight="700">GOALPROCESS</text><text x="490" y="184" text-anchor="middle" fill="#6b6b6b" font-size="12">“Open my SIOS folder”</text></g>
+<g class="node" data-key="planner"><rect x="335" y="250" width="310" height="76" rx="13" fill="#ffffff" stroke="#5b7fa3" stroke-width="2"/><text x="490" y="280" text-anchor="middle" fill="#1d1d1f" font-weight="700">ATOMIC ACTION PLANNER</text><text x="490" y="304" text-anchor="middle" fill="#6b6b6b" font-size="12">resolve → request → execute → verify</text></g>
+<g class="node" data-key="resolver"><rect x="85" y="370" width="270" height="76" rx="13" fill="#ffffff" stroke="#71806f" stroke-width="2"/><text x="220" y="400" text-anchor="middle" fill="#1d1d1f" font-weight="700">OBJECT RESOLVER</text><text x="220" y="424" text-anchor="middle" fill="#6b6b6b" font-size="12">“SIOS folder” → obj://sios-root</text></g>
+<g class="node" data-key="executor"><rect x="355" y="370" width="270" height="76" rx="13" fill="#ffffff" stroke="#5f7b63" stroke-width="2"/><text x="490" y="400" text-anchor="middle" fill="#1d1d1f" font-weight="700">CAPABILITY EXECUTOR</text><text x="490" y="424" text-anchor="middle" fill="#6b6b6b" font-size="12">folder.open(object_id)</text></g>
+<g class="node" data-key="authority"><rect x="625" y="370" width="270" height="76" rx="13" fill="#ffffff" stroke="#8a7447" stroke-width="2"/><text x="760" y="400" text-anchor="middle" fill="#1d1d1f" font-weight="700">AUTHORITY CHECK</text><text x="760" y="424" text-anchor="middle" fill="#6b6b6b" font-size="12">Is this action allowed?</text></g>
+<g class="node" data-key="linux"><rect x="345" y="490" width="290" height="76" rx="13" fill="#ffffff" stroke="#666666" stroke-width="2"/><text x="490" y="520" text-anchor="middle" fill="#1d1d1f" font-weight="700">FEDORA / LINUX</text><text x="490" y="544" text-anchor="middle" fill="#6b6b6b" font-size="12">Processes · Files · Windows · Devices</text></g>
+<g class="node" data-key="verify"><rect x="720" y="490" width="200" height="76" rx="13" fill="#ffffff" stroke="#5b7fa3" stroke-width="2"/><text x="820" y="520" text-anchor="middle" fill="#1d1d1f" font-weight="700">VERIFIER</text><text x="820" y="544" text-anchor="middle" fill="#6b6b6b" font-size="12">Did the folder open?</text></g>
+</svg>
+</div>
+<div id="detail" class="detail"><b>GoalProcess</b><div class="muted">Owns the requested outcome, state, scope, and progress. It does not directly manipulate Fedora.</div></div>
+</section>
+
+<section id="vertical" class="section">
+<div class="kicker">04 · First vertical slice</div>
+<h2>POC 0.1: Open my SIOS folder</h2>
+<div class="flow">
+<div class="step"><b>1. Input</b><br><span class="muted">Gesture, mouse, keyboard, or push-to-talk voice.</span></div><div class="arrow">→</div>
+<div class="step"><b>2. GoalProcess</b><br><span class="muted">Create GP-001.</span></div><div class="arrow">→</div>
+<div class="step"><b>3. Resolve</b><br><span class="muted">Map “SIOS folder” to an object.</span></div><div class="arrow">→</div>
+<div class="step"><b>4. Authorize</b><br><span class="muted">Confirm access.</span></div><div class="arrow">→</div>
+<div class="step"><b>5. Execute</b><br><span class="muted">Call folder.open.</span></div><div class="arrow">→</div>
+<div class="step"><b>6. Verify</b><br><span class="muted">Confirm the right folder is visible.</span></div>
+</div>
+</section>
+
+<section id="input" class="section">
+<div class="kicker">05 · Input + minimal intelligence</div>
+<h2>Push-to-talk voice + hand tracking.</h2>
+<p>
+For SIOS v0, voice is <b>not always listening</b>. The user explicitly activates voice with a button or keyboard shortcut,
+speaks a command, then releases. This removes the need for a wake-word model and makes the first system much easier to debug and trust.
+</p>
+
+<div class="grid2">
+<div class="card">
+<h3>Push-to-talk voice path</h3>
+<pre>User presses button
+      ↓
+Microphone records
+      ↓
+Local speech-to-text
+      ↓
+Small local controller (~3B)
+      ↓
+SIOS action proposal
+      ↓
+Authority + execution + verification</pre>
+</div>
+
+<div class="card">
+<h3>Hand / pointer path</h3>
+<pre>Camera
+  ↓
+Hand tracker
+  ↓
+Pointer / gesture event
+  ↓
+Normalized SIOS Input Event
+  ↓
+Current selection / context
+  ↓
+GoalProcess</pre>
+</div>
+</div>
+
+<div class="grid2">
+<div class="card">
+<h3>Why push-to-talk is frozen for v0</h3>
+<ul>
+<li>No wake-word model.</li>
+<li>No always-on microphone.</li>
+<li>Fewer false activations.</li>
+<li>Lower CPU and battery usage.</li>
+<li>Clear command start and end.</li>
+<li>Easier separation of STT failures from SIOS reasoning failures.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>Possible interaction</h3>
+<pre>Hold Super + Space
+
+LISTENING...
+
+"Open my SIOS folder"
+
+release
+
+TRANSCRIBING...
+UNDERSTANDING...
+
+folder.open(obj://sios-root)</pre>
+</div>
+</div>
+
+<h3>Input adapters remain separate</h3>
+<pre>Physical mouse ─────┐
+Hand tracking ──────┤
+Keyboard ───────────┤
+Push-to-talk voice ─┘
+         ↓
+Normalized SIOS Input / Intent</pre>
+
+<p class="muted">
+Your cofounder’s hand-tracking prototype stays independent from voice. Initially it can emulate pointer movement and selection.
+Later, gestures can become semantic SIOS inputs such as <code>select</code>, <code>open</code>, <code>back</code>, or <code>invoke_intent_bar</code>.
+</p>
+</section>
+
+<section id="components" class="section">
+<div class="kicker">06 · Components</div><h2>What each subsystem owns</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Component</th><th>v0 responsibility</th><th>Must not own</th></tr></thead>
+<tbody>
+<tr><td><b>Input Layer</b></td><td>Normalize hand, mouse, keyboard, and push-to-talk voice events.</td><td>Goals or permissions.</td></tr>
+<tr><td><b>Local Speech-to-Text</b></td><td>Convert recorded push-to-talk audio into text.</td><td>Intent selection, authority, or execution.</td></tr>
+<tr><td><b>Small Local Controller</b></td><td>Map text + current context into one allowed SIOS action proposal.</td><td>Direct OS control or self-granted authority.</td></tr>
+<tr><td><b>GoalProcess</b></td><td>Outcome, state, scope, progress, verification target.</td><td>Direct OS execution.</td></tr>
+<tr><td><b>Atomic Action Planner</b></td><td>Choose the smallest action sequence.</td><td>Authority.</td></tr>
+<tr><td><b>Object Resolver</b></td><td>Map human names to stable objects/paths.</td><td>Full world model in v0.</td></tr>
+<tr><td><b>Authority Check</b></td><td>Allow/deny capability on target.</td><td>Reasoning.</td></tr>
+<tr><td><b>Capability Executor</b></td><td>Translate typed capability into Fedora action.</td><td>Goal planning.</td></tr>
+<tr><td><b>Verifier</b></td><td>Observe final state and confirm success.</td><td>Blind trust in exit codes.</td></tr>
+<tr><td><b>Fedora/Linux</b></td><td>Processes, files, desktop, windows, devices.</td><td>SIOS semantics.</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section class="section">
+<div class="kicker">07 · First capability vocabulary</div><h2>Atomic actions</h2>
+<div class="grid3">
+<div class="card"><b>folder.open</b><div class="muted">Open a known folder object.</div></div>
+<div class="card"><b>folder.create</b><div class="muted">Create directory in allowed scope.</div></div>
+<div class="card"><b>file.open</b><div class="muted">Open file with appropriate app.</div></div>
+<div class="card"><b>file.move</b><div class="muted">Move file between allowed locations.</div></div>
+<div class="card"><b>file.rename</b><div class="muted">Rename authorized object.</div></div>
+<div class="card"><b>app.launch</b><div class="muted">Launch known application.</div></div>
+<div class="card"><b>window.focus</b><div class="muted">Focus known window.</div></div>
+<div class="card"><b>object.resolve</b><div class="muted">Resolve human name to stable object.</div></div>
+<div class="card"><b>state.observe</b><div class="muted">Read resulting state for verification.</div></div>
+</div>
+</section>
+
+<section class="section">
+<div class="kicker">08 · Minimal intelligence layer</div>
+<h2>The model proposes. SIOS decides and executes.</h2>
+<p>
+The local controller is intentionally narrow. It does not operate the computer directly.
+Its job is to translate natural language into one of the capabilities SIOS already knows how to execute.
+</p>
+
+<div class="grid2">
+<div class="card">
+<h3>Model input</h3>
+<pre>{
+  "user_text": "open my SIOS folder",
+  "selected_object": null,
+  "active_window": "desktop",
+  "available_capabilities": [
+    "folder.open",
+    "file.open",
+    "app.launch",
+    "window.focus"
+  ]
+}</pre>
+</div>
+
+<div class="card">
+<h3>Model output</h3>
+<pre>{
+  "type": "ACTION_PROPOSAL",
+  "capability": "folder.open",
+  "target": "SIOS folder",
+  "confidence": 0.97
+}</pre>
+</div>
+</div>
+
+<p>
+The controller should only be allowed to return a small schema such as
+<code>ACTION_PROPOSAL</code>, <code>NEED_MORE_INFORMATION</code>, or <code>NO_ACTION</code>.
+It must never emit shell commands as authority.
+</p>
+
+<pre>User
+ ↓
+Push-to-talk
+ ↓
+Local STT
+ ↓
+~3B controller
+ ↓
+ACTION PROPOSAL
+ ↓
+Object Resolver
+ ↓
+Authority Check
+ ↓
+Capability Executor
+ ↓
+Fedora/Linux
+ ↓
+Verifier</pre>
+</section>
+
+
+
+<section id="platform" class="section">
+<div class="kicker">SIOS platform layers</div>
+<h2>The infrastructure around intelligence.</h2>
+<p>SIOS should not compete mainly by owning the smartest model. Its durable layer is the control substrate around models: context, authority, execution, verification, observability, and trusted capability distribution.</p>
+
+<div class="platform-grid">
+<div class="platform-card"><b>01 · Authority Kernel</b><p class="muted">Goal-aware permissions, temporary leases, delegation, approvals, and revocation.</p></div>
+<div class="platform-card"><b>02 · Verification Engine</b><p class="muted">Independent proof that an action or goal produced the required outcome.</p></div>
+<div class="platform-card"><b>03 · Observability + Replay</b><p class="muted">Structured execution history for debugging, audit, incident review, and replay.</p></div>
+<div class="platform-card"><b>04 · Context Compiler</b><p class="muted">Build the smallest permission-aware context needed for the current goal.</p></div>
+<div class="platform-card"><b>05 · Capability Runtime</b><p class="muted">One action layer over native OS APIs, app APIs, MCP, semantic UI, and visual fallback.</p></div>
+<div class="platform-card"><b>06 · MCP / Capability Store</b><p class="muted">Discover, inspect, install, authenticate, version, update, and revoke capabilities.</p></div>
+</div>
+</section>
+
+<section class="section">
+<div class="kicker">How the platform connects</div>
+<h2>GoalProcess stays at the center.</h2>
+<pre>Human / app intent
+        ↓
+GoalProcess
+        ↓
+Context Compiler
+        ↓
+Intelligence Controller
+        ↓
+Authority Kernel
+        ↓
+Capability Runtime
+        ↓
+Native OS / App API / MCP / UI fallback
+        ↓
+Verification Engine
+        ↓
+Observability + Replay</pre>
+<p class="muted">The model proposes. SIOS controls visibility, authority, execution, evidence, and audit.</p>
+</section>
+
+<section class="section">
+<div class="kicker">Layer 01 · Authority Kernel</div>
+<h2>Goal-aware permissions for agents.</h2>
+<p>Traditional permissions answer what a user account can access. SIOS needs a narrower question: <b>what may this GoalProcess do, to which object, for this purpose, and for how long?</b></p>
+<pre>actor + goal + capability + target + risk + reversibility
+                        ↓
+                 Authority Kernel
+                        ↓
+        ALLOW | DENY | ASK | SANDBOX | DEFER</pre>
+
+<div class="ui-shell">
+<div class="ui-head"><b>SIOS Authority Center</b><span>Goal GP-104</span></div>
+<div class="ui-sidebar-layout">
+<div class="ui-sidebar"><div class="active">Current goal</div><div>Capability leases</div><div>Approvals</div><div>Policy history</div><div>Revoked access</div></div>
+<div class="ui-body">
+<h3>Schedule supplier meeting</h3>
+<div class="policy-row"><b>calendar.read</b><span>Work calendar</span><span>Until goal completes</span><span class="badgex allow">ALLOW</span></div>
+<div class="policy-row"><b>calendar.create</b><span>Work calendar</span><span>1 event</span><span class="badgex allow">ALLOW</span></div>
+<div class="policy-row"><b>email.send</b><span>supplier@example.com</span><span>1 message</span><span class="badgex ask">ASK</span></div>
+<div class="policy-row"><b>drive.read</b><span>Entire Drive</span><span>Requested</span><span class="badgex deny">DENY</span></div>
+</div></div></div>
+
+<h3>Open gaps</h3>
+<ul><li>Formal authority algebra for inheritance and delegation.</li><li>Mid-action revocation and cancellation.</li><li>Multi-user/team identity.</li><li>Prompt injection must never be able to expand authority.</li></ul>
+</section>
+
+
+<section id="security-iam" class="section">
+<div class="kicker">Security Engine · AI-IAM</div>
+<h2>How authority should actually look and feel in SIOS.</h2>
+<p>
+The security experience should not look like a traditional Linux permissions dialog copied onto an AI system.
+SIOS needs a new IAM model where <b>humans, GoalProcesses, local models, external agents, capabilities, and services are all explicit principals</b>,
+and authority is granted as narrow, expiring leases tied to a purpose.
+</p>
+
+<div class="callout">
+<b>Core security rule:</b> identity answers <i>who/what is acting</i>; role answers <i>what kind of actor it is</i>;
+policy answers <i>what it may request</i>; a GoalProcess lease answers <i>what it may actually do right now</i>.
+</div>
+
+<h3 style="margin-top:24px">1. SIOS Security Center — overview</h3>
+<div class="sec-shell">
+  <div class="sec-top">
+    <span><b>SIOS</b> Security Center</span>
+    <span>Local device · Protected</span>
+  </div>
+  <div class="sec-layout">
+    <div class="sec-side">
+      <div class="sec-brand">Security</div>
+      <div class="sec-nav active">Overview</div>
+      <div class="sec-nav">Principals</div>
+      <div class="sec-nav">Roles</div>
+      <div class="sec-nav">Policies</div>
+      <div class="sec-nav">Active leases</div>
+      <div class="sec-nav">Approvals</div>
+      <div class="sec-nav">Secrets</div>
+      <div class="sec-nav">Audit & replay</div>
+    </div>
+    <div class="sec-main">
+      <div class="sec-toolbar">
+        <div>
+          <div class="sec-title">Authority overview</div>
+          <div class="sec-sub">Who can do what on this device right now.</div>
+        </div>
+        <button class="sec-btn dark">Review risky access</button>
+      </div>
+
+      <div class="sec-grid4">
+        <div class="sec-stat"><span>Active GoalProcesses</span><b>4</b><small>2 with write access</small></div>
+        <div class="sec-stat"><span>Active leases</span><b>11</b><small>8 expire with goal</small></div>
+        <div class="sec-stat"><span>Pending approvals</span><b>2</b><small>1 communication action</small></div>
+        <div class="sec-stat"><span>Blocked today</span><b>7</b><small>3 scope violations</small></div>
+      </div>
+
+      <div class="sec-card" style="margin-top:14px">
+        <b>Live authority activity</b>
+        <div class="sec-table" style="margin-top:10px">
+          <div class="sec-row head"><span>Principal</span><span>Goal</span><span>Capability</span><span>Scope</span><span>Decision</span></div>
+          <div class="sec-row">
+            <div class="sec-principal"><div class="sec-avatar">G</div><span>GP-104</span></div>
+            <span>Schedule supplier call</span><code>calendar.create</code><span>Work calendar</span><span class="sec-chip green">ALLOW</span>
+          </div>
+          <div class="sec-row">
+            <div class="sec-principal"><div class="sec-avatar">G</div><span>GP-104</span></div>
+            <span>Schedule supplier call</span><code>email.send</code><span>Supplier only</span><span class="sec-chip amber">ASK</span>
+          </div>
+          <div class="sec-row">
+            <div class="sec-principal"><div class="sec-avatar">A</div><span>External agent</span></div>
+            <span>Unknown</span><code>drive.read</code><span>Entire Drive</span><span class="sec-chip red">DENY</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">2. Principals — everything that can act gets an identity</h3>
+<p class="muted">A model is not “the user.” A GoalProcess is not “the model.” They should be separate security principals.</p>
+
+<div class="sec-shell">
+  <div class="sec-top"><span>Security Center</span><span>Principals</span></div>
+  <div class="ui-body">
+    <div class="sec-table">
+      <div class="sec-row head"><span>Principal</span><span>Type</span><span>Trust</span><span>Default role</span><span>Status</span></div>
+      <div class="sec-row">
+        <div class="sec-principal"><div class="sec-avatar">R</div><b>Rohan</b></div>
+        <span>Human owner</span><span class="sec-chip green">Device owner</span><span>Owner</span><span class="sec-chip green">Active</span>
+      </div>
+      <div class="sec-row">
+        <div class="sec-principal"><div class="sec-avatar">3B</div><b>Local controller</b></div>
+        <span>Local model</span><span class="sec-chip blue">Local</span><span>Reasoner</span><span class="sec-chip green">Active</span>
+      </div>
+      <div class="sec-row">
+        <div class="sec-principal"><div class="sec-avatar">G</div><b>GP-104</b></div>
+        <span>GoalProcess</span><span class="sec-chip blue">Derived</span><span>Task actor</span><span class="sec-chip green">Running</span>
+      </div>
+      <div class="sec-row">
+        <div class="sec-principal"><div class="sec-avatar">M</div><b>GitHub MCP</b></div>
+        <span>Capability provider</span><span class="sec-chip green">Verified</span><span>External service</span><span class="sec-chip green">Connected</span>
+      </div>
+      <div class="sec-row">
+        <div class="sec-principal"><div class="sec-avatar">C</div><b>Cloud model</b></div>
+        <span>Remote reasoner</span><span class="sec-chip amber">External</span><span>Reasoner</span><span class="sec-chip">Dormant</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">3. Role model — roles describe actor classes, not blanket permissions</h3>
+<div class="grid3">
+  <div class="sec-card">
+    <span class="sec-chip blue">Human</span>
+    <h3>Owner</h3>
+    <p class="muted">Can configure device policy, approve sensitive actions, install trusted capabilities, and revoke principals.</p>
+  </div>
+  <div class="sec-card">
+    <span class="sec-chip blue">AI</span>
+    <h3>Reasoner</h3>
+    <p class="muted">May inspect authorized context and produce proposals. Cannot grant itself execution authority.</p>
+  </div>
+  <div class="sec-card">
+    <span class="sec-chip blue">Runtime</span>
+    <h3>Task Actor</h3>
+    <p class="muted">A GoalProcess that may receive temporary capability leases bounded by goal, scope, time, and use count.</p>
+  </div>
+  <div class="sec-card">
+    <span class="sec-chip blue">Service</span>
+    <h3>Capability Provider</h3>
+    <p class="muted">Exposes actions to SIOS but does not decide whether a GoalProcess may call them.</p>
+  </div>
+  <div class="sec-card">
+    <span class="sec-chip blue">System</span>
+    <h3>Verifier</h3>
+    <p class="muted">Gets read-only observation rights needed to independently validate postconditions.</p>
+  </div>
+  <div class="sec-card">
+    <span class="sec-chip blue">System</span>
+    <h3>Security Broker</h3>
+    <p class="muted">Handles secrets, leases, policy evaluation, revocation, and approval transitions.</p>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">4. Permission Builder — define authority without writing policy code</h3>
+<div class="sec-shell">
+  <div class="sec-top"><span>Create policy</span><span>Policy draft</span></div>
+  <div class="ui-body">
+    <div class="perm-builder">
+      <div class="perm-col">
+        <h4>1 · Who?</h4>
+        <div class="perm-item"><b>Role:</b> Task Actor</div>
+        <div class="perm-item">GoalProcess only</div>
+        <div class="perm-item">No direct model principal</div>
+      </div>
+      <div class="perm-arrow">→</div>
+      <div class="perm-col">
+        <h4>2 · What?</h4>
+        <div class="perm-item"><code>email.send</code></div>
+        <div class="perm-item"><code>calendar.create</code></div>
+        <div class="perm-item"><code>calendar.read</code></div>
+      </div>
+      <div class="perm-arrow">→</div>
+      <div class="perm-col">
+        <h4>3 · Under what conditions?</h4>
+        <div class="perm-item">Target ∈ goal contacts</div>
+        <div class="perm-item">Max 1 email</div>
+        <div class="perm-item">Expires at goal completion</div>
+        <div class="perm-item">External send → ASK</div>
+      </div>
+    </div>
+
+    <div class="sios-info" style="margin-top:14px">
+      Human-readable summary: “A GoalProcess may read and create events for its declared calendar task. Sending external communication always requires approval.”
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">5. Live authority decision — what SIOS evaluates before every consequential action</h3>
+<div class="decision-card">
+  <div class="decision-head">
+    <div>
+      <div class="sios-panel-title">Authority request AR-991</div>
+      <div class="sios-headline" style="font-size:22px">Send supplier confirmation email</div>
+    </div>
+    <span class="sec-chip amber">ASK USER</span>
+  </div>
+  <div class="decision-grid">
+    <span class="muted">Actor</span><span>GoalProcess GP-104</span>
+    <span class="muted">Reasoner</span><span>Local Controller 3B</span>
+    <span class="muted">Capability</span><code>email.send</code>
+    <span class="muted">Target</span><span>supplier@example.com</span>
+    <span class="muted">Purpose</span><span>Confirm meeting time</span>
+    <span class="muted">Lease requested</span><span>1 send · expires immediately after execution</span>
+    <span class="muted">Policy result</span><span>External communication requires human approval</span>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">6. Approval UX — show intent and consequence, not raw permission jargon</h3>
+<div style="padding:24px;background:#e9e9e4;border-radius:16px">
+  <div class="approval-modal">
+    <div class="approval-head">
+      <div class="sios-panel-title">SIOS needs your approval</div>
+      <div class="sios-headline" style="font-size:22px">Send one email to the supplier?</div>
+    </div>
+    <div class="approval-body">
+      <p><b>Goal:</b> Schedule supplier meeting</p>
+      <div class="ui-cardx">
+        <div class="decision-grid">
+          <span class="muted">Action</span><span>Send email</span>
+          <span class="muted">Recipient</span><span>supplier@example.com</span>
+          <span class="muted">Data leaving device</span><span>Meeting time + your message</span>
+          <span class="muted">Permission duration</span><span>One use only</span>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span>Risk</span><span>Moderate</span></div>
+        <div class="riskbar"><span></span></div>
+      </div>
+      <p class="muted" style="font-size:13px">Approving this action does not give the agent permanent email access.</p>
+    </div>
+    <div class="approval-actions">
+      <button class="sec-btn">Deny</button>
+      <button class="sec-btn">Edit scope</button>
+      <button class="sec-btn dark">Allow once</button>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">7. Scope tree — visually show exactly what is reachable</h3>
+<div class="grid2">
+  <div class="sec-card">
+    <b>Allowed scope for GP-104</b>
+    <div class="scope-tree" style="margin-top:10px">
+      <div class="scope-node">▾ Calendar</div>
+      <div class="scope-tree"><div class="scope-node">✓ Work calendar</div><div class="scope-node">✕ Personal calendar</div></div>
+      <div class="scope-node">▾ Email</div>
+      <div class="scope-tree"><div class="scope-node">✓ supplier@example.com · one send</div><div class="scope-node">✕ All other recipients</div></div>
+      <div class="scope-node">▾ Files</div>
+      <div class="scope-tree"><div class="scope-node">✓ /Projects/SIOS/meeting-notes.md · read</div><div class="scope-node">✕ Entire Drive</div></div>
+    </div>
+  </div>
+  <div class="sec-card">
+    <b>Lease properties</b>
+    <div class="decision-grid">
+      <span class="muted">Issued to</span><span>GP-104</span>
+      <span class="muted">Inherited from</span><span>Rohan / task approval</span>
+      <span class="muted">Can delegate</span><span>No</span>
+      <span class="muted">Expires</span><span>Goal completion</span>
+      <span class="muted">Network</span><span>Only required provider endpoints</span>
+      <span class="muted">Secrets</span><span>Brokered; raw token hidden</span>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">8. Revocation + incident response</h3>
+<div class="sec-shell">
+  <div class="sec-top"><span>Security Center</span><span>Audit & incidents</span></div>
+  <div class="ui-body">
+    <div class="incident-row"><span>13:02:14</span><span><b>GP-104 requested broader Drive scope</b><br><span class="muted">Request exceeded goal context.</span></span><span class="sec-chip red">BLOCKED</span><button class="sec-btn">Inspect</button></div>
+    <div class="incident-row"><span>12:58:09</span><span><b>GitHub MCP permission changed</b><br><span class="muted">New write capability detected after update.</span></span><span class="sec-chip amber">REVIEW</span><button class="sec-btn">Diff</button></div>
+    <div class="incident-row"><span>12:41:33</span><span><b>Goal GP-082 completed</b><br><span class="muted">6 leases automatically revoked.</span></span><span class="sec-chip green">CLOSED</span><button class="sec-btn">Replay</button></div>
+  </div>
+</div>
+
+<h3 style="margin-top:24px">9. AI-IAM data model</h3>
+<pre>Principal
+├── Human
+├── GoalProcess
+├── Reasoner
+├── Capability Provider
+├── Verifier
+└── System Service
+
+Role
+└── defines actor class + default policy posture
+
+Policy
+├── principal / role selector
+├── capability selector
+├── object scope
+├── conditions
+├── risk requirements
+└── approval rules
+
+Authority Lease
+├── goal_id
+├── principal_id
+├── capability
+├── object_scope
+├── max_uses
+├── expiry
+├── delegation_allowed
+└── revocation_state</pre>
+
+<h3>10. Security decisions we should freeze</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Decision</th><th>SIOS position</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Can a model hold broad user permissions?</td><td><b>No.</b></td><td>Reasoners propose actions; they do not inherit the human’s full account authority.</td></tr>
+<tr><td>Who receives execution authority?</td><td><b>The GoalProcess.</b></td><td>Authority stays tied to a concrete purpose and lifetime.</td></tr>
+<tr><td>How long should authority last?</td><td><b>Shortest practical lease.</b></td><td>One action, N uses, or goal completion.</td></tr>
+<tr><td>Can installed MCPs act whenever they want?</td><td><b>No.</b></td><td>Installation makes capabilities available; it does not authorize execution.</td></tr>
+<tr><td>Can child goals gain more authority?</td><td><b>No by default.</b></td><td>Delegated authority must be equal to or narrower than the parent lease.</td></tr>
+<tr><td>Should secrets be shown to models?</td><td><b>No.</b></td><td>A broker injects credentials directly into trusted transports.</td></tr>
+<tr><td>How are risky actions handled?</td><td><b>ASK / sandbox / deny.</b></td><td>Risk policy determines whether the human must approve.</td></tr>
+<tr><td>What happens when a goal ends?</td><td><b>Leases revoke automatically.</b></td><td>No lingering agent permissions.</td></tr>
+</tbody>
+</table></div>
+
+<h3>11. Honest open problems</h3>
+<ul>
+<li><b>Policy language:</b> we still need to decide whether SIOS uses a custom policy DSL, a Rego/Cedar-like engine, or another formal representation.</li>
+<li><b>Identity federation:</b> local single-user identity is straightforward; organizations, shared devices, delegated corporate identity, and external agent identity are harder.</li>
+<li><b>TOCTOU:</b> permission may be valid when checked but the world can change before execution; high-risk actions need atomic or revalidated execution.</li>
+<li><b>Composite actions:</b> a harmless-looking goal can become risky through a chain of individually allowed operations.</li>
+<li><b>Provider trust:</b> even a correctly authorized MCP can behave maliciously or leak data; authority alone does not replace sandboxing and verification.</li>
+<li><b>Usability:</b> too many approval prompts will destroy the product. SIOS needs progressive trust, sensible defaults, and risk-based prompting without silently granting broad access.</li>
+</ul>
+</section>
+
+<section class="section">
+<div class="kicker">Layer 02 · Verification Engine</div>
+<h2>Do not trust the executor to grade itself.</h2>
+<p>Every consequential action declares an expected outcome. A separate verifier observes reality and decides whether the action actually succeeded.</p>
+<pre>V0 deterministic     file exists / app launched
+V1 constraint-based  no deletions / exact destination
+V2 semantic          result matches requested criteria
+V3 human-confirmed   subjective result requires user approval</pre>
+
+<div class="ui-shell">
+<div class="ui-head"><b>Verification Center</b><span>GP-220 · Organize Downloads</span></div>
+<div class="ui-body">
+<div class="metric-grid">
+<div class="metric"><span class="muted">Checks</span><b>142</b><span>141 passed</span></div>
+<div class="metric"><span class="muted">Failed</span><b>1</b><span>Needs recovery</span></div>
+<div class="metric"><span class="muted">Deleted</span><b>0</b><span>Constraint passed</span></div>
+<div class="metric"><span class="muted">Mode</span><b>V0</b><span>Deterministic</span></div>
+</div>
+<div class="ui-cardx" style="margin-top:14px"><b>Failed postcondition</b><p><code>invoice-044</code> was expected in Finance/Invoices but is still in Downloads.</p><span class="badgex ask">RECOVER</span></div>
+</div></div>
+<p class="muted">Constraint: verification is easy for computer state and much harder for subjective goals. Early SIOS workflows should prefer observable postconditions.</p>
+</section>
+
+<section class="section">
+<div class="kicker">Layer 03 · Observability + Replay</div>
+<h2>Every consequential run should be explainable.</h2>
+<p>The journal records structured events, not hidden chain-of-thought. It should answer what goal existed, what action was proposed, what authority was granted, what executed, what changed, and where failure happened.</p>
+<div class="ui-shell">
+<div class="ui-head"><b>SIOS Run Inspector</b><span>GP-882 · 14.2 sec</span></div>
+<div class="ui-body">
+<div class="event-row"><span>12:41:01</span><span class="badgex">CONTEXT</span><span>Compiled 6 relevant objects</span><span>18 KB</span></div>
+<div class="event-row"><span>12:41:03</span><span class="badgex">MODEL</span><span>Proposed <code>github.issue.create</code></span><span>0.81s</span></div>
+<div class="event-row"><span>12:41:04</span><span class="badgex allow">AUTHORITY</span><span>Lease granted for sios/core</span><span>1 use</span></div>
+<div class="event-row"><span>12:41:06</span><span class="badgex">EXECUTION</span><span>MCP capability called</span><span>200 OK</span></div>
+<div class="event-row"><span>12:41:08</span><span class="badgex">VERIFY</span><span>Issue #184 observed</span><span>PASS</span></div>
+</div></div>
+<p class="muted">Replay should support execution replay, policy replay, and deterministic failure reproduction while excluding secrets and unnecessary private data.</p>
+</section>
+
+<section class="section">
+<div class="kicker">Layer 04 · Context Compiler</div>
+<h2>Give intelligence the smallest useful view of the world.</h2>
+<p>The Context Compiler combines goal, current state, visible objects, recent events, permissions, and available capabilities into a compact task-specific context package.</p>
+<div class="ui-shell">
+<div class="ui-head"><b>Context Inspector</b><span>GP-301 · Prepare SIOS design review</span></div>
+<div class="ui-body">
+<div class="context-grid">
+<div class="context-box"><h4>Included</h4><div>SIOS architecture document</div><div>GoalProcess spec</div><div>Open design questions</div><div>Repository status</div></div>
+<div class="context-box"><h4>Excluded</h4><div>Personal Downloads</div><div>Unrelated school files</div><div>Stored credentials</div><div>Other private projects</div></div>
+<div class="context-box"><h4>Budget</h4><div>4,720 estimated tokens</div><div>7 objects</div><div>2 predicted capabilities</div><div>Local processing preferred</div></div>
+</div>
+</div></div>
+<p class="muted">Critical rule: relevance does not override permission. The compiler only searches inside the context the GoalProcess is authorized to see.</p>
+</section>
+
+<section class="section">
+<div class="kicker">Layer 05 · Universal Capability Runtime</div>
+<h2>One stable action interface over many backends.</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Priority</th><th>Path</th><th>Example</th><th>Reason</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Native SIOS / OS</td><td><code>folder.open</code></td><td>Fastest and most verifiable</td></tr>
+<tr><td>2</td><td>Application API</td><td>Open VS Code project</td><td>Structured app control</td></tr>
+<tr><td>3</td><td>Trusted MCP</td><td><code>github.issue.create</code></td><td>External service actions</td></tr>
+<tr><td>4</td><td>Semantic UI tree</td><td>Activate labeled control</td><td>Better than pixels</td></tr>
+<tr><td>5</td><td>Pixel + pointer</td><td>Legacy app</td><td>Compatibility fallback</td></tr>
+</tbody></table></div>
+
+<div class="ui-shell" style="margin-top:14px">
+<div class="ui-head"><b>Capability Router</b><span>Action: open_project</span></div>
+<div class="ui-body">
+<div class="policy-row"><b>1 · Native</b><span><code>project.open</code></span><span>Available</span><span class="badgex allow">SELECTED</span></div>
+<div class="policy-row"><b>2 · App API</b><span>VS Code URI</span><span>Available</span><span class="badgex">Fallback</span></div>
+<div class="policy-row"><b>3 · MCP</b><span>Not required</span><span>—</span><span class="badgex">Skip</span></div>
+<div class="policy-row"><b>4 · Semantic UI</b><span>Files window</span><span>Available</span><span class="badgex">Fallback</span></div>
+<div class="policy-row"><b>5 · Pixel UI</b><span>Vision + pointer</span><span>Available</span><span class="badgex deny">Last resort</span></div>
+</div></div>
+</section>
+
+<section class="section">
+<div class="kicker">Layer 06 · MCP / Capability Store</div>
+<h2>Trusted distribution for new SIOS abilities.</h2>
+<p>The Store ingests registry metadata, adds SIOS trust and compatibility checks, then lets the user install/connect a capability without giving every GoalProcess automatic access.</p>
+
+<div class="ui-shell">
+<div class="ui-head"><b>SIOS Store</b><span>Developer → GitHub</span></div>
+<div class="ui-body">
+<div class="grid2">
+<div class="ui-cardx"><h3>GitHub</h3><p class="muted">Repositories, issues, pull requests</p><p><span class="badgex allow">Verified publisher</span> <span class="badgex">Remote MCP</span></p><p><b>Authentication:</b> OAuth<br><b>Risk:</b> Read + Write<br><b>Source:</b> Official MCP Registry</p></div>
+<div class="ui-cardx"><b>Capabilities provided</b><p><span class="pill">github.repo.read</span><span class="pill">github.issue.read</span><span class="pill">github.issue.create</span><span class="pill">github.pr.read</span></p><p class="muted">Installing adds these to the capability catalog. GoalProcesses still require authority.</p><button class="sios-btn">Review & connect</button></div>
+</div>
+</div></div>
+
+<h3>Ingestion pipeline</h3>
+<pre>Registry
+  ↓
+Metadata + schema validation
+  ↓
+Publisher / signature checks
+  ↓
+Risk classification
+  ↓
+Compatibility adapter
+  ↓
+SIOS catalog
+  ↓
+Install / connect
+  ↓
+Secret broker + sandbox
+  ↓
+Capability available to GoalProcesses</pre>
+
+<h3>Hard constraints</h3>
+<ul><li>Malicious or compromised MCP servers.</li><li>Behavior changes after updates.</li><li>Credential theft.</li><li>Inconsistent tool schemas.</li><li>Need version pinning, permission diffs, sandboxing, and revocation.</li></ul>
+</section>
+
+<section class="section">
+<div class="kicker">Commercialization map</div>
+<h2>These can become products before the whole OS exists.</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>SIOS layer</th><th>Standalone product</th><th>Who buys it</th></tr></thead>
+<tbody>
+<tr><td>Authority Kernel</td><td>Agent IAM / policy engine</td><td>Enterprises deploying agents</td></tr>
+<tr><td>Verification</td><td>Agent outcome assurance</td><td>Agent platforms and enterprises</td></tr>
+<tr><td>Observability</td><td>Agent run debugger + replay</td><td>Engineering and security teams</td></tr>
+<tr><td>Context Compiler</td><td>Secure context infrastructure</td><td>Enterprise AI teams</td></tr>
+<tr><td>Capability Runtime</td><td>Universal agent execution layer</td><td>Agent developers</td></tr>
+<tr><td>MCP Store</td><td>Enterprise capability marketplace</td><td>Companies running many agents</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="tunnel" class="section">
+<div class="kicker">09 · The “underground tunnel” idea</div>
+<h2>SIOS should control the computer through structured system paths, not by pretending to be a human.</h2>
+
+<p>
+The phrase <b>“underground tunnel”</b> means that SIOS should prefer a machine-readable control path underneath the visible user interface.
+Traditional computer-use agents often inspect pixels, move a cursor, click buttons, wait for animations, and visually confirm the result.
+That works, but it is slow and fragile. SIOS should instead expose direct typed capabilities whenever the operating system or application provides one.
+</p>
+
+<div class="grid2">
+<div class="card">
+<h3>Visual automation path</h3>
+<pre>Goal
+ ↓
+Model looks at screenshot
+ ↓
+Find button
+ ↓
+Move pointer
+ ↓
+Click
+ ↓
+Wait
+ ↓
+Look again
+ ↓
+Decide what happened</pre>
+<p class="muted">Useful as a compatibility fallback, but expensive, probabilistic, and sensitive to layout changes.</p>
+</div>
+
+<div class="card">
+<h3>SIOS native control path</h3>
+<pre>Goal
+ ↓
+Typed capability
+ ↓
+Authority check
+ ↓
+Native OS / app interface
+ ↓
+Execution
+ ↓
+Structured result
+ ↓
+Verifier</pre>
+<p class="muted">Preferred path: fewer steps, lower latency, clearer permissions, and much easier verification.</p>
+</div>
+</div>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Example</th><th>Human-style control</th><th>SIOS native path</th></tr></thead>
+<tbody>
+<tr><td>Open folder</td><td>Find Files icon → click → navigate visually</td><td><code>folder.open(obj://sios-root)</code></td></tr>
+<tr><td>Launch app</td><td>Open launcher → search → click</td><td><code>app.launch(app://vscode)</code></td></tr>
+<tr><td>Move file</td><td>Drag file between windows</td><td><code>file.move(source,destination)</code></td></tr>
+<tr><td>Send message</td><td>Open app → navigate → type → click send</td><td>Use trusted app/API/MCP capability</td></tr>
+</tbody>
+</table></div>
+
+<p>
+This does <b>not</b> mean SIOS never uses the visible UI. UI control remains a compatibility layer for software that exposes no reliable machine interface.
+The architectural rule is:
+</p>
+
+<pre>1. Native SIOS capability
+2. OS / application API
+3. Trusted MCP capability
+4. Accessibility / semantic UI interface
+5. Pixel + pointer automation only as fallback</pre>
+
+<p class="muted">
+This hierarchy is important because it turns “AI operating the computer” into “the computer exposing a better interface to intelligence.”
+That is a core SIOS design thesis.
+</p>
+</section>
+
+<section id="mcpstore" class="section">
+<div class="kicker">10 · SIOS MCP / Capability Store</div>
+<h2>MCP servers become installable capabilities inside SIOS.</h2>
+
+<p>
+SIOS should include an in-house registry and store experience that can ingest listings from the official MCP Registry,
+evaluate them against SIOS policy, and expose approved servers as installable “apps” or capabilities.
+The user should not need to manually edit configuration files or understand MCP transports.
+</p>
+
+<div class="diagram">
+<svg viewBox="0 0 980 520" aria-label="SIOS MCP Store architecture">
+<defs><marker id="mcpArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#64748b"/></marker></defs>
+<g stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#mcpArrow)">
+<path d="M180 120H345"/><path d="M500 158V230"/><path d="M500 306V370"/><path d="M655 268H790"/>
+</g>
+
+<rect x="35" y="80" width="290" height="80" rx="12" fill="#fff" stroke="#666" stroke-width="2"/>
+<text x="180" y="112" text-anchor="middle" fill="#1d1d1f" font-weight="700">OFFICIAL MCP REGISTRY</text>
+<text x="180" y="136" text-anchor="middle" fill="#6b6b6b" font-size="12">server metadata · versions · packages</text>
+
+<rect x="345" y="80" width="310" height="80" rx="12" fill="#fff" stroke="#5b7fa3" stroke-width="2"/>
+<text x="500" y="112" text-anchor="middle" fill="#1d1d1f" font-weight="700">SIOS REGISTRY INGESTION</text>
+<text x="500" y="136" text-anchor="middle" fill="#6b6b6b" font-size="12">sync · normalize · cache · version</text>
+
+<rect x="345" y="230" width="310" height="76" rx="12" fill="#fff" stroke="#8a7447" stroke-width="2"/>
+<text x="500" y="260" text-anchor="middle" fill="#1d1d1f" font-weight="700">TRUST + COMPATIBILITY GATE</text>
+<text x="500" y="284" text-anchor="middle" fill="#6b6b6b" font-size="12">permissions · publisher · runtime · risk</text>
+
+<rect x="790" y="230" width="160" height="76" rx="12" fill="#fff" stroke="#777" stroke-width="2"/>
+<text x="870" y="260" text-anchor="middle" fill="#1d1d1f" font-weight="700">REJECT / WARN</text>
+<text x="870" y="284" text-anchor="middle" fill="#6b6b6b" font-size="12">unsupported or risky</text>
+
+<rect x="345" y="370" width="310" height="82" rx="12" fill="#fff" stroke="#5f7b63" stroke-width="2"/>
+<text x="500" y="402" text-anchor="middle" fill="#1d1d1f" font-weight="700">SIOS APP / CAPABILITY STORE</text>
+<text x="500" y="426" text-anchor="middle" fill="#6b6b6b" font-size="12">install · connect · authorize · update</text>
+</svg>
+</div>
+
+<h3>What “install” should mean</h3>
+<div class="grid3">
+<div class="card">
+<b>1. Discover</b>
+<div class="muted">SIOS syncs MCP metadata from the official registry and displays compatible capabilities.</div>
+</div>
+<div class="card">
+<b>2. Inspect</b>
+<div class="muted">SIOS shows publisher, requested permissions, transport, data access, authentication, and risk.</div>
+</div>
+<div class="card">
+<b>3. Install / Connect</b>
+<div class="muted">Local servers are installed into a managed sandbox; remote servers are connected through a managed transport.</div>
+</div>
+<div class="card">
+<b>4. Authenticate</b>
+<div class="muted">OAuth/API credentials are stored through a SIOS secret broker rather than handed directly to arbitrary models.</div>
+</div>
+<div class="card">
+<b>5. Translate</b>
+<div class="muted">MCP tools are normalized into the same SIOS capability vocabulary used by native system actions.</div>
+</div>
+<div class="card">
+<b>6. Authorize per goal</b>
+<div class="muted">Installing an app does not give every GoalProcess permanent access to it.</div>
+</div>
+</div>
+
+<h3>Example</h3>
+<pre>User installs “GitHub” capability
+        ↓
+SIOS Store
+        ↓
+MCP metadata + package / remote endpoint
+        ↓
+Trust + permission review
+        ↓
+User connects account
+        ↓
+SIOS capability catalog now includes:
+
+github.repo.read
+github.issue.create
+github.pull_request.read
+...
+
+        ↓
+GoalProcess can REQUEST one capability
+        ↓
+Authority layer decides whether this goal gets it</pre>
+
+<p>
+The key distinction is that the <b>MCP Store is not the execution authority</b>.
+It expands what SIOS is capable of doing, but GoalProcess authority still controls when those capabilities may be used.
+</p>
+
+<h3>SIOS-specific metadata we should add on top of MCP</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Metadata</th><th>Why SIOS needs it</th></tr></thead>
+<tbody>
+<tr><td>SIOS capability mapping</td><td>Map arbitrary MCP tool names into stable SIOS semantic actions where possible.</td></tr>
+<tr><td>Risk class</td><td>Read-only, write, destructive, communication, financial, identity, system-level, etc.</td></tr>
+<tr><td>Data access declaration</td><td>What user information can leave the device?</td></tr>
+<tr><td>Authentication type</td><td>OAuth, API key, local credential, anonymous, or other.</td></tr>
+<tr><td>Execution type</td><td>Local process, container/sandbox, or remote service.</td></tr>
+<tr><td>Verification hooks</td><td>How SIOS can independently determine whether an action actually succeeded.</td></tr>
+<tr><td>Compatibility version</td><td>Which SIOS capability/runtime contract the adapter supports.</td></tr>
+<tr><td>Publisher trust</td><td>Official publisher, community publisher, signed package, unknown publisher.</td></tr>
+</tbody>
+</table></div>
+
+<h3>Important constraint</h3>
+<p>
+We should <b>not blindly mirror every MCP and make it one-click executable</b>.
+A public registry is a discovery source, not a security boundary. SIOS must validate packages/endpoints,
+declare permissions before connection, isolate local servers, protect credentials, and allow revocation.
+</p>
+</section>
+
+<section id="protocol" class="section">
+<div class="kicker">11 · Minimal protocol</div><h2>Goal envelope</h2>
+<pre>{
+  "goal_id": "GP-001",
+  "intent": "open_sios_folder",
+  "action": {
+    "capability": "folder.open",
+    "target": "obj://sios-root"
+  },
+  "authority": {
+    "scope": ["obj://sios-root"],
+    "mode": "read_open"
+  },
+  "expected_outcome": {
+    "type": "window_open",
+    "object": "obj://sios-root"
+  },
+  "state": "READY"
+}</pre>
+</section>
+
+<section id="build" class="section">
+<div class="kicker">12 · Build order</div><h2>Build one vertical slice first</h2>
+<ol>
+<li><b>Input adapter:</b> connect hand tracking and normal mouse to one interface.</li>
+<li><b>GoalProcess record:</b> create GP-001 with intent, state, scope, expected result.</li>
+<li><b>Object resolver:</b> map <code>obj://sios-root</code> to the actual Fedora path.</li>
+<li><b>Authority:</b> allow only <code>folder.open</code> for that object.</li>
+<li><b>Executor:</b> implement the Fedora-specific <code>folder.open()</code>.</li>
+<li><b>Verifier:</b> observe the active file-manager window/path.</li>
+<li><b>Journal:</b> record request → resolution → authorization → execution → verification.</li>
+<li><b>Second primitive:</b> add <code>app.launch</code> and reuse the same path.</li>
+</ol>
+<h3>Suggested repository</h3>
+<pre>sios/
+├── core/
+│   ├── goal_process/
+│   ├── contracts/
+│   ├── authority/
+│   └── verification/
+├── capabilities/
+│   ├── filesystem/
+│   ├── applications/
+│   └── windows/
+├── adapters/
+│   ├── fedora/
+│   ├── input/
+│   │   ├── mouse/
+│   │   └── hand_tracking/
+│   └── intelligence/
+├── services/
+│   └── sios-goald/
+├── cli/
+├── tests/
+└── docs/</pre>
+</section>
+
+<section id="testing" class="section">
+<div class="kicker">13 · POC acceptance suite</div><h2>How we know the idea actually works</h2>
+<ul class="check">
+<li>Normal Fedora mouse input still works.</li>
+<li>Hand tracking can move/select without changing GoalProcess code.</li>
+<li>Voice recording begins only after explicit push-to-talk activation.</li>
+<li>Releasing push-to-talk cleanly ends the recording and sends audio to local STT.</li>
+<li>The local controller can map simple commands to allowed SIOS capabilities without executing them directly.</li>
+<li>Native capabilities are preferred over pixel/pointer automation whenever both are available.</li>
+<li>An installed MCP capability cannot bypass the same GoalProcess authority checks used by native capabilities.</li>
+<li>“Open SIOS folder” creates a stable GoalProcess ID.</li>
+<li>The resolver returns the intended folder object.</li>
+<li>An unauthorized folder request is denied.</li>
+<li><code>folder.open()</code> opens the intended location.</li>
+<li>The verifier confirms the correct folder is actually visible.</li>
+<li>If execution fails, the goal does not report COMPLETE.</li>
+<li>The journal reconstructs the full sequence.</li>
+<li>Switching from hand input to mouse/keyboard requires no changes to the core control path.</li>
+</ul>
+<p><b>POC success:</b> one user outcome travels end-to-end through Input → GoalProcess → Resolver → Authority → Capability → Fedora → Verifier without depending on one input device or one AI model.</p>
+</section>
+
+<section class="section">
+<div class="kicker">Frozen interaction decision</div>
+<h2>No wake word in SIOS v0.</h2>
+<p><b>Voice interaction is explicitly activated using push-to-talk.</b> Always-listening voice detection, wake-word recognition, and passive microphone activation are postponed until after the core SIOS interaction model has been validated.</p>
+</section>
+
+<section class="section">
+<div class="kicker">14 · What we are not building yet</div>
+<div class="grid3">
+<div class="card"><b>No full world model</b><div class="muted">Use a tiny configured object registry first.</div></div>
+<div class="card"><b>No MCP store</b><div class="muted">Local capabilities first.</div></div>
+<div class="card"><b>No custom kernel</b><div class="muted">Stay on Fedora/Linux.</div></div>
+<div class="card"><b>No giant planner</b><div class="muted">Prefer deterministic sequences.</div></div>
+<div class="card"><b>No autonomous browser</b><div class="muted">Too many failure modes for v0.</div></div>
+<div class="card"><b>No polished desktop shell</b><div class="muted">CLI/minimal UI until semantics work.</div></div>
+</div>
+</section>
+
+<section class="section">
+<div class="kicker">15 · Expansion path</div><h2>How this grows into SIOS</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Stage</th><th>Addition</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>0.1</td><td>Single atomic capability</td><td>Open SIOS folder</td></tr>
+<tr><td>0.2</td><td>Several primitives</td><td>Launch editor + open repo</td></tr>
+<tr><td>0.3</td><td>Short deterministic sequences</td><td>Prepare SIOS workspace</td></tr>
+<tr><td>0.4</td><td>Object registry</td><td>“Open the project I worked on yesterday”</td></tr>
+<tr><td>0.5</td><td>Authority leases + transactions</td><td>Move/rename safely</td></tr>
+<tr><td>0.6</td><td>Optional intelligence router</td><td>Resolve ambiguous next action</td></tr>
+<tr><td>0.7</td><td>Context/world model</td><td>Cross-project semantic goals</td></tr>
+<tr><td>0.8</td><td>SIOS MCP / Capability Store</td><td>Discover, review, install/connect, and authorize registry capabilities</td></tr>
+<tr><td>0.85</td><td>External capability adapters</td><td>Email, calendar, GitHub, SaaS, remote MCP/API</td></tr>
+<tr><td>0.9</td><td>SIOS shell</td><td>Goal-native desktop</td></tr>
+</tbody>
+</table></div>
+</section>
+
+</main>
+
+<script>
+(() => {
+ const nodes=[...document.querySelectorAll('.node')];
+ const detail=document.getElementById('detail');
+ const info={
+ input:['Input Layer','Normalizes physical mouse, hand tracking, keyboard, voice, and future inputs.'],
+ goal:['GoalProcess','Owns outcome, state, scope, progress, and expected result.'],
+ planner:['Atomic Action Planner','Selects the smallest reliable sequence of typed actions.'],
+ resolver:['Object Resolver','Maps “SIOS folder” to a stable object and current Fedora resource.'],
+ authority:['Authority Check','Allows or denies the requested capability on the target object.'],
+ executor:['Capability Executor','Runs typed capabilities through Fedora-specific adapters.'],
+ linux:['Fedora / Linux','Keeps responsibility for normal processes, files, windows, drivers, and applications.'],
+ verify:['Verifier','Observes the resulting system state before GoalProcess becomes COMPLETE.']
+ };
+ function select(k){
+   nodes.forEach(n=>n.classList.toggle('selected',n.dataset.key===k));
+   const d=info[k]; if(!d)return;
+   detail.innerHTML='<b></b><div class="muted"></div>';
+   detail.children[0].textContent=d[0];
+   detail.children[1].textContent=d[1];
+ }
+ nodes.forEach(n=>{
+   n.setAttribute('tabindex','0'); n.setAttribute('role','button');
+   n.addEventListener('click',()=>select(n.dataset.key));
+   n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(n.dataset.key)}})
+ });
+
+ const talk=document.getElementById('demoTalkBtn');
+ const voice=document.getElementById('voiceDemoState');
+ if(talk && voice){
+   let phase=0;
+   talk.addEventListener('click',()=>{
+     phase=(phase+1)%4;
+     const states=[
+       'Idle',
+       'Listening… “Open my SIOS folder”',
+       'Transcribing locally…',
+       'Action proposal ready: folder.open(obj://sios-root)'
+     ];
+     voice.textContent=states[phase];
+   });
+ }
+ document.querySelectorAll('.installDemo').forEach(btn=>{
+   btn.addEventListener('click',()=>{
+     btn.textContent='Review permissions';
+     btn.style.background='#eef3f8';
+     btn.style.borderColor='#bfd0e1';
+   });
+ });
+
+})();
+</script>
+</body>
+</html>

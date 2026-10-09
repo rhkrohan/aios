@@ -1,0 +1,265 @@
+@import "tailwindcss";
+
+/* Design tokens. Light is the default; the simulated OS flips data-theme on <html>. */
+:root {
+  --surface: #ffffff;
+  --surface-2: #f7f7f5;
+  --surface-3: #efefeb;
+  --line: #e4e4df;
+  --line-strong: #cfcfc9;
+  --fg: #1d1d1f;
+  --fg-2: #5c5c59;
+  --fg-3: #8b8b86;
+  --accent: #2f5d8a;
+  --accent-strong: #244a70;
+  --accent-soft: #e8eef5;
+  --accent-line: #c9d6e4;
+  --ok: #4d7a52;
+  --ok-soft: #eef4ef;
+  --ok-line: #c4d6c7;
+  /* Ember: things that can't be undone */
+  --warn: #b0532f;
+  --warn-soft: #fbefe9;
+  --warn-line: #efcdbd;
+  /* AI presence: the orb's blue. Used only when the AI is acting or asking. */
+  --ai: #4f7bf7;
+  --ai-ink: #2f56d0;
+  --ai-soft: #eef2ff;
+  --ai-line: #cdd8fd;
+  --danger: #9a4b4b;
+  --danger-soft: #f8eded;
+  --danger-line: #e2c4c4;
+  --topbar: rgba(248, 249, 251, 0.78);
+  --topbar-fg: #111318;
+  --glass: rgba(250, 251, 253, 0.8);
+  --glass-strong: rgba(253, 253, 255, 0.9);
+  --glass-line: rgba(255, 255, 255, 0.7);
+  --shadow-window: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 24px 60px -12px rgba(20, 24, 30, 0.28),
+    0 0 0 1px rgba(20, 24, 30, 0.08);
+  --shadow-pop: 0 30px 80px -20px rgba(20, 24, 30, 0.38), 0 0 0 1px rgba(20, 24, 30, 0.08);
+  --wall-a: #e9ebe6;
+  --wall-b: #dfe5ea;
+  --wall-c: #c9d6e4;
+  --wall-d: #e8e1d4;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --surface: #1e2023;
+  --surface-2: #24272b;
+  --surface-3: #2c3034;
+  --line: #33373c;
+  --line-strong: #43484e;
+  --fg: #ececea;
+  --fg-2: #a9a9a4;
+  --fg-3: #7c7c77;
+  --accent: #8fb3d9;
+  --accent-strong: #b0cbe8;
+  --accent-soft: #233140;
+  --accent-line: #34495f;
+  --ok: #94c29a;
+  --ok-soft: #1f2b22;
+  --ok-line: #34503a;
+  --warn: #e8957a;
+  --warn-soft: #34221b;
+  --warn-line: #5c3a2d;
+  --ai: #7d9dff;
+  --ai-ink: #a9bdff;
+  --ai-soft: #1d2442;
+  --ai-line: #34407c;
+  --danger: #dc9696;
+  --danger-soft: #362222;
+  --danger-line: #5a3636;
+  --topbar: rgba(20, 22, 26, 0.74);
+  --topbar-fg: #f5f6f8;
+  --glass: rgba(28, 31, 36, 0.78);
+  --glass-strong: rgba(26, 29, 34, 0.9);
+  --glass-line: rgba(255, 255, 255, 0.1);
+  --shadow-window: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 24px 60px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+  --shadow-pop: 0 30px 80px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --wall-a: #16191d;
+  --wall-b: #1b2229;
+  --wall-c: #23384d;
+  --wall-d: #2a2620;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-line: var(--ok-line);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+  --color-ai: var(--ai);
+  --color-ai-ink: var(--ai-ink);
+  --color-ai-soft: var(--ai-soft);
+  --color-ai-line: var(--ai-line);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-line: var(--glass-line);
+  --shadow-window: var(--shadow-window);
+  --shadow-pop: var(--shadow-pop);
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), var(--font-ui), sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--surface-2);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.wallpaper {
+  background:
+    radial-gradient(1200px 700px at 12% 18%, var(--wall-c), transparent 60%),
+    radial-gradient(900px 600px at 88% 82%, var(--wall-d), transparent 60%),
+    radial-gradient(700px 500px at 70% 10%, var(--wall-b), transparent 70%),
+    var(--wall-a);
+  transition: background 0.6s ease;
+}
+
+/* The lantern at the end of the tunnel breathes while the AI works. */
+.lantern {
+  transform-origin: 1060px 614px;
+  transition: opacity 0.6s ease;
+}
+.lantern-working {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.lantern-waiting {
+  animation: breathe 1.1s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+/* A ring of lantern light around whatever the AI is currently doing. */
+/* Needs a positioned element (relative, fixed or absolute); it doesn't set one,
+   so it never overrides the element's own positioning. */
+.ai-ring::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ai-angle, 0deg), transparent 0deg, #7fd0ff 40deg, var(--ai) 80deg, #9b7bff 120deg, transparent 170deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: ai-spin 2.6s linear infinite;
+  pointer-events: none;
+}
+@property --ai-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes ai-spin {
+  to {
+    --ai-angle: 360deg;
+  }
+}
+
+/* Text on frosted glass: the photo shows through, so secondary text needs
+   more contrast than it does on solid surfaces. Scoped vars, same names. */
+.glass {
+  --fg: #111318;
+  --fg-2: #3d4149;
+  --fg-3: #5d626b;
+  --line: rgba(20, 25, 35, 0.1);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .glass {
+  --fg: #f5f6f8;
+  --fg-2: #ced2d9;
+  --fg-3: #a8adb6;
+  --line: rgba(255, 255, 255, 0.1);
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, var(--fg-3) 0%, var(--fg) 40%, var(--fg-3) 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-2);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
