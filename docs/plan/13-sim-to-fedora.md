@@ -33,6 +33,7 @@ The digital version (the preview in `build_concept_html`, plus `capd` and `brain
 | Confusion test | Test lab runs graded messy requests against the real model | Part of the CI evaluation suite | |
 | Memory (facts, preferences, people, episodes) | capd memory module, `~/.sios/memory.json`; Memory app in the shell | Vault: encrypted under `~/.local/share/sios/vault`, enforced by the broker | D8, D21 |
 | Memory recall and redaction | brain-d asks capd before each plan; names become placeholders at the default privacy level | Same, with local embeddings for search | D14, D21 |
+| Helper pets (the pet team) | brain-d helpers: each its own principal "Name (helper)", jobs watch / every / once, reports back to the shell | A systemd user timer or inotify watch per helper, owned by brain-d; same identities and passes | D4, D20 |
 | Starting and stopping | The page starts both services (stands in for systemd) | systemd units: broker at boot, brain-d per session | |
 
 ## Flows that must stay identical
