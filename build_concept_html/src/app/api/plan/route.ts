@@ -5,6 +5,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { AREAS, LIVE_TOOLS, type LivePlan } from "@/lib/livetools";
+import { liveGuard } from "@/lib/server/capd";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -109,8 +110,15 @@ async function planWithOpenAI(user: string): Promise<Result> {
  * Claude if ANTHROPIC_API_KEY is set, otherwise OpenAI if OPENAI_API_KEY is set.
  */
 export async function POST(req: Request) {
+  // this spends the owner's AI credit: only the SIOS page on this computer may call it
+  const refused = liveGuard(req);
+  if (refused) return refused;
   const { request, state } = (await req.json()) as { request: string; state: unknown };
-  const user = `Current state of the computer (JSON):\n${JSON.stringify(state)}\n\nUser request: ${request}`;
+  const stateText = JSON.stringify(state ?? {});
+  if (typeof request !== "string" || !request.trim() || request.length > 4000 || stateText.length > 60_000) {
+    return Response.json({ error: "bad_request" }, { status: 400 });
+  }
+  const user = `Current state of the computer (JSON):\n${stateText}\n\nUser request: ${request}`;
   let result: Result;
   if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) result = await planWithClaude(user);
   else if (process.env.OPENAI_API_KEY) result = await planWithOpenAI(user);

@@ -129,7 +129,7 @@ const SECRET = (g.__siosLiveSecret ??= randomBytes(32).toString("hex"));
 export const LIVE_COOKIE = "sios_live";
 
 export function sessionCookie(): string {
-  return `${LIVE_COOKIE}=${SECRET}; HttpOnly; SameSite=Strict; Path=/api/live`;
+  return `${LIVE_COOKIE}=${SECRET}; HttpOnly; SameSite=Strict; Path=/api`;
 }
 
 function hasSession(req: Request): boolean {

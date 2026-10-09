@@ -9,7 +9,7 @@
 import { SCENARIOS, matchScenario, type Plan, type StepSpec } from "./scenarios";
 import { execute, plannerState } from "./executors";
 import { liveTool, type LivePlan } from "./livetools";
-import { runLiveMachine, undoLiveGoal } from "./livemachine";
+import { liveFetch, runLiveMachine, undoLiveGoal } from "./livemachine";
 import { deriveFrom, lookup } from "./objects";
 import { uid, useOS } from "./store";
 import { evaluate, principalName, targetOf } from "./policy";
@@ -464,7 +464,7 @@ async function runLive(runId: string, text: string, principal: string, files: st
   let plan: LivePlan | null = null;
   let who = "";
   try {
-    const res = await fetch("/api/plan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ request: files.length ? `${text}\n\nThe files this is about: ${files.join(", ")}` : text, state: plannerState() }) });
+    const res = await liveFetch("/api/plan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ request: files.length ? `${text}\n\nThe files this is about: ${files.join(", ")}` : text, state: plannerState() }) });
     const data = await res.json();
     if (data.plan) {
       plan = data.plan as LivePlan;
