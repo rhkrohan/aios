@@ -1,7 +1,7 @@
 "use client";
 
 // The cute parts every pet shares: blushing cheeks, a mouth that follows its
-// mood, and hearts when you pet it. Helpers are the
+// mood, and a ripple of light when you tap it. Helpers are the
 // same orb in a soft pastel, a bit smaller.
 
 import { AnimatePresence, motion } from "motion/react";
@@ -33,23 +33,20 @@ export function Mouth({ mood, size }: { mood: string; size: number }) {
   );
 }
 
-/** Little hearts floating up when you pet it. */
+/** A soft ripple of the orb's own light when you tap it. */
 export function Hearts({ burst }: { burst: number[] }) {
   return (
     <AnimatePresence>
-      {burst.map((id, i) => (
+      {burst.slice(0, 2).map((id, i) => (
         <motion.span
           key={id}
-          className="absolute left-1/2 top-0 pointer-events-none text-[#ff6f97]"
-          initial={{ opacity: 0, y: 0, x: 0, scale: 0.4 }}
-          animate={{ opacity: [0, 1, 0], y: -46 - i * 6, x: (i % 2 ? 1 : -1) * (10 + i * 6), scale: 1 }}
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{ border: "1.5px solid rgba(150,160,255,.85)", boxShadow: "0 0 14px 2px rgba(120,130,255,.45), inset 0 0 10px rgba(170,180,255,.35)" }}
+          initial={{ opacity: 0.9, scale: 0.7 }}
+          animate={{ opacity: 0, scale: 1.9 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 1.3, ease: "easeOut", delay: i * 0.08 }}
-        >
-          <svg width="14" height="13" viewBox="0 0 14 13" aria-hidden>
-            <path d="M7 12.5S1 8.6 1 4.6A3.3 3.3 0 0 1 7 2.8a3.3 3.3 0 0 1 6 1.8C13 8.6 7 12.5 7 12.5Z" fill="currentColor" />
-          </svg>
-        </motion.span>
+          transition={{ duration: 0.9, ease: "easeOut", delay: i * 0.18 }}
+        />
       ))}
     </AnimatePresence>
   );

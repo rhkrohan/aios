@@ -241,7 +241,10 @@ function HelperPet({ s, spot, index }: { s: HelperStatus; spot: { x: number; y: 
             <Sparkles size={14} fill="currentColor" />
           </motion.span>
         )}
-        <Hearts burst={hearts} />
+        {/* the ripple in the helper's own color */}
+        <span className="absolute inset-0 pointer-events-none" style={{ filter: `hue-rotate(${(PASTELS[s.helper.color] ?? PASTELS.mint).hue}deg) saturate(1.25)` }}>
+          <Hearts burst={hearts} />
+        </span>
       </motion.button>
       <span className="absolute left-1/2 -translate-x-1/2 -bottom-[22px] whitespace-nowrap text-[10.5px] font-semibold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.6)]">{s.helper.name}</span>
     </motion.div>
