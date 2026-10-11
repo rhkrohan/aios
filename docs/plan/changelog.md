@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-11: IAM in capd and brain-d (stable ids, pairing tokens, unpaired apps get no roles, brain.sock secret); live Security Center; mapping row and build order updated.
 - 2026-10-11: Agent IAM built in the sim (Identities, Roles, What if in the Security Center); mapping row added; build order updated. Rule recorded: the strictest of role and Access map wins.
 - 2026-10-11: Added 14-design-decisions.md (all decisions in one place, with system, request and broker diagrams; proposed D22 to D26 from the audit).
 - 2026-10-11: ideas.md: Agent IAM (candidate D22), from a full audit of capd, brain-d, the sim engine and memory.

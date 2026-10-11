@@ -204,8 +204,8 @@ flowchart LR
 | Stage | What | Status |
 | --- | --- | --- |
 | 0 | Definite bugs: approval re-check, secret checks, memory fixes, honest Security UI | Done 2026-10-11 |
-| 1 | IAM core in capd, identity proof (D22, D23), migrate rules, shares and pause | Next (sim side done first, see Stage 2) |
-| 2 | Sim reads the same IAM; Security Center: Identities, Roles, what-if simulator | Sim side done 2026-10-11 (`lib/iam.ts`); capd half pending |
+| 1 | IAM core in capd, identity proof (D22, D23), migrate rules, shares and pause | Done 2026-10-11 (pause and shares moved; standing rules stay as pass grants) |
+| 2 | Sim reads the same IAM; Security Center: Identities, Roles, what-if simulator | Done 2026-10-11, sim and live |
 | 3 | Labels follow data (D24) | |
 | 4 | Memory supersede, recall, Memory app (D25) | |
 | 5 | Token work (D26) | |
