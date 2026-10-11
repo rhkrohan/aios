@@ -5,6 +5,7 @@ New ideas land here first. Status: Exploring, Accepted, Parked. When accepted, l
 | Idea | What it is | Where it fits | Status |
 | --- | --- | --- | --- |
 | Jev (TypeSafe AI) | Hosted "System One" decision model | Inspired Reflex (D11); Jev itself as optional plugin later | Accepted as inspiration |
+| Agent IAM | One identity and permission model for every AI: a principal registry (stable ids, kind, who created it, how it proved itself), roles made of allow and deny statements (tools, folders, memory groups, conditions, auto or ask), the per-goal pass as a slice inside the role, explicit deny always wins. Outside AIs prove identity with a pairing token the owner issues. Sim and capd read the same format. Found by the 2026-10-11 audit: today a principal is any string, so agents can rename themselves and borrow another AI's memory shares | capd (new iam module), brain-d identities, Security app (Identities, Roles, what-if simulator) | Exploring (candidate D22) |
 | JevOS-style policy file | Plain JSON rules turn scores into allow / ask / block, with replayable traces | Broker policy | Exploring |
 | Home brain | User's desktop GPU serves a big model to their laptop | Router provider | Exploring |
 | Recipe sharing | Users share workflows, like an app store for recipes | Phase 4+ | Exploring |

@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-11: ideas.md: Agent IAM (candidate D22), from a full audit of capd, brain-d, the sim engine and memory.
 - 2026-10-09: Mapping doc: everyday demo and its new tools (reminders, away reply, document compare, web forms). ideas.md: everyday test pack for the live machine.
 - 2026-10-09: Mapping doc: memory simulation row. ideas.md: "memory that changes its mind" (stale facts, episodes crowding out facts, learned habits going stale), found by the simulation.
 - 2026-10-09: Mapping doc: memory map row (episodes keep links to the memories they recalled and who ran them).
