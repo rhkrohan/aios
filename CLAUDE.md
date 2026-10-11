@@ -52,6 +52,7 @@ docs/plan/12-risks.md             risks and open questions
 docs/plan/ideas.md                backlog
 docs/plan/glossary.md             plain-English terms
 docs/plan/13-sim-to-fedora.md     how the digital version maps to the Fedora build
+docs/plan/14-design-decisions.md  why it's built this way, with diagrams; proposed decisions
 docs/plan/changelog.md            plan history
 docs/phases/phase-N.md            tasks and gates per phase
 

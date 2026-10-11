@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-11: Added 14-design-decisions.md (all decisions in one place, with system, request and broker diagrams; proposed D22 to D26 from the audit).
 - 2026-10-11: ideas.md: Agent IAM (candidate D22), from a full audit of capd, brain-d, the sim engine and memory.
 - 2026-10-09: Mapping doc: everyday demo and its new tools (reminders, away reply, document compare, web forms). ideas.md: everyday test pack for the live machine.
 - 2026-10-09: Mapping doc: memory simulation row. ideas.md: "memory that changes its mind" (stale facts, episodes crowding out facts, learned habits going stale), found by the simulation.
