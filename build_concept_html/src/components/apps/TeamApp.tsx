@@ -105,7 +105,7 @@ export function TeamApp() {
                     <span className="text-[14.5px] font-semibold truncate">{h.name}</span>
                     <span className={clsx("h-5 px-1.5 rounded-full text-[11px] font-medium inline-flex items-center", st.tone)}>{st.word}</span>
                   </div>
-                  <div className="text-[12px] text-fg-3 truncate">Works as &ldquo;{h.name} (helper)&rdquo;</div>
+                  <div className="text-[12px] text-fg-3 truncate">Works as &ldquo;helper:{h.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}&rdquo;</div>
                 </div>
                 <VisibilityToggle on={!h.hidden} onChange={(v) => act("helpers_update", { id: h.id, hidden: !v }, v ? `${h.name} is back on the desktop` : `${h.name} is working quietly`)} />
               </div>

@@ -120,6 +120,14 @@ impl MemStore {
     pub fn open(path: &Path) -> MemStore {
         let mut s: MemStore = std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         s.path = path.to_path_buf();
+        // shares saved under the old free names ("Claude Desktop (MCP)") move to identity ids
+        let old: Vec<String> = s.shares.keys().filter(|k| k.ends_with(" (MCP)")).cloned().collect();
+        for k in old {
+            let slug: String = k.trim_end_matches(" (MCP)").to_lowercase().split(|c: char| !c.is_ascii_alphanumeric()).filter(|x| !x.is_empty()).collect::<Vec<_>>().join("-");
+            if let Some(g) = s.shares.remove(&k) {
+                s.shares.entry(format!("app:{slug}")).or_insert(g);
+            }
+        }
         s
     }
 

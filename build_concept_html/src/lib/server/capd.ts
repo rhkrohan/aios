@@ -66,9 +66,18 @@ export async function asOwner(method: string, params: Record<string, unknown> = 
   return r.ok;
 }
 
-/** brain-d, the SIOS brain (its own socket; never given the owner secret). */
+/** brain-d's own secret: proves this server is the owner's shell (never capd's owner secret). */
+function brainSecret(): string {
+  try {
+    return readFileSync(join(STATE_DIR, "brain.secret"), "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** brain-d, the SIOS brain (its own socket; never given capd's owner secret). */
 export async function brain(method: string, params: Record<string, unknown> = {}): Promise<Any> {
-  const r = await rpc({ method, params }, 15000, BRAIN_SOCK);
+  const r = await rpc({ method, params, owner: brainSecret() }, 15000, BRAIN_SOCK);
   if (r.error) throw new Error(r.error);
   return r.ok;
 }

@@ -232,6 +232,31 @@ fn covers(s: &Statement, a: &Action) -> bool {
     true
 }
 
+/// A deny fits if the action touches the denied place at all: anything inside it,
+/// a folder that contains it, or (for file tools) no place named. Allows stay
+/// strict (everything inside); denies err on the side of stopping.
+fn deny_covers(s: &Statement, a: &Action) -> bool {
+    if !s.tools.iter().any(|t| tool_matches(t, a.tool)) {
+        return false;
+    }
+    if !s.places.is_empty() {
+        let file_tool = ["fs.", "files.", "memory."].iter().any(|p| a.tool.starts_with(p));
+        let overlaps = a.places.iter().any(|p| s.places.iter().any(|sp| crate::token::within(p, place(sp)) || crate::token::within(place(sp), p)));
+        if !(overlaps || (a.places.is_empty() && file_tool)) {
+            return false;
+        }
+    }
+    if let Some(w) = &s.when {
+        if w.max_risk.as_deref().is_some_and(|m| risk(a.level) > risk_named(m)) {
+            return false;
+        }
+        if w.tainted.is_some_and(|t| t != a.tainted) {
+            return false;
+        }
+    }
+    true
+}
+
 pub struct Decided {
     pub result: Res,
     pub detail: String,
@@ -297,7 +322,7 @@ impl Iam {
         let roles = self.roles_of(principal);
         for r in &roles {
             for s in &r.statements {
-                if s.effect == Effect::Deny && covers(s, a) {
+                if s.effect == Effect::Deny && deny_covers(s, a) {
                     return Decided { result: Res::Fail, detail: format!("Denied by \"{}\" ({}).", s.note, r.name) };
                 }
             }
@@ -370,6 +395,11 @@ mod tests {
         let d = i.decide("app:claude", &act("fs.read", Level::Read, &p("Documents/Taxes/r.txt")));
         assert_eq!(d.result, Res::Fail);
         assert!(d.detail.contains("Never Taxes"));
+        // the parent folder, a move that only partly touches it, and a file tool with no place: all denied
+        assert_eq!(i.decide("app:claude", &act("fs.read", Level::Read, &p("Documents"))).result, Res::Fail);
+        let mixed = vec!["Documents/Taxes/r.txt".to_string(), "Downloads/x".to_string()];
+        assert_eq!(i.decide("app:claude", &act("fs.move", Level::Reversible, &mixed)).result, Res::Fail);
+        assert_eq!(i.decide("app:claude", &act("fs.find", Level::Read, &[])).result, Res::Fail);
         // ask mode
         i.get_mut_for_test("app:claude").roles.push("mailer".into());
         assert_eq!(i.decide("app:claude", &act("mail.send", Level::Irreversible, &[])).result, Res::Ask);

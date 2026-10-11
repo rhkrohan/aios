@@ -27,6 +27,37 @@ fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into()))
 }
 
+/// "Claude Desktop" -> "claude-desktop": the id part of an identity.
+pub fn slug(name: &str) -> String {
+    let s: String = name.to_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+    let s = s.split('-').filter(|x| !x.is_empty()).collect::<Vec<_>>().join("-");
+    if s.is_empty() { "unnamed".into() } else { s.chars().take(40).collect() }
+}
+
+/// The shell proves it is the owner's with this (on SIOS: its identity over D-Bus).
+/// Made on first start, readable only by the owner, never handed to a model.
+fn brain_secret() -> String {
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+    let path = state_dir().join("brain.secret");
+    if let Ok(s) = std::fs::read_to_string(&path) {
+        if s.trim().len() >= 32 {
+            return s.trim().to_string();
+        }
+    }
+    let mut b = [0u8; 24];
+    std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut b)).expect("system randomness");
+    let v: String = b.iter().map(|x| format!("{x:02x}")).collect();
+    let _ = std::fs::remove_file(&path);
+    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&path).expect("can't write brain.secret");
+    std::io::Write::write_all(&mut f, v.as_bytes()).expect("can't write brain.secret");
+    v
+}
+
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
 pub fn state_dir() -> PathBuf {
     std::env::var("SIOS_STATE").map(PathBuf::from).unwrap_or_else(|_| home().join(".sios"))
 }
@@ -102,6 +133,21 @@ impl Brain {
         (id, thread)
     }
 
+    /// Who is asking. The owner's shell: SIOS acting for the owner. An outside AI:
+    /// the identity its pairing token proves, or "app:<the name it gave>",
+    /// which the broker registers unverified with no roles.
+    fn requester(&self, p: &Value, owner: bool) -> Result<(String, bool), String> {
+        if owner && p["principal"].as_str().is_none_or(|x| x == "owner") && p["pair"].is_null() {
+            return Ok(("owner".into(), true));
+        }
+        if let Some(tok) = p["pair"].as_str().filter(|t| !t.is_empty()) {
+            let v = self.ctx.capd.call("iam.resolve", json!({ "token": tok })).map_err(|_| "that pairing token isn't known; pair this app again in the Security Center".to_string())?;
+            return Ok((v["id"].as_str().unwrap_or_default().to_string(), false));
+        }
+        let name = p["principal"].as_str().unwrap_or("outside AI");
+        Ok((format!("app:{}", slug(name)), false))
+    }
+
     fn save_watchers(&self) {
         let _ = std::fs::write(self.ctx.state.join("watchers.json"), serde_json::to_vec_pretty(&*self.watchers.lock().unwrap()).unwrap_or_default());
     }
@@ -112,21 +158,28 @@ impl Brain {
         Some(json!({ "events": g.events.get(since..).unwrap_or(&[]), "next": g.events.len(), "over": g.over }))
     }
 
-    pub fn handle(&self, req: &Value) -> Value {
+    /// `owner`: the caller proved it is the owner's shell (brain.secret; on SIOS,
+    /// the shell's identity over D-Bus). Without it, only what an outside AI may do.
+    pub fn handle(&self, req: &Value, owner: bool) -> Value {
         let p = &req["params"];
-        let r: Result<Value, String> = match req["method"].as_str().unwrap_or("") {
+        let method = req["method"].as_str().unwrap_or("");
+        const OWNER_ONLY: [&str; 9] = ["state.update", "routines.clear", "helpers.add", "helpers.update", "helpers.remove", "helpers.run_now", "watch.add", "watch.remove", "goals.recent"];
+        if OWNER_ONLY.contains(&method) && !owner {
+            return json!({ "error": "only the owner's shell can do that" });
+        }
+        let r: Result<Value, String> = match method {
             "status" => Ok(json!({ "model": std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.5".into()), "key": std::env::var("OPENAI_API_KEY").is_ok(), "routines": self.ctx.routines.lock().unwrap().count() })),
             "briefing" => Ok(json!({ "text": briefing::build(&self.ctx.root, &self.ctx.state, p["request"].as_str().unwrap_or("")).text })),
             "goal.start" => match p["request"].as_str().map(str::trim).filter(|s| !s.is_empty()) {
                 // "principal" is attribution (who asked); the broker still needs the owner's grant
-                Some(r) => {
-                    // over the socket: the owner's shell, or an outside AI through the MCP door.
-                    // Anything that isn't plainly the owner is labeled an outside AI and is never "own".
-                    let asked = p["principal"].as_str().unwrap_or("owner");
-                    let (principal, own) = if asked == "owner" { ("owner".to_string(), true) } else if asked.ends_with("(MCP)") { (asked.to_string(), false) } else { (format!("{asked} (MCP)"), false) };
-                    let (goal, thread) = self.start(&r.chars().take(2000).collect::<String>(), &principal, own, p["thread"].as_str());
-                    Ok(json!({ "goal": goal, "thread": thread }))
-                }
+                Some(r) => match self.requester(p, owner) {
+                    // the owner's shell, or an outside AI through the MCP door (never "own")
+                    Ok((principal, own)) => {
+                        let (goal, thread) = self.start(&r.chars().take(2000).collect::<String>(), &principal, own, p["thread"].as_str());
+                        Ok(json!({ "goal": goal, "thread": thread }))
+                    }
+                    Err(e) => Err(e),
+                },
                 None => Err("empty request".into()),
             },
             // the shell reports the system's live state (on SIOS brain-d reads it from D-Bus)
@@ -140,7 +193,11 @@ impl Brain {
             }
             "helpers.list" => Ok(helpers::status(self)),
             "brains.list" => Ok(json!(helpers::BRAINS.iter().map(|(id, on)| json!({ "id": id, "connected": on })).collect::<Vec<_>>())),
-            "helpers.add" => self.helpers.lock().unwrap().add(p).map(|h| json!(h)),
+            "helpers.add" => self.helpers.lock().unwrap().add(p).map(|h| {
+                // each helper is its own identity in the broker, created by SIOS
+                let _ = self.ctx.capd.call("iam.register", json!({ "id": h.principal(), "name": format!("{} (helper)", h.name) }));
+                json!(h)
+            }),
             "helpers.update" => {
                 let mut hs = self.helpers.lock().unwrap();
                 let brain_ok = p["brain"].as_str().map(helpers::check_brain).unwrap_or(Ok(()));
@@ -193,9 +250,8 @@ impl Brain {
             }
             // an outside AI's recall: only the groups the owner shared with it
             "memory.recall" => self
-                .ctx
-                .capd
-                .call("memory.brief", json!({ "request": p["query"].as_str().unwrap_or(""), "principal": p["principal"].as_str().unwrap_or("outside AI"), "limit": 10 }))
+                .requester(p, false)
+                .and_then(|(principal, _)| self.ctx.capd.call("memory.brief", json!({ "request": p["query"].as_str().unwrap_or(""), "principal": principal, "limit": 10 })))
                 .map(|b| json!({ "memories": b["items"].as_array().into_iter().flatten().map(|m| m["text"].clone()).collect::<Vec<_>>(), "held_back_sensitive": b["held_back_sensitive"] })),
             // the memory simulation (capd memsim --ai) borrows the model for two small jobs
             "memsim.pattern" => {
@@ -229,6 +285,7 @@ fn main() {
 
 fn serve() {
     let brain = Arc::new(Brain::new());
+    let secret = Arc::new(brain_secret());
     let sock = state_dir().join("brain.sock");
     let _ = std::fs::remove_file(&sock);
     let listener = UnixListener::bind(&sock).unwrap_or_else(|e| {
@@ -243,7 +300,7 @@ fn serve() {
     spawn_watchers(brain.clone());
     helpers::spawn(brain.clone());
     for conn in listener.incoming().flatten() {
-        let brain = brain.clone();
+        let (brain, secret) = (brain.clone(), secret.clone());
         std::thread::spawn(move || {
             let Ok(mut w) = conn.try_clone() else { return };
             for line in BufReader::new(conn).lines().map_while(Result::ok) {
@@ -252,14 +309,17 @@ fn serve() {
                 }
                 let resp = serde_json::from_str::<Value>(&line)
                     .map(|r| {
+                        let owner = r["owner"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), secret.as_bytes()));
                         // "Run now" needs the shared brain to start a goal
-                        if r["method"] == "helpers.run_now" {
+                        if r["method"] == "helpers.run_now" && !owner {
+                            json!({ "error": "only the owner's shell can do that" })
+                        } else if r["method"] == "helpers.run_now" {
                             match helpers::run_now(&brain, r["params"]["id"].as_str().unwrap_or("")) {
                                 Some(goal) => json!({ "ok": { "goal": goal } }),
                                 None => json!({ "error": "that helper is busy or doesn't exist" }),
                             }
                         } else {
-                            brain.handle(&r)
+                            brain.handle(&r, owner)
                         }
                     })
                     .unwrap_or_else(|e| json!({ "error": format!("not JSON: {e}") }));
@@ -293,7 +353,8 @@ fn spawn_watchers(brain: Arc<Brain>) {
                 if fresh.is_empty() || busy {
                     continue;
                 }
-                let (id, _) = brain.start(&w.request, &format!("Watcher ({})", w.folder), true, None);
+                // a watcher is the owner's own standing request, so SIOS runs it for them
+                let (id, _) = brain.start(&w.request, "owner", true, None);
                 if let Some(g) = brain.goals.lock().unwrap().get(&id).cloned() {
                     running.insert(w.id.clone(), g);
                 }

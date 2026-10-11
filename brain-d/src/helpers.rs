@@ -71,7 +71,7 @@ pub fn check_brain(b: &str) -> Result<(), String> {
 
 impl Helper {
     pub fn principal(&self) -> String {
-        format!("{} (helper)", self.name)
+        format!("helper:{}", crate::slug(&self.name))
     }
 }
 
@@ -260,7 +260,7 @@ mod tests {
         assert!(hs.add(&json!({ "name": "Pip", "kind": "dance", "request": "x" })).is_err());
         let h = hs.add(&json!({ "name": "Pip", "color": "mint", "kind": "watch", "folder": "Downloads/", "request": "Sort new files" })).unwrap();
         assert_eq!(h.folder, "Downloads");
-        assert_eq!(h.principal(), "Pip (helper)");
+        assert_eq!(h.principal(), "helper:pip");
         assert!(hs.add(&json!({ "name": "pip", "kind": "once", "request": "x" })).is_err(), "names are unique");
         let every = hs.add(&json!({ "name": "Momo", "kind": "every", "every_min": 0, "request": "check big files" })).unwrap();
         assert_eq!(every.every_min, 1, "at least a minute apart");

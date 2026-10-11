@@ -110,7 +110,7 @@ pub fn run(ctx: &Ctx, g: &Shared, request: &str, principal: &str, own: bool, his
         Ok(model) => {
             // readahead: what this requester may remember about this request
             let privacy = ctx.system.lock().unwrap()["privacy"].as_u64().unwrap_or(1);
-            let who = if principal == "owner" { format!("{} (via brain-d)", model.name) } else { principal.to_string() };
+            let who = if principal == "owner" { "sios".to_string() } else { principal.to_string() };
             let recall = crate::memory::recall(&ctx.capd, request, &who, own, privacy);
             emit(g, json!({ "t": "recall", "shown": recall.shown, "held_back": recall.held_back, "hidden_names": recall.redactor.active(), "privacy": privacy }));
             let mut r = Run { ctx, g, model, start: Instant::now(), model_calls: 0, request: request.to_string(), principal: principal.to_string(), own, history: history.to_string(), recall };
@@ -190,7 +190,8 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
         let (tools, paths) = plan::pass_for(&plan, |p| r.ctx.root.join(p).symlink_metadata().ok().map(|m| m.is_dir()));
         let egress = tools.iter().any(|t| t == "mail.send");
         let n = plan.steps.len() as u64;
-        let ai = if r.principal == "owner" { format!("{} (via brain-d)", r.model.name) } else { r.principal.clone() };
+        // SIOS acts for the owner under one stable identity, whatever model it runs on
+        let ai = if r.principal == "owner" { "sios".to_string() } else { r.principal.clone() };
         let pass = r.ctx.capd.call(
             "request_pass",
             json!({ "principal": ai, "goal": r.request, "tools": tools, "paths": paths, "ttl": 900, "uses": n * 4 + 4, "budget": n * 4 + 4, "no_egress": !egress, "whole_home": paths.iter().any(|p| p.is_empty()), "own": r.own }),

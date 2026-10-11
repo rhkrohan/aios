@@ -2,7 +2,7 @@
 
 // The pet team: helper pets parked in their own row. Each one has
 // a long-running job (watch a folder, run on a schedule, or one big job) and is
-// its own AI identity, "Pip (helper)", with its own passes and log lines. When a
+// its own AI identity, "helper:pip", with its own passes and log lines. When a
 // run finishes, the helper hops in place and the leader announces the news.
 
 import clsx from "clsx";
@@ -424,7 +424,7 @@ function NewHelper({ live, anchor }: { live: boolean; anchor: { x: number; y: nu
           )}
           <BrainPicker value={brain} onChange={setBrain} />
           <textarea value={request} onChange={(e) => setRequest(e.target.value)} rows={3} placeholder={examples[kind]} aria-label="The job" className="w-full rounded-xl border border-line bg-surface p-2.5 text-[13px]" />
-          <p className="text-[11.5px] text-fg-3 leading-snug">It works as &ldquo;{name || "Helper"} (helper)&rdquo;: its own passes, its own lines in the log. It asks you before anything new, unless a standing rule covers it.</p>
+          <p className="text-[11.5px] text-fg-3 leading-snug">It works as its own identity, &ldquo;helper:{(name || "helper").toLowerCase().replace(/[^a-z0-9]+/g, "-")}&rdquo;: its own passes, its own lines in the log. It asks you before anything new, unless a standing rule covers it.</p>
           <Button className="w-full" disabled={busy || !name.trim()} onClick={create}>
             <Plus size={14} /> Add {name || "helper"} to the team
           </Button>

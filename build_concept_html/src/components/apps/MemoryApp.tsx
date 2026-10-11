@@ -127,10 +127,11 @@ export function MemoryApp({ win }: { win: Win }) {
   const waiting = data?.suggestions ?? [];
   const ais = Array.from(
     new Set([
-      "Claude Desktop (MCP)",
-      "ChatGPT (MCP)",
+      "app:claude-desktop",
+      "app:chatgpt",
       ...Object.keys(data?.shares ?? {}),
-      ...audit.map((e) => e.principal).filter((p) => p !== "you" && !p.endsWith("(via brain-d)") && !p.startsWith("Watcher")),
+      // outside apps only: SIOS itself and its helpers act for you and see everything they need
+      ...audit.map((e) => e.principal).filter((p) => p.startsWith("app:")),
     ]),
   );
 

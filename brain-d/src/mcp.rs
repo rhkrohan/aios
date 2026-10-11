@@ -16,6 +16,11 @@ use crate::{state_dir, Brain};
 
 fn brain_call(method: &str, params: Value) -> Result<Value, String> {
     let mut s = UnixStream::connect(state_dir().join("brain.sock")).map_err(|_| "SIOS isn't running its brain (brain-d serve). Ask the owner to switch on the live machine.".to_string())?;
+    // an app the owner paired carries its token (set SIOS_PAIR_TOKEN in the app's MCP config)
+    let mut params = params;
+    if let Ok(tok) = std::env::var("SIOS_PAIR_TOKEN") {
+        params["pair"] = json!(tok.trim());
+    }
     writeln!(s, "{}", json!({ "method": method, "params": params })).map_err(|e| e.to_string())?;
     let mut line = String::new();
     BufReader::new(s).read_line(&mut line).map_err(|e| e.to_string())?;
@@ -130,7 +135,7 @@ pub fn run(_brain: Brain) {
         let result: Result<Value, (i64, String)> = match method {
             "initialize" => {
                 if let Some(n) = msg["params"]["clientInfo"]["name"].as_str() {
-                    client = format!("{n} (MCP)");
+                    client = n.to_string();
                 }
                 Ok(json!({
                     "protocolVersion": msg["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),

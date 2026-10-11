@@ -628,6 +628,10 @@ impl State {
     /// sight), and outside apps (registered unverified, with no roles, unless paired).
     fn check_requester(&mut self, p: &Value) -> Result<(), String> {
         let who = p["principal"].as_str().unwrap_or("");
+        // nobody asks for a pass in your name: roles don't limit you, so that would be everything
+        if who == crate::iam::OWNER || self.iam.get(who).is_some_and(|i| i.kind == "owner") {
+            return Err("a pass can't be requested in your name".into());
+        }
         if self.iam.get(who).is_none() {
             if let Some(name) = who.strip_prefix("helper:") {
                 self.iam.register(who, name, "helper", "Created by SIOS for you", crate::iam::SIOS, vec![crate::iam::ACTS_FOR_YOU.into()], now());
@@ -1879,8 +1883,9 @@ mod tests {
         let b = r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }));
         assert_eq!(decision(&b), "block");
         assert!(b["reason"].as_str().unwrap().contains("no roles"));
-        // and it can never act as the owner
+        // and it can never act as the owner, nor can SIOS's brain ask for a pass in the owner's name
         assert!(r.agent("request_pass", json!({ "principal": "app:sneaky", "own": true, "tools": ["memory.search"], "paths": ["Projects"] }))["error"].is_string());
+        assert!(r.agent("request_pass", json!({ "principal": "you", "tools": ["fs.delete"], "paths": ["Projects"] }))["error"].is_string());
         // the owner gives it Reader: now it can look, but not change
         r.owner("iam.set_roles", json!({ "id": "app:sneaky", "roles": ["reader"] }));
         assert_eq!(decision(&r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }))), "allow");
