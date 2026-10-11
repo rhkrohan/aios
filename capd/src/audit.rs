@@ -77,6 +77,11 @@ impl Log {
 }
 
 /// Check the whole chain. Ok(count) if intact, Err((line, why)) at the first break.
+/// Hex SHA-256 of some bytes (pairing tokens are kept only as this).
+pub fn sha256_hex(b: &[u8]) -> String {
+    hex::encode(Sha256::digest(b))
+}
+
 pub fn verify(path: &Path) -> Result<u64, (u64, String)> {
     let Ok(f) = File::open(path) else { return Ok(0) };
     let mut prev = GENESIS.to_string();

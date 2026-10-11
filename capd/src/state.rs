@@ -94,7 +94,8 @@ pub struct State {
     sessions: HashMap<String, Session>,
     pending: HashMap<String, Pending>,
     undo: Vec<(String, String, Undo)>, // (op, session, how)
-    paused: HashSet<String>,
+    /// Who each AI is and what its roles allow; also who is paused (kept across restarts).
+    pub iam: crate::iam::Iam,
     log: Log,
     pub meta: Store,
     pub memory: crate::memory::MemStore,
@@ -153,7 +154,7 @@ impl State {
             sessions: HashMap::new(),
             pending: HashMap::new(),
             undo: Vec::new(),
-            paused: HashSet::new(),
+            iam: crate::iam::Iam::open(&dir.join("iam.json"), now()),
             log: Log::open(&dir.join("audit.jsonl"))?,
             meta: Store::open(&dir.join("meta.json")),
             forgotten: Vec::new(),
@@ -247,7 +248,7 @@ impl State {
 
     /// The first paused agent anywhere up this capability's chain.
     fn paused_in_chain(&self, id: &str) -> Option<String> {
-        self.chain(id).iter().filter_map(|c| self.holders.get(c)).find(|p| self.paused.contains(*p)).cloned()
+        self.chain(id).iter().filter_map(|c| self.holders.get(c)).find(|p| self.iam.is_paused(p)).cloned()
     }
 
     fn issue(&mut self, cap: Cap) -> String {
@@ -292,7 +293,7 @@ impl State {
             return json!({ "error": "only the owner can do that" });
         }
         let r = match method {
-            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count(), "paused": self.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
+            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count(), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
             m if m.starts_with("memory.") => self.memory_method(m, p),
             // test data for the live machine
@@ -328,7 +329,7 @@ impl State {
             "request_pass" if p["whole_home"].as_bool() != Some(true) && p["paths"].as_array().is_none_or(|a| a.iter().any(|x| x.as_str().is_none_or(|s| crate::fsguard::normalize(s).map(|n| n.is_empty()).unwrap_or(true)))) => {
                 Err("a requested pass must name its folders; the whole home has to be asked for explicitly".into())
             }
-            "request_pass" => self.mint(p).map(|mut v| {
+            "request_pass" => self.check_requester(p).and_then(|_| self.cap_from_params(p, None)).and_then(|c| self.issue_minted(c)).map(|mut v| {
                 let id = v["id"].as_str().unwrap_or_default().to_string();
                 let cap: Cap = serde_json::from_value(v["cap"].clone()).expect("just minted");
                 match self.rule_for(&cap) {
@@ -392,14 +393,20 @@ impl State {
             "approve" => self.decide(p["id"].as_str().unwrap_or(""), true),
             "deny" => self.decide(p["id"].as_str().unwrap_or(""), false),
             "undo" => self.undo_goal(p["goal"].as_str().unwrap_or("")),
-            "pause" => {
-                self.paused.insert(p["principal"].as_str().unwrap_or("").into());
-                Ok(json!({ "paused": self.paused }))
+            "pause" | "resume" => {
+                let who = p["principal"].as_str().unwrap_or("").to_string();
+                if who.is_empty() || who == crate::iam::OWNER {
+                    return json!({ "error": "which AI?" });
+                }
+                self.iam.paused.retain(|x| x != &who);
+                if method == "pause" {
+                    self.iam.paused.push(who.clone());
+                }
+                self.iam.save();
+                self.record(&Self::owner_cap(), &format!("iam.{method}"), &who, "you", &format!("you {} {who}", if method == "pause" { "paused" } else { "resumed" }), &json!([]));
+                Ok(json!({ "paused": self.iam.paused }))
             }
-            "resume" => {
-                self.paused.remove(p["principal"].as_str().unwrap_or(""));
-                Ok(json!({ "paused": self.paused }))
-            }
+            m if m.starts_with("iam.") => self.iam_method(m, p, owner, service),
             "audit" => {
                 let verify = match audit::verify(&self.dir.join("audit.jsonl")) {
                     Ok(n) => json!({ "intact": true, "entries": n }),
@@ -442,6 +449,144 @@ impl State {
         }
     }
 
+    /// Identities and roles. Changing them is the owner's alone; SIOS's brain may
+    /// register helpers and outside apps (with no roles) and look up a pairing.
+    fn iam_method(&mut self, method: &str, p: &Value, owner: bool, service: bool) -> Result<Value, String> {
+        let me = Self::owner_cap();
+        let s = |k: &str| p[k].as_str().unwrap_or("").to_string();
+        match method {
+            "iam.get" if owner => Ok(json!({ "identities": self.iam.identities, "roles": self.iam.roles, "paused": self.iam.paused })),
+            "iam.set_roles" if owner => {
+                let (id, roles): (String, Vec<String>) = (s("id"), p["roles"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(String::from)).collect());
+                if let Some(bad) = roles.iter().find(|r| !self.iam.roles.iter().any(|x| &x.id == *r && !x.global)) {
+                    return Err(format!("no role {bad} to give"));
+                }
+                let i = self.iam.identities.iter_mut().find(|i| i.id == id && i.kind != "owner").ok_or("no such AI")?;
+                i.roles = roles.clone();
+                self.iam.save();
+                self.record(&me, "iam.set_roles", &id, "you", &format!("{id} now has roles: {}", if roles.is_empty() { "none".into() } else { roles.join(", ") }), &json!([]));
+                Ok(json!({ "id": id, "roles": roles }))
+            }
+            "iam.save_role" if owner => {
+                let mut role: crate::iam::Role = serde_json::from_value(p["role"].clone()).map_err(|e| format!("not a role: {e}"))?;
+                if role.id.is_empty() || role.name.trim().is_empty() {
+                    return Err("a role needs an id and a name".into());
+                }
+                // a role can't make itself global; the built-in global role stays global
+                let was_global = self.iam.roles.iter().find(|r| r.id == role.id).is_some_and(|r| r.global);
+                role.global = was_global;
+                let note = format!("role {} saved with {} statements", role.name, role.statements.len());
+                match self.iam.roles.iter_mut().find(|r| r.id == role.id) {
+                    Some(r) => *r = role.clone(),
+                    None => self.iam.roles.push(role.clone()),
+                }
+                self.iam.save();
+                self.record(&me, "iam.save_role", &role.id, "you", &note, &json!([]));
+                Ok(json!(role))
+            }
+            "iam.remove_role" if owner => {
+                let id = s("id");
+                if self.iam.roles.iter().any(|r| r.id == id && (r.global || r.id == crate::iam::ACTS_FOR_YOU)) {
+                    return Err("that role is built in".into());
+                }
+                let before = self.iam.roles.len();
+                self.iam.roles.retain(|r| r.id != id);
+                if self.iam.roles.len() == before {
+                    return Err("no role with that id".into());
+                }
+                for i in self.iam.identities.iter_mut() {
+                    i.roles.retain(|r| r != &id);
+                }
+                self.iam.save();
+                self.record(&me, "iam.remove_role", &id, "you", "role removed", &json!([]));
+                Ok(json!({ "removed": id }))
+            }
+            // the owner pairs an outside app: its token, shown once, is its proof from then on
+            "iam.pair" if owner => {
+                let name = s("name");
+                let slug: String = name.to_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>().trim_matches('-').to_string();
+                if slug.is_empty() {
+                    return Err("give the app a name".into());
+                }
+                let id = format!("app:{slug}");
+                let token = format!("sios_pair_{}", random_hex(20));
+                let roles: Vec<String> = p["roles"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(String::from)).collect();
+                match self.iam.identities.iter_mut().find(|i| i.id == id) {
+                    Some(i) => i.proof = "Pairing token you issued".into(),
+                    None => self.iam.identities.push(crate::iam::Identity { id: id.clone(), name: name.clone(), kind: "app".into(), proof: "Pairing token you issued".into(), created_by: "you".into(), roles, since: now() }),
+                }
+                self.iam.pairings.retain(|_, v| v != &id);
+                self.iam.pairings.insert(crate::audit::sha256_hex(token.as_bytes()), id.clone());
+                self.iam.save();
+                self.record(&me, "iam.pair", &id, "you", &format!("you paired {name}"), &json!([]));
+                Ok(json!({ "id": id, "token": token }))
+            }
+            "iam.remove" if owner => {
+                let id = s("id");
+                if id == crate::iam::OWNER || id == crate::iam::SIOS {
+                    return Err("that identity is built in".into());
+                }
+                let before = self.iam.identities.len();
+                self.iam.identities.retain(|i| i.id != id);
+                self.iam.pairings.retain(|_, v| v != &id);
+                if self.iam.identities.len() == before {
+                    return Err("no such AI".into());
+                }
+                self.iam.save();
+                self.record(&me, "iam.remove", &id, "you", &format!("you removed {id}"), &json!([]));
+                Ok(json!({ "removed": id }))
+            }
+            // what would the broker say? nothing runs, nothing is logged
+            "iam.whatif" if owner => {
+                let tool = crate::manifest::canonical(p["tool"].as_str().unwrap_or(""));
+                let cap = Cap { id: "whatif".into(), parent: None, principal: s("principal"), goal: "what if".into(), tools: vec![tool.clone()], paths: vec![String::new()], expires_at: u64::MAX, uses: None, no_egress: false, budget: None, own: false };
+                let spec = tools::spec(&tool).ok_or_else(|| format!("{tool} isn't a real tool"))?;
+                let places: Vec<String> = tools::targets_of(spec, &p["args"]).iter().filter_map(|x| crate::fsguard::resolve(&self.root, x).ok().map(|r| r.rel)).collect();
+                let tainted = p["tainted"].as_bool().unwrap_or(false);
+                let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: spec.level, places: &places, tainted });
+                let facts = Facts {
+                    token: Ok(()),
+                    principal: &cap.principal,
+                    paused: self.iam.is_paused(&cap.principal),
+                    iam: (iam.result, iam.detail),
+                    tool: &tool,
+                    level: Some(spec.level),
+                    egress: spec.egress,
+                    cap_tools: &cap.tools,
+                    cap_paths: &cap.paths,
+                    no_egress: false,
+                    blocked_place: places.iter().find_map(|t| self.meta.is_blocked(t).map(String::from)),
+                    targets: Ok(places),
+                    uses_left: None,
+                    budget_left: None,
+                    tainted,
+                    carrying: vec![],
+                };
+                let (d, checks, reason) = evaluate(&facts);
+                Ok(json!({ "decision": match d { Decision::Allow => "allow", Decision::Ask => "ask", Decision::Block => "block" }, "reason": reason, "checks": checks }))
+            }
+            // SIOS's brain: helpers it creates and apps that connect, never with roles of their own choosing
+            "iam.register" if service => {
+                let id = s("id");
+                let name = p["name"].as_str().filter(|n| !n.trim().is_empty()).unwrap_or(&id).chars().take(60).collect::<String>();
+                if id.starts_with("helper:") {
+                    self.iam.register(&id, &name, "helper", "Created by SIOS for you", crate::iam::SIOS, vec![crate::iam::ACTS_FOR_YOU.into()], now());
+                } else if id.starts_with("app:") {
+                    self.iam.register(&id, &name, "app", "None: the name it reported itself", crate::iam::SIOS, vec![], now());
+                } else {
+                    return Err("SIOS may only register helper: and app: identities".into());
+                }
+                Ok(json!(self.iam.get(&id)))
+            }
+            "iam.resolve" if service => {
+                let token = s("token");
+                let id = self.iam.pairings.get(&crate::audit::sha256_hex(token.as_bytes())).cloned().ok_or("that pairing token isn't known")?;
+                Ok(json!({ "id": id, "name": self.iam.get(&id).map(|i| i.name.clone()) }))
+            }
+            _ => Err("only the owner can do that".into()),
+        }
+    }
+
     fn cap_from_params(&self, p: &Value, parent: Option<&Cap>) -> Result<Cap, String> {
         let strs = |k: &str| -> Option<Vec<String>> { p[k].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()) };
         let mut paths = strs("paths").or_else(|| parent.map(|c| c.paths.clone())).unwrap_or_else(|| vec![String::new()]);
@@ -474,6 +619,32 @@ impl State {
 
     fn mint(&mut self, p: &Value) -> Result<Value, String> {
         let cap = self.cap_from_params(p, None)?;
+        // minting a pass for someone vouches for them: an unknown name becomes an identity
+        self.iam.register(&cap.principal, &cap.principal, "app", "A pass you minted", "you", vec![crate::iam::ACTS_FOR_YOU.into()], now());
+        self.issue_minted(cap)
+    }
+
+    /// Who may SIOS's brain ask a pass for? Itself, helpers (registered on first
+    /// sight), and outside apps (registered unverified, with no roles, unless paired).
+    fn check_requester(&mut self, p: &Value) -> Result<(), String> {
+        let who = p["principal"].as_str().unwrap_or("");
+        if self.iam.get(who).is_none() {
+            if let Some(name) = who.strip_prefix("helper:") {
+                self.iam.register(who, name, "helper", "Created by SIOS for you", crate::iam::SIOS, vec![crate::iam::ACTS_FOR_YOU.into()], now());
+            } else if let Some(name) = who.strip_prefix("app:") {
+                self.iam.register(who, name, "app", "None: the name it reported itself", crate::iam::SIOS, vec![], now());
+            } else {
+                return Err(format!("{who} isn't a known identity"));
+            }
+        }
+        let kind = self.iam.get(who).map(|i| i.kind.clone()).unwrap_or_default();
+        if p["own"].as_bool() == Some(true) && kind != "assistant" && kind != "helper" {
+            return Err(format!("{who} can't act as you"));
+        }
+        Ok(())
+    }
+
+    fn issue_minted(&mut self, cap: Cap) -> Result<Value, String> {
         for t in &cap.tools {
             if tools::spec(t).is_none() {
                 return Err(format!("{t} isn't a real tool"));
@@ -491,7 +662,20 @@ impl State {
         if let Some(who) = self.paused_in_chain(&parent.id) {
             return Err(format!("{who} is paused, so nothing can be handed on"));
         }
-        let child = self.cap_from_params(p, Some(&parent))?;
+        let mut child = self.cap_from_params(p, Some(&parent))?;
+        // A handed-on pass keeps its holder, unless it goes to a helper the holder
+        // created itself: no AI can take another's name (and so its memory or rules).
+        if child.principal != parent.principal {
+            match self.iam.get(&child.principal) {
+                Some(i) if i.created_by == parent.principal => {}
+                _ => return Err(format!("{} can only hand a pass to an AI it created; only you can give one to {}", parent.principal, child.principal)),
+            }
+        }
+        // the goal can only gain a sub-goal, never be replaced
+        child.goal = match p["goal"].as_str().map(str::trim).filter(|g| !g.is_empty()) {
+            Some(sub) if sub != parent.goal => format!("{} › {}", parent.goal, sub.chars().take(120).collect::<String>()),
+            _ => parent.goal.clone(),
+        };
         token::check_narrower(&child, &parent)?;
         if let Some(left) = self.uses_left(&parent.id) {
             if left == 0 {
@@ -637,10 +821,13 @@ impl State {
         }
         let attaching_untrusted = spec.map(|s| s.egress).unwrap_or(false) && tlist.iter().any(|t| self.meta.untrusted_at(t));
 
+        // roles: what this identity may do, here, now
+        let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: spec.map(|s| s.level).unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
         let facts = Facts {
             token: tok.as_ref().map(|_| ()).map_err(|e| e.clone()),
             principal: &cap.principal,
-            paused: self.paused.contains(&cap.principal) || self.paused_in_chain(&cap.id).is_some(),
+            paused: self.iam.is_paused(&cap.principal) || self.paused_in_chain(&cap.id).is_some(),
+            iam: (iam.result, iam.detail),
             tool: &tool,
             level: spec.map(|s| s.level),
             egress: spec.map(|s| s.egress).unwrap_or(false),
@@ -759,6 +946,10 @@ impl State {
             return None;
         }
         if cap.tools.iter().any(|t| tools::spec(t).map(|s| s.level == crate::policy::Level::Irreversible || s.egress).unwrap_or(true)) {
+            return None;
+        }
+        // a pass that would read all of your memory is never granted by a rule
+        if cap.own && cap.tools.iter().any(|t| t.starts_with("memory.") || t == "people.resolve") {
             return None;
         }
         self.rules
@@ -899,7 +1090,9 @@ impl State {
             "memory.brief" => {
                 let principal = p["principal"].as_str().unwrap_or("you");
                 // brain-d (authenticated) says whether this request is the owner's own
-                let v = crate::memory::Viewer { principal, own: p["own"].as_bool().unwrap_or(false), online: true };
+                let kind = self.iam.get(principal).map(|i| i.kind.as_str()).unwrap_or("");
+                let own = p["own"].as_bool().unwrap_or(false) && (kind == "assistant" || kind == "helper");
+                let v = crate::memory::Viewer { principal, own, online: true };
                 let req = p["request"].as_str().unwrap_or("");
                 let found = self.memory.search(req, &v, p["limit"].as_u64().unwrap_or(12) as usize);
                 // the people this requester may see, so "Sara" or "my team" can be resolved
@@ -1100,7 +1293,7 @@ mod tests {
     #[test]
     fn requested_passes_wait_for_the_owner() {
         let mut r = rig();
-        let v = r.agent("request_pass", json!({ "principal": "brain-d", "goal": "tidy", "tools": ["fs.move"], "paths": ["Downloads"] }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "goal": "tidy", "tools": ["fs.move"], "paths": ["Downloads"] }))["ok"].clone();
         let t = v["token"].as_str().unwrap().to_string();
         let id = v["id"].as_str().unwrap().to_string();
         assert_eq!(r.agent("pass_state", json!({ "cap": t }))["ok"]["state"], "waiting");
@@ -1191,30 +1384,30 @@ mod tests {
         // nobody but SIOS's brain or the owner can use the memory methods directly
         assert!(r.st.handle(&json!({ "method": "memory.brief", "params": { "request": "x" } }))["error"].is_string());
         let svc = r.st.service_secret.clone();
-        let brief = |r: &mut Rig, principal: &str, q: &str| r.st.handle(&json!({ "method": "memory.brief", "params": { "request": q, "principal": principal, "own": principal.ends_with("(via brain-d)") }, "service": svc }))["ok"].clone();
+        let brief = |r: &mut Rig, principal: &str, q: &str| r.st.handle(&json!({ "method": "memory.brief", "params": { "request": q, "principal": principal, "own": principal == "sios" }, "service": svc }))["ok"].clone();
         // the brain saves a memory under a pass; the goal's undo takes it back
-        let t = r.mint(json!({ "principal": "gpt (via brain-d)", "own": true, "tools": ["memory.save", "memory.search", "people.resolve"] }));
+        let t = r.mint(json!({ "principal": "sios", "own": true, "tools": ["memory.save", "memory.search", "people.resolve"] }));
         assert_eq!(decision(&r.call(&t, "memory.save", json!({ "text": "My accountant is Priya Shah, priya@ledger.example", "kind": "person", "group": "People" }))), "allow");
         let v = r.call(&t, "memory.save", json!({ "text": "my bank password is hunter2", "kind": "fact", "group": "Personal" }));
         assert!(v["error"].as_str().unwrap().contains("Secrets never go into memory"));
-        assert_eq!(brief(&mut r, "gpt (via brain-d)", "email my accountant")["items"].as_array().unwrap().len(), 1);
+        assert_eq!(brief(&mut r, "sios", "email my accountant")["items"].as_array().unwrap().len(), 1);
         let goal = token::verify(&r.st.key, &t).unwrap().id;
         r.owner("undo", json!({ "goal": goal }));
-        assert!(brief(&mut r, "gpt (via brain-d)", "email my accountant")["items"].as_array().unwrap().is_empty());
+        assert!(brief(&mut r, "sios", "email my accountant")["items"].as_array().unwrap().is_empty());
         // Sensitive never goes to an online model; outside AIs see only shared groups
         r.owner("memory.add", json!({ "text": "Therapy on Tuesdays", "group": "Personal", "labels": ["Sensitive"] }));
         r.owner("memory.add", json!({ "text": "Board meeting is November 14", "group": "Work" }));
-        let b = brief(&mut r, "gpt (via brain-d)", "therapy tuesdays");
+        let b = brief(&mut r, "sios", "therapy tuesdays");
         assert!(b["items"].as_array().unwrap().is_empty());
         assert_eq!(b["held_back_sensitive"], 1);
-        assert!(brief(&mut r, "Claude Desktop (MCP)", "board meeting")["items"].as_array().unwrap().is_empty());
-        r.owner("memory.share", json!({ "principal": "Claude Desktop (MCP)", "groups": ["Work"] }));
-        assert_eq!(brief(&mut r, "Claude Desktop (MCP)", "board meeting")["items"].as_array().unwrap().len(), 1);
+        assert!(brief(&mut r, "app:claude-desktop", "board meeting")["items"].as_array().unwrap().is_empty());
+        r.owner("memory.share", json!({ "principal": "app:claude-desktop", "groups": ["Work"] }));
+        assert_eq!(brief(&mut r, "app:claude-desktop", "board meeting")["items"].as_array().unwrap().len(), 1);
         // suggestions wait for the owner
         let s = r.st.handle(&json!({ "method": "memory.suggest", "params": { "text": "Invoices go in Documents/Finance", "why": "3 times" }, "service": svc }))["ok"].clone();
-        assert!(brief(&mut r, "gpt (via brain-d)", "invoices finance")["items"].as_array().unwrap().is_empty());
+        assert!(brief(&mut r, "sios", "invoices finance")["items"].as_array().unwrap().is_empty());
         r.owner("memory.confirm", json!({ "id": s["id"] }));
-        assert_eq!(brief(&mut r, "gpt (via brain-d)", "invoices finance")["items"].as_array().unwrap().len(), 1);
+        assert_eq!(brief(&mut r, "sios", "invoices finance")["items"].as_array().unwrap().len(), 1);
         // and it all survives a restart
         let again = State::open(&r.st.dir, &r.st.root).unwrap();
         assert!(again.memory.memories.len() >= 3);
@@ -1225,10 +1418,15 @@ mod tests {
     fn a_name_cant_make_an_agent_the_owner_and_put_back_is_checked() {
         let mut r = rig();
         r.owner("memory.add", json!({ "text": "Board meeting is November 14", "group": "Work" }));
-        // an outside AI's pass, renamed to look like SIOS's own brain, still sees nothing
-        let outside = r.mint(json!({ "principal": "Claude Desktop (MCP)", "tools": ["memory.search"] }));
-        let fake = r.agent("attenuate", json!({ "cap": outside, "principal": "gpt (via brain-d)" }))["ok"]["token"].as_str().unwrap().to_string();
-        assert!(r.call(&fake, "memory.search", json!({ "query": "board meeting" }))["result"]["memories"].as_array().unwrap().is_empty());
+        // an outside AI can't rename its pass to look like SIOS's own brain, or another app
+        let outside = r.mint(json!({ "principal": "app:claude-desktop", "tools": ["memory.search"] }));
+        assert!(r.agent("attenuate", json!({ "cap": outside, "principal": "sios" }))["error"].is_string());
+        r.mint(json!({ "principal": "app:chatgpt", "tools": ["fs.list"] }));
+        assert!(r.agent("attenuate", json!({ "cap": outside, "principal": "app:chatgpt" }))["error"].is_string());
+        assert!(r.call(&outside, "memory.search", json!({ "query": "board meeting" }))["result"]["memories"].as_array().unwrap().is_empty());
+        // and a sub-goal can't replace the goal the owner saw
+        let child = r.agent("attenuate", json!({ "cap": outside, "goal": "anything I like" }))["ok"]["cap"].clone();
+        assert!(child["goal"].as_str().unwrap().contains(" › anything I like"));
         let child = r.agent("attenuate", json!({ "cap": outside, "own": true }))["ok"]["cap"].clone();
         assert_eq!(child["own"], false, "a child can't gain own");
         // put back can't drop something into a blocked place
@@ -1245,16 +1443,16 @@ mod tests {
         let v = r.st.handle(&json!({ "method": "request_pass", "params": { "principal": "anything", "tools": ["fs.list"] } }));
         assert!(v["error"].is_string(), "an unknown caller can't ask for passes");
         r.owner("rule_add", json!({ "tools": ["fs.list"], "paths": ["Downloads"] }));
-        let long = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 86400, "uses": 5 }))["ok"].clone();
+        let long = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 86400, "uses": 5 }))["ok"].clone();
         assert_eq!(long["state"], "waiting for the owner", "a day-long pass is never auto-granted");
-        let unlimited = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 600 }))["ok"].clone();
+        let unlimited = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 600 }))["ok"].clone();
         assert_eq!(unlimited["state"], "waiting for the owner", "a pass without a use limit is never auto-granted");
-        let ok = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 600, "uses": 10 }))["ok"].clone();
+        let ok = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 600, "uses": 10 }))["ok"].clone();
         assert_eq!(ok["state"], "granted by your rule");
         // no paths, or the whole home, only when asked for plainly
-        assert!(r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.list"], "paths": [""], "uses": 3 }))["error"].is_string());
-        assert!(r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.list"], "uses": 3 }))["error"].is_string());
-        let whole = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.list"], "paths": [""], "uses": 3, "whole_home": true }))["ok"].clone();
+        assert!(r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.list"], "paths": [""], "uses": 3 }))["error"].is_string());
+        assert!(r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.list"], "uses": 3 }))["error"].is_string());
+        let whole = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.list"], "paths": [""], "uses": 3, "whole_home": true }))["ok"].clone();
         assert_eq!(whole["state"], "waiting for the owner");
     }
 
@@ -1266,22 +1464,22 @@ mod tests {
         assert!(r.agent("rule_add", json!({ "tools": ["fs.move"], "paths": ["Downloads"] }))["error"].is_string(), "agents can't make rules");
         let rule = r.owner("rule_add", json!({ "tools": ["fs.organize", "fs.list"], "paths": ["Downloads"], "note": "tidy Downloads" }))["ok"].clone();
         // inside the rule: granted at once
-        let v = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.organize"], "paths": ["Downloads/Finance", "Downloads/budget.csv"], "ttl": 600, "uses": 10 }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.organize"], "paths": ["Downloads/Finance", "Downloads/budget.csv"], "ttl": 600, "uses": 10 }))["ok"].clone();
         assert_eq!(v["state"], "granted by your rule");
         assert_eq!(r.agent("pass_state", json!({ "cap": v["token"] }))["ok"]["state"], "active");
         // a wider folder or an extra tool: back to asking
-        let v = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.organize"], "paths": ["Documents"] }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.organize"], "paths": ["Documents"] }))["ok"].clone();
         assert_eq!(v["state"], "waiting for the owner");
-        let v = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.organize", "fs.trash"], "paths": ["Downloads"] }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.organize", "fs.trash"], "paths": ["Downloads"] }))["ok"].clone();
         assert_eq!(v["state"], "waiting for the owner");
-        let v = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.organize", "mail.send"], "paths": ["Downloads"] }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.organize", "mail.send"], "paths": ["Downloads"] }))["ok"].clone();
         assert_eq!(v["state"], "waiting for the owner");
         // removing the rule stops it, and rules survive a restart
         assert_eq!(r.owner("rules", json!({}))["ok"].as_array().unwrap().len(), 1);
         let again = State::open(&r.st.dir, &r.st.root).unwrap();
         assert_eq!(again.rules.len(), 1);
         r.owner("rule_remove", json!({ "id": rule["id"] }));
-        let v = r.agent("request_pass", json!({ "principal": "brain-d", "tools": ["fs.organize"], "paths": ["Downloads"] }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "tools": ["fs.organize"], "paths": ["Downloads"] }))["ok"].clone();
         assert_eq!(v["state"], "waiting for the owner");
     }
 
@@ -1372,6 +1570,8 @@ mod tests {
     fn pausing_an_agent_stops_what_it_handed_on() {
         let mut r = rig();
         let parent = r.mint(json!({ "principal": "a", "tools": ["fs.read"] }));
+        // b is a helper a created, so a may hand it work
+        r.st.iam.register("b", "b", "helper", "test", "a", vec![crate::iam::ACTS_FOR_YOU.into()], 0);
         let child = r.agent("attenuate", json!({ "cap": parent, "principal": "b" }))["ok"]["token"].as_str().unwrap().to_string();
         r.owner("pause", json!({ "principal": "a" }));
         assert_eq!(decision(&r.call(&child, "fs.read", json!({ "path": "Projects/notes.md" }))), "block");
@@ -1527,8 +1727,10 @@ mod tests {
         assert!(r.agent("attenuate", json!({ "cap": parent, "paths": ["Downloads"] }))["error"].is_string());
         assert!(r.agent("attenuate", json!({ "cap": parent, "uses": 50 }))["error"].is_string());
         assert!(r.agent("attenuate", json!({ "cap": parent, "no_egress": false }))["error"].is_string());
-        // can narrow, and hand to someone else
-        let child = r.agent("attenuate", json!({ "cap": parent, "principal": "claude-desktop", "tools": ["fs.read"], "uses": 1 }))["ok"]["token"].as_str().unwrap().to_string();
+        // can narrow, and hand to a helper it created (but not to anyone else)
+        assert!(r.agent("attenuate", json!({ "cap": parent, "principal": "app:claude-desktop", "tools": ["fs.read"], "uses": 1 }))["error"].is_string());
+        r.st.iam.register("helper:x", "x", "helper", "test", "a", vec![crate::iam::ACTS_FOR_YOU.into()], 0);
+        let child = r.agent("attenuate", json!({ "cap": parent, "principal": "helper:x", "tools": ["fs.read"], "uses": 1 }))["ok"]["token"].as_str().unwrap().to_string();
         assert_eq!(decision(&r.call(&child, "fs.read", json!({ "path": "Projects/notes.md" }))), "allow");
         assert_eq!(decision(&r.call(&child, "fs.read", json!({ "path": "Projects/notes.md" }))), "block"); // one use only
         assert_eq!(decision(&r.call(&child, "fs.write", json!({ "path": "Projects/x.md", "text": "x" }))), "block");
@@ -1661,6 +1863,61 @@ mod tests {
         assert_eq!(decision(&r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }))), "allow");
         let a = r.owner("audit", json!({}));
         assert_eq!(a["ok"]["verify"]["intact"], true);
-        assert_eq!(a["ok"]["verify"]["entries"], 2);
+        // two calls, plus the pause and the resume themselves
+        assert_eq!(a["ok"]["verify"]["entries"], 4);
+    }
+
+    #[test]
+    fn roles_limit_outside_apps_and_pairing_proves_who_they_are() {
+        let mut r = rig();
+        let svc = r.st.service_secret.clone();
+        let svc_call = |r: &mut Rig, method: &str, params: Value| r.st.handle(&json!({ "method": method, "params": params, "service": svc }));
+        // an app that only names itself is registered with no roles: it can't do anything
+        let v = r.agent("request_pass", json!({ "principal": "app:sneaky", "tools": ["fs.read"], "paths": ["Projects"] }))["ok"].clone();
+        r.owner("grant", json!({ "id": v["id"] }));
+        let t = v["token"].as_str().unwrap().to_string();
+        let b = r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }));
+        assert_eq!(decision(&b), "block");
+        assert!(b["reason"].as_str().unwrap().contains("no roles"));
+        // and it can never act as the owner
+        assert!(r.agent("request_pass", json!({ "principal": "app:sneaky", "own": true, "tools": ["memory.search"], "paths": ["Projects"] }))["error"].is_string());
+        // the owner gives it Reader: now it can look, but not change
+        r.owner("iam.set_roles", json!({ "id": "app:sneaky", "roles": ["reader"] }));
+        assert_eq!(decision(&r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }))), "allow");
+        // a global deny beats it
+        let mut every: crate::iam::Role = serde_json::from_value(r.owner("iam.get", json!({}))["ok"]["roles"][0].clone()).unwrap();
+        every.statements.push(serde_json::from_value(json!({ "id": "d", "effect": "deny", "tools": ["*"], "places": ["~/Projects"], "note": "Never Projects" })).unwrap());
+        r.owner("iam.save_role", json!({ "role": every }));
+        let b = r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }));
+        assert!(b["reason"].as_str().unwrap().contains("Never Projects"), "{b}");
+        // what-if answers without running or logging
+        let before = r.owner("audit", json!({}))["ok"]["verify"]["entries"].clone();
+        let w = r.owner("iam.whatif", json!({ "principal": "app:sneaky", "tool": "fs.read", "args": { "path": "Downloads/budget.csv" } }))["ok"].clone();
+        assert_eq!(w["decision"], "allow");
+        assert_eq!(r.owner("audit", json!({}))["ok"]["verify"]["entries"], before);
+        // pairing: the token proves who an app is, and is kept only as a hash
+        let pair = r.owner("iam.pair", json!({ "name": "Claude Desktop", "roles": ["reader"] }))["ok"].clone();
+        assert_eq!(pair["id"], "app:claude-desktop");
+        let tok = pair["token"].as_str().unwrap();
+        assert_eq!(svc_call(&mut r, "iam.resolve", json!({ "token": tok }))["ok"]["id"], "app:claude-desktop");
+        assert!(svc_call(&mut r, "iam.resolve", json!({ "token": "sios_pair_guess" }))["error"].is_string());
+        assert!(!std::fs::read_to_string(r.st.dir.join("iam.json")).unwrap().contains(tok));
+        // only the owner changes roles; the service can't give itself any
+        assert!(svc_call(&mut r, "iam.set_roles", json!({ "id": "app:sneaky", "roles": ["acts-for-you"] }))["error"].is_string());
+        assert!(svc_call(&mut r, "iam.register", json!({ "id": "sios2" }))["error"].is_string());
+        // pause survives a restart
+        r.owner("pause", json!({ "principal": "app:sneaky" }));
+        let again = State::open(&r.st.dir, &r.st.root).unwrap();
+        assert!(again.iam.is_paused("app:sneaky"));
+    }
+
+    #[test]
+    fn a_rule_never_grants_a_pass_that_reads_all_memory() {
+        let mut r = rig();
+        r.owner("rule_add", json!({ "tools": ["memory.search", "fs.list"], "paths": ["Downloads"] }));
+        let v = r.agent("request_pass", json!({ "principal": "sios", "own": true, "tools": ["memory.search"], "paths": ["Downloads"], "ttl": 600, "uses": 5 }))["ok"].clone();
+        assert_eq!(v["state"], "waiting for the owner");
+        let v = r.agent("request_pass", json!({ "principal": "sios", "own": true, "tools": ["fs.list"], "paths": ["Downloads"], "ttl": 600, "uses": 5 }))["ok"].clone();
+        assert_eq!(v["state"], "granted by your rule");
     }
 }

@@ -43,6 +43,8 @@ pub struct Facts<'a> {
     pub token: Result<(), String>,
     pub principal: &'a str,
     pub paused: bool,
+    /// What the requester's roles say (iam.rs): pass, ask, or fail with why.
+    pub iam: (Res, String),
     pub tool: &'a str,
     /// None if no such tool exists.
     pub level: Option<Level>,
@@ -89,6 +91,16 @@ pub fn evaluate(f: &Facts) -> (Decision, Vec<Check>, String) {
         fail!("principal", format!("{} is paused by the owner.", f.principal));
     }
     add!("principal", Res::Pass, format!("{} is active.", f.principal));
+    // 2b. its roles: an explicit deny wins, and nothing that fits means no
+    let mut asking: Vec<String> = Vec::new();
+    match &f.iam {
+        (Res::Fail, why) => fail!("iam", why.clone()),
+        (Res::Ask, why) => {
+            add!("iam", Res::Ask, why.clone());
+            asking.push("its role asks first".into());
+        }
+        (_, why) => add!("iam", Res::Pass, why.clone()),
+    }
     // 3. the tool exists
     let Some(level) = f.level else { fail!("tool", format!("{} isn't a real tool.", f.tool)) };
     // 4. the capability covers this tool
@@ -119,7 +131,6 @@ pub fn evaluate(f: &Facts) -> (Decision, Vec<Check>, String) {
     }
     add!("budget", Res::Pass, f.budget_left.map(|b| format!("{b} actions left in the goal's budget.")).unwrap_or("No budget set.".into()));
     // 7. sending things out
-    let mut asking: Vec<String> = Vec::new();
     if f.egress {
         if f.no_egress {
             fail!("egress", "This capability may not send anything off the computer.".into());
@@ -171,6 +182,7 @@ mod tests {
             token: Ok(()),
             principal: "openai-agent",
             paused: false,
+            iam: (Res::Pass, "ok".into()),
             tool: "fs.read",
             level: Some(Level::Read),
             egress: false,

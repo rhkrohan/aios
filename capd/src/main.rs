@@ -6,6 +6,7 @@
 
 mod audit;
 mod fsguard;
+mod iam;
 mod manifest;
 mod memory;
 mod memsim;
