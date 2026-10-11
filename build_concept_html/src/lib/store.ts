@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { BASE_INBOX, initialFs, NETWORKS } from "./seed";
 import { GENESIS, chainHash, payloadOf } from "./audit";
 import { SEED_TRUST, type TrustRecord } from "./trust";
+import { SEED_IAM, type IAM, type Role } from "./iam";
 import type {
   AuditEntry,
   Lease,
@@ -118,6 +119,8 @@ interface OSState {
   /** Connected AI apps and the areas each may use. */
   connectedApps: Record<string, { since: string; areas: string[] }>;
   trust: Record<string, TrustRecord>;
+  /** Who each AI is and what its roles allow (lib/iam.ts). */
+  iam: IAM;
   /** Goals the user stopped from the Goals app; the engine checks before each step. */
   cancelledRuns: string[];
   wifi: { connected: string | null; networks: Network[] };
@@ -185,6 +188,9 @@ interface OSState {
   adjustTrust: (principal: string, delta: number, why: string) => void;
   cancelRun: (id: string) => void;
   setTrustOverride: (principal: string, level: number | null) => void;
+  setIdentityRoles: (id: string, roles: string[]) => void;
+  saveRole: (role: Role) => void;
+  removeRole: (id: string) => void;
   setFs: (fs: Record<string, FileItem[]>) => void;
   setWifi: (ssid: string | null) => void;
   addMail: (m: MailMessage) => void;
@@ -252,6 +258,7 @@ export const useOS = create<OSState>((set, get) => ({
   pausedPrincipals: [],
   connectedApps: { "claude-desktop": { since: "Connected 3 days ago", areas: ["Files", "Settings"] } },
   trust: SEED_TRUST,
+  iam: SEED_IAM,
   cancelledRuns: [],
   wifi: { connected: "Drexel-Guest", networks: NETWORKS },
   fs: initialFs(),
@@ -399,6 +406,20 @@ export const useOS = create<OSState>((set, get) => ({
   setTrustOverride: (principal, level) => {
     const cur = get().trust[principal] ?? { score: 10, override: null, history: [] };
     set({ trust: { ...get().trust, [principal]: { ...cur, override: level } } });
+  },
+  setIdentityRoles: (id, roles) => {
+    const iam = get().iam;
+    set({ iam: { ...iam, identities: iam.identities.map((i) => (i.id === id ? { ...i, roles } : i)) } });
+  },
+  saveRole: (role) => {
+    const iam = get().iam;
+    const has = iam.roles.some((r) => r.id === role.id);
+    set({ iam: { ...iam, roles: has ? iam.roles.map((r) => (r.id === role.id ? role : r)) : [...iam.roles, role] } });
+  },
+  removeRole: (id) => {
+    const iam = get().iam;
+    if (iam.roles.find((r) => r.id === id)?.global) return;
+    set({ iam: { roles: iam.roles.filter((r) => r.id !== id), identities: iam.identities.map((i) => ({ ...i, roles: i.roles.filter((r) => r !== id) })) } });
   },
   setConnectedApp: (id, v) => {
     const next = { ...get().connectedApps };

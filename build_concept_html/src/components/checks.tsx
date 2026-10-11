@@ -3,13 +3,14 @@
 // One visual language for the broker's checks, shared by the approval prompt
 // and the auto-mode X-ray.
 
-import { Check, Coins, Hash, KeyRound, Send, Ticket, Droplets, Gauge, GitBranch, Globe, Hand, LayoutGrid, MapPin, Power, Target, User, Wrench, type LucideIcon } from "lucide-react";
+import { BadgeCheck, Check, Coins, Hash, KeyRound, Send, Ticket, Droplets, Gauge, GitBranch, Globe, Hand, LayoutGrid, MapPin, Power, Target, User, Wrench, type LucideIcon } from "lucide-react";
 import type { PolicyCheck } from "@/lib/types";
 
 export const CHECK_META: Record<string, { icon: LucideIcon; word: string }> = {
   stop: { icon: Power, word: "On" },
   principal: { icon: User, word: "Who" },
   trust: { icon: Gauge, word: "Trust" },
+  iam: { icon: BadgeCheck, word: "Role" },
   tool: { icon: Wrench, word: "Tool" },
   goal: { icon: Target, word: "Goal" },
   area: { icon: LayoutGrid, word: "Area" },

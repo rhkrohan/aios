@@ -10,6 +10,7 @@ import { CATALOG } from "./catalog";
 import type { useOS } from "./store";
 import { labelsAt, lookup } from "./objects";
 import { TRUST_LEVELS, trustLevelOf } from "./trust";
+import { decide as iamDecide } from "./iam";
 import type { DataSource, GoalScope, Lease, PolicyCheck, PolicyVerdict, ToolCall } from "./types";
 
 type OS = ReturnType<typeof useOS.getState>;
@@ -137,6 +138,14 @@ export function evaluate(state: OS, req: PolicyInput): PolicyVerdict {
     trustDetail = `${who.name} is at Limited trust, so every change asks, every time.`;
   }
   add({ id: "trust", label: `How much is ${who.name} trusted?`, result: trustResult, detail: trustDetail });
+
+  // 2c. roles (IAM): an explicit deny wins; otherwise some role must allow it.
+  // Places are worked out the same way as the Access map check below.
+  const iamSrcArg = typeof req.tool.input.name === "string" ? req.tool.input.name : typeof req.tool.input.path === "string" ? req.tool.input.path : "";
+  const iamSrc = iamSrcArg ? lookup(state.fs, iamSrcArg) : null;
+  const iamPlaces = Array.from(new Set([iamSrc ? `${iamSrc.dir}/${iamSrc.item.name}` : "", target].filter((p) => p.startsWith("~"))));
+  const iam = iamDecide(state.iam, req.principal, { tool: req.tool.name, risk: req.tool.permission, places: iamPlaces, tainted: req.tainted });
+  add({ id: "iam", label: `What do ${who.kind === "owner" ? "your" : `${who.name}'s`} roles allow?`, result: iam.result, detail: iam.detail });
 
   // 3. the tool must exist and be enabled. The model can't invent tools.
   const cap = capabilityFor(req.tool.name);
@@ -295,6 +304,11 @@ export function evaluate(state: OS, req: PolicyInput): PolicyVerdict {
     levelDetail = "Limited trust: permissions don't carry over, so it asks again.";
   } else if (lease) levelDetail = lease.kind === "hour" ? "You allowed this for an hour." : lease.kind === "session" ? "You allowed this for this session." : "You allowed this.";
   else if (standing) levelDetail = "Your standing rule allows this.";
+  // the strictest rule wins: a role's "on its own" doesn't override your Access map saying "ask"
+  else if (iam.result === "pass" && iam.by?.effect === "allow" && iam.by.mode === "auto" && scope?.rule === "ask") {
+    levelResult = "ask";
+    levelDetail = `Its role allows this ("${iam.by.note}"), but your Access map says changes in ${scope.key} ask first.`;
+  } else if (iam.result === "pass" && iam.by?.effect === "allow" && iam.by.mode === "auto") levelDetail = `Its role allows this without asking: "${iam.by.note}" (${iam.by.role}).`;
   else if (scope?.rule === "allow") levelDetail = "Your Access map allows changes here.";
   else if (level === 3 && scope?.rule !== "ask") levelDetail = `${who.name} is Trusted, so reversible changes don't need to ask here.`;
   else {

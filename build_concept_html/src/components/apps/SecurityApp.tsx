@@ -6,30 +6,26 @@
 
 import clsx from "clsx";
 import {
+  BadgeCheck,
   Ban,
   Bot,
   Check,
   ChevronRight,
-  Cloud,
-  Cpu,
   Eye,
   FileClock,
+  FlaskConical,
   FolderTree,
   KeyRound,
   Link2,
-  ListChecks,
   Lock,
   Mail,
   OctagonX,
   Pause,
   Play,
-  Plus,
   Settings2,
   ShieldAlert,
   ShieldCheck,
-  SlidersHorizontal,
   Timer,
-  User,
   Users,
   Wifi,
   type LucideIcon,
@@ -39,38 +35,44 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { BRAND } from "@/lib/brand";
 import { verifyChain } from "@/lib/audit";
 import { CATALOG } from "@/lib/catalog";
-import { runRequest } from "@/lib/engine";
 import { leaseValid, principalName } from "@/lib/policy";
-import { TRUST_LEVELS, levelFromScore, trustLevelOf } from "@/lib/trust";
 import { useOS, type ScopeRule } from "@/lib/store";
 import type { AuditEntry, PolicyCheck, Win } from "@/lib/types";
 import { FolderIcon } from "../icons/Icons";
-import { StringOrb } from "../icons/StringOrb";
 import { Button, Chip, timeAgo, type Tone } from "../ui";
 import { LogoTile } from "../icons/BrandLogos";
 import { CapTile } from "./StoreApp";
 import { CheckTrace } from "../command/StepRow";
+import { Attention, H, Identities, Protection, Roles, WhatIf, type IamPage } from "./SecurityIAM";
 
-type Page = "overview" | "who" | "access" | "leases" | "vault" | "decisions" | "rules";
+type Page = IamPage;
 
-const PAGES: { id: Page; label: string; icon: LucideIcon }[] = [
+const PAGES: { id: Page; label: string; icon: LucideIcon; group?: string }[] = [
   { id: "overview", label: "Overview", icon: ShieldCheck },
-  { id: "who", label: "Who can act", icon: Users },
-  { id: "access", label: "Access map", icon: FolderTree },
+  { id: "identities", label: "Identities", icon: Users, group: "Who" },
+  { id: "roles", label: "Roles", icon: BadgeCheck },
+  { id: "whatif", label: "What if", icon: FlaskConical },
+  { id: "access", label: "Access map", icon: FolderTree, group: "What" },
   { id: "leases", label: "Active permissions", icon: Timer },
   { id: "vault", label: "Sign-ins", icon: KeyRound },
-  { id: "decisions", label: "Decisions", icon: FileClock },
-  { id: "rules", label: "Rules", icon: SlidersHorizontal },
+  { id: "decisions", label: "Decisions", icon: FileClock, group: "History" },
 ];
 
 export function SecurityApp({ win }: { win: Win }) {
-  const page = (win.props?.page as Page) ?? "overview";
+  const raw = win.props?.page as string | undefined;
+  // older links: "who" and "rules" became Identities and Roles
+  const page = ((raw === "who" ? "identities" : raw === "rules" ? "roles" : raw) as Page) ?? "overview";
   const setProps = useOS((s) => s.setWindowProps);
   const paused = useOS((s) => s.aiPaused);
   return (
     <div className="h-full flex">
       <aside className="w-52 shrink-0 border-r border-line bg-surface-2/70 p-2.5 flex flex-col gap-0.5">
-        {PAGES.map((p) => (
+        {PAGES.map((p) => [
+          p.group && (
+            <div key={p.group} className="mt-3 mb-0.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">
+              {p.group}
+            </div>
+          ),
           <button
             key={p.id}
             onClick={() => setProps(win.id, { page: p.id })}
@@ -81,8 +83,8 @@ export function SecurityApp({ win }: { win: Win }) {
           >
             <p.icon size={16} strokeWidth={1.8} className={page === p.id ? "text-ok" : undefined} />
             {p.label}
-          </button>
-        ))}
+          </button>,
+        ])}
         <div className="mt-auto rounded-xl border border-line bg-surface p-3 text-[12px] leading-[1.45] text-fg-2">
           <div className="flex items-center gap-1.5 font-semibold text-fg mb-1">
             <span className={clsx("size-2 rounded-full", paused ? "bg-danger" : "bg-ok")} />
@@ -95,24 +97,16 @@ export function SecurityApp({ win }: { win: Win }) {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={page} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="p-6 max-w-[860px]">
             {page === "overview" && <Overview go={(p) => setProps(win.id, { page: p })} />}
-            {page === "who" && <Who />}
+            {page === "identities" && <Identities go={(p, props) => setProps(win.id, { page: p, ...props })} />}
+            {page === "roles" && <Roles />}
+            {page === "whatif" && <WhatIf key={win.props?.who} who={win.props?.who} />}
             {page === "access" && <Access />}
             {page === "leases" && <Leases />}
             {page === "vault" && <Vault />}
             {page === "decisions" && <Decisions />}
-            {page === "rules" && <Rules />}
           </motion.div>
         </AnimatePresence>
       </div>
-    </div>
-  );
-}
-
-function H({ title, sub }: { title: string; sub: string }) {
-  return (
-    <div className="mb-5">
-      <h2 className="text-[22px] font-semibold tracking-[-0.01em]">{title}</h2>
-      <p className="text-[13.5px] text-fg-2 mt-0.5 max-w-[620px]">{sub}</p>
     </div>
   );
 }
@@ -167,7 +161,6 @@ function Overview({ go }: { go: (p: Page) => void }) {
   const decisions = useDecisions();
   const paused = useOS((s) => s.aiPaused);
   const grants = useOS((s) => s.grants);
-  const installed = useOS((s) => s.installed);
   const [confirm, setConfirm] = useState(false);
   const count = (v: Verdict) => decisions.filter((d) => d.verdict === v).length;
 
@@ -236,27 +229,7 @@ function Overview({ go }: { go: (p: Page) => void }) {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-line p-4">
-          <div className="text-[14px] font-semibold mb-2.5">Protection</div>
-          <ul className="grid gap-2 text-[13px]">
-            {[
-              [ShieldCheck, "Permission broker is running on its own"],
-              [KeyRound, `${Object.keys(installed).length} sign-ins locked in the broker, none in AI memory`],
-              [FileClock, "Snapshots before risky file changes"],
-              [Lock, "Taxes 2025 is blocked for every AI"],
-            ].map(([Icon, t]) => {
-              const I = Icon as LucideIcon;
-              return (
-                <li key={t as string} className="flex items-center gap-2.5">
-                  <span className="size-6 rounded-full bg-ok-soft text-ok grid place-items-center shrink-0">
-                    <I size={13} />
-                  </span>
-                  {t as string}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        <Attention go={go} />
         <div className="rounded-2xl border border-line p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[14px] font-semibold">Latest decisions</div>
@@ -275,6 +248,10 @@ function Overview({ go }: { go: (p: Page) => void }) {
             ))}
           </ul>
         </div>
+      </div>
+
+      <div className="mt-3">
+        <Protection />
       </div>
 
       <AnimatePresence>{confirm && <StopConfirm onClose={() => setConfirm(false)} />}</AnimatePresence>
@@ -327,239 +304,6 @@ function StopConfirm({ onClose }: { onClose: () => void }) {
         </div>
       </motion.div>
     </motion.div>
-  );
-}
-
-// ------------------------------------------------------------------ who can act
-
-const ROLES: Record<string, { tone: Tone; can: string; cannot: string }> = {
-  Owner: { tone: "ok", can: "Everything, including changing these rules", cannot: "Nothing is off limits" },
-  Assistant: { tone: "accent", can: "Plan tasks and suggest steps", cannot: "Act without the broker, or see passwords" },
-  "Online AI": { tone: "accent", can: "Help with hard tasks you approve", cannot: "See names, files or memory you haven't cleared" },
-  "Connected app": { tone: "neutral", can: "Use the areas you picked", cannot: "Go beyond those areas or skip approvals" },
-  Service: { tone: "neutral", can: "Provide the tools it declared", cannot: "Add new tools without an update you approve" },
-  Checker: { tone: "ok", can: "Confirm a task really worked", cannot: "Change anything" },
-  Broker: { tone: "ok", can: "Approve, block and hold sign-ins", cannot: "Be bypassed by any AI" },
-};
-
-function Who() {
-  const installed = useOS((s) => s.installed);
-  const custom = useOS((s) => s.customCaps);
-  const onlineAi = useOS((s) => s.settings.onlineAi);
-  const uninstall = useOS((s) => s.uninstall);
-  const paused = useOS((s) => s.pausedPrincipals);
-  const toggle = useOS((s) => s.togglePrincipal);
-  const apps = useOS((s) => s.connectedApps);
-  const caps = [...CATALOG, ...custom].filter((c) => installed[c.id]);
-
-  type Row = { id: string; name: string; role: keyof typeof ROLES; detail: string; tile: React.ReactNode; last: string; removable?: () => void; test?: () => void };
-  const rows: Row[] = [
-    { id: "owner", name: BRAND.user, role: "Owner", detail: "You, at this computer", tile: <Round icon={User} bg="#2f3540" />, last: "Now" },
-    {
-      id: "assistant",
-      name: `${BRAND.name} assistant`,
-      role: "Assistant",
-      detail: "Thinks on this computer, acts only through the broker",
-      tile: (
-        <span className="size-10 grid place-items-center">
-          <StringOrb size={40} strands={14} />
-        </span>
-      ),
-      last: "Today",
-    },
-    ...(onlineAi
-      ? [{ id: "online", name: onlineAi, role: "Online AI" as const, detail: "Only for hard tasks you approve", tile: <LogoTile logo={onlineAi === "Gemini" ? "gemini" : "claude"} size={40} />, last: "Today" }]
-      : []),
-    ...Object.entries(apps).map(([id, a]) => ({
-      id,
-      name: principalName(id),
-      role: "Connected app" as const,
-      detail: `Can use ${a.areas.join(", ") || "nothing"}`,
-      tile: id === "claude-desktop" ? <LogoTile logo="claude" size={40} /> : <Round icon={Bot} bg="#59616b" />,
-      last: a.since.replace("Connected ", ""),
-      test: () => {
-        // a settings change always needs a decision, whatever state the machine is in
-        void runRequest(useOS.getState().theme === "dark" ? "Turn on light mode" : "Turn on dark mode", { principal: id });
-      },
-    })),
-    ...caps.map((c) => ({
-      id: c.id,
-      name: c.name,
-      role: "Service" as const,
-      detail: `${c.tools.length - installed[c.id].disabledTools.length} tools${installed[c.id].account ? `, signed in as ${installed[c.id].account}` : ""}`,
-      tile: <CapTile cap={c} size={40} />,
-      last: timeAgo(installed[c.id].installedAt),
-      removable: () => uninstall(c.id),
-    })),
-    { id: "verifier", name: "Checker", role: "Checker", detail: "Confirms each task did what it said", tile: <Round icon={ListChecks} bg="#1f8a66" />, last: "Always on" },
-    { id: "broker", name: "Permission broker", role: "Broker", detail: "Runs separately, holds every sign-in", tile: <Round icon={ShieldCheck} bg="#1f8a66" />, last: "Always on" },
-  ];
-
-  return (
-    <>
-      <H title="Who can act" sub="Everything that can do something on this computer has its own identity and role. Pausing one is enforced by the broker, not just hidden." />
-      <ul className="rounded-2xl border border-line divide-y divide-line">
-        {rows.map((r) => {
-          const off = paused.includes(r.id);
-          const fixed = r.role === "Owner" || r.role === "Checker" || r.role === "Broker";
-          return (
-            <li key={r.id} className={clsx("flex items-center gap-3.5 px-4 py-3", off && "opacity-60")}>
-              {r.tile}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[14px] font-semibold truncate">{r.name}</span>
-                  <Chip tone={ROLES[r.role].tone}>{r.role}</Chip>
-                  {off && <Chip tone="danger">Paused</Chip>}
-                </div>
-                <div className="text-[12.5px] text-fg-2 truncate">{r.detail}</div>
-                {r.role === "Connected app" && <TrustInline principal={r.id} />}
-              </div>
-              <span className="text-[12px] text-fg-3 w-24 text-right">{r.last}</span>
-              {!fixed ? (
-                <div className="flex gap-1">
-                  {r.test && (
-                    <Button size="sm" onClick={r.test}>
-                      Test a request
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" onClick={() => toggle(r.id)}>
-                    {off ? "Resume" : "Pause"}
-                  </Button>
-                  {r.removable && (
-                    <Button size="sm" variant="ghost" className="text-danger" onClick={r.removable}>
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <span className="w-[120px] text-right text-[12px] text-fg-3">Always on</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      <p className="mt-2.5 text-[12.5px] text-fg-3">
-        &ldquo;Test a request&rdquo; makes the connected app ask to change the theme, so you can watch the broker check who it is and what it may use.
-      </p>
-
-      <TrustLadder />
-
-      <h3 className="mt-7 mb-2.5 text-[15px] font-semibold">What each role means</h3>
-      <div className="grid grid-cols-2 gap-2.5">
-        {Object.entries(ROLES).map(([name, r]) => (
-          <div key={name} className="rounded-2xl border border-line p-3.5">
-            <Chip tone={r.tone}>{name}</Chip>
-            <div className="mt-2 text-[12.5px] leading-5">
-              <span className="text-ok font-medium">Can:</span> {r.can}
-            </div>
-            <div className="text-[12.5px] leading-5">
-              <span className="text-danger font-medium">Can&apos;t:</span> {r.cannot}
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
-// ------------------------------------------------------------------ trust
-
-const LEVEL_TONE = ["bg-danger", "bg-warn", "bg-accent", "bg-ok", "bg-fg"];
-
-function TrustMeter({ level }: { level: number }) {
-  return (
-    <span className="flex gap-0.5" aria-label={`Trust level ${level} of 4`}>
-      {[0, 1, 2, 3].map((i) => (
-        <span key={i} className={clsx("h-1.5 w-4 rounded-full", i < level ? LEVEL_TONE[level] : "bg-surface-3")} />
-      ))}
-    </span>
-  );
-}
-
-function TrustInline({ principal }: { principal: string }) {
-  const trust = useOS((s) => s.trust);
-  const setOverride = useOS((s) => s.setTrustOverride);
-  const [open, setOpen] = useState(false);
-  const rec = trust[principal];
-  const level = trustLevelOf(trust, principal);
-  const auto = rec ? levelFromScore(rec.score) : 0;
-  return (
-    <div className="mt-1.5">
-      <div className="flex items-center gap-2 text-[12px]">
-        <TrustMeter level={level} />
-        <span className="font-semibold">{TRUST_LEVELS[level].name}</span>
-        <span className="text-fg-3">score {rec?.score ?? 0}</span>
-        <select
-          value={rec?.override ?? "auto"}
-          onChange={(e) => setOverride(principal, e.target.value === "auto" ? null : Number(e.target.value))}
-          className="ml-1 h-6 px-1.5 rounded-md bg-surface-2 border border-line text-[11.5px] outline-none"
-          aria-label="Trust override"
-        >
-          <option value="auto">Earned ({TRUST_LEVELS[auto].name})</option>
-          {[0, 1, 2, 3].map((l) => (
-            <option key={l} value={l}>
-              Set to {TRUST_LEVELS[l].name}
-            </option>
-          ))}
-        </select>
-        <button onClick={() => setOpen(!open)} className="text-fg-2 hover:text-fg underline-offset-2 hover:underline">
-          {open ? "Hide why" : "Why?"}
-        </button>
-      </div>
-      <AnimatePresence initial={false}>
-        {open && rec && (
-          <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-1.5 grid gap-0.5">
-            {rec.history.slice(0, 6).map((h, i) => (
-              <li key={i} className="flex gap-2 text-[11.5px]">
-                <span className={clsx("w-8 text-right tabular-nums font-semibold", h.delta >= 0 ? "text-ok" : "text-danger")}>
-                  {h.delta >= 0 ? "+" : ""}
-                  {h.delta}
-                </span>
-                <span className="text-fg-2 flex-1 truncate">{h.why}</span>
-                <span className="text-fg-3">{timeAgo(h.at)}</span>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/** The five levels, with every agent placed on its rung. */
-function TrustLadder() {
-  const trust = useOS((s) => s.trust);
-  const apps = useOS((s) => s.connectedApps);
-  const agents = ["owner", ...Object.keys(apps)];
-  return (
-    <>
-      <h3 className="mt-7 mb-1 text-[15px] font-semibold">Trust levels</h3>
-      <p className="mb-3 text-[12.5px] text-fg-2 max-w-[640px]">
-        Trust is earned: tasks that finish and check out raise it, trying things it isn&apos;t allowed to lowers it. The broker reads it before every action, and you can
-        override it anytime.
-      </p>
-      <div className="grid grid-cols-5 gap-2">
-        {TRUST_LEVELS.map((l) => {
-          const here = agents.filter((a) => trustLevelOf(trust, a) === l.level);
-          return (
-            <div key={l.level} className={clsx("rounded-2xl border p-3 flex flex-col", here.length ? "border-line-strong bg-surface" : "border-line bg-surface-2/50")}>
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-semibold">{l.name}</span>
-                <TrustMeter level={l.level} />
-              </div>
-              <div className="mt-1.5 text-[11.5px] text-fg-2 leading-[1.4] flex-1">{l.can}</div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {here.map((a) => (
-                  <Chip key={a} tone={a === "owner" ? "ok" : "accent"}>
-                    {a === "owner" ? "You" : principalName(a)}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
   );
 }
 
@@ -1030,124 +774,6 @@ function Vault() {
           );
         })}
       </div>
-    </>
-  );
-}
-
-// ------------------------------------------------------------------ rules (permission builder)
-
-const WHO = ["the assistant", "Claude Desktop", "any AI"];
-const DO = [
-  { label: "move and organize files", tool: "files.organize" },
-  { label: "open apps", tool: "apps.open" },
-  { label: "change settings", tool: "settings.set_theme" },
-  { label: "write email drafts", tool: "gmail.draft" },
-  { label: "send email", tool: "gmail.send" },
-];
-const WHERE = ["in Downloads", "in Projects", "anywhere in Home"];
-const HOW = ["without asking", "but ask me first", "never"];
-const UNTIL = ["for this session", "always", "until Friday"];
-
-interface Rule {
-  id: string;
-  text: string;
-  tone: Tone;
-}
-
-function Pick({ value, options, onChange }: { value: number; options: string[]; onChange: (i: number) => void }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="mx-1 my-0.5 h-8 px-2.5 rounded-lg bg-ai-soft text-ai-ink font-semibold border border-ai-line outline-none cursor-pointer text-[14px]"
-    >
-      {options.map((o, i) => (
-        <option key={o} value={i}>
-          {o}
-        </option>
-      ))}
-    </select>
-  )
-}
-
-function Rules() {
-  const standing = useOS((s) => s.standingRules);
-  const grant = useOS((s) => s.grant);
-  const pushToast = useOS((s) => s.pushToast);
-  const [who, setWho] = useState(0);
-  const [act, setAct] = useState(0);
-  const [where, setWhere] = useState(0);
-  const [how, setHow] = useState(0);
-  const [until, setUntil] = useState(0);
-  const [rules, setRules] = useState<Rule[]>(() =>
-    standing.map((t) => ({ id: t, text: `Let the assistant ${DO.find((d) => d.tool === t)?.label ?? t} without asking, always`, tone: "ok" as Tone })),
-  );
-
-  const irreversible = DO[act].tool === "gmail.send";
-  const blockedCombo = irreversible && how === 0;
-
-  const add = () => {
-    if (blockedCombo) return;
-    const text = `Let ${WHO[who]} ${DO[act].label} ${WHERE[where]} ${HOW[how]}${how === 2 ? "" : ", " + UNTIL[until]}`;
-    setRules((r) => [{ id: String(Date.now()), text, tone: how === 0 ? "ok" : how === 1 ? "accent" : "danger" }, ...r]);
-    if (how === 0 && who === 0) grant(DO[act].tool);
-    pushToast({ title: "Rule added", body: text + ".", tone: "ok" });
-  };
-
-  return (
-    <>
-      <H title="Rules" sub="Build a rule like a sentence. Actions that can't be undone, like sending, can never be set to skip asking." />
-      <div className="rounded-2xl border border-line p-5">
-        <div className="text-[15px] leading-[2.4]">
-          Let
-          <Pick value={who} options={WHO} onChange={setWho} />
-          <Pick value={act} options={DO.map((d) => d.label)} onChange={setAct} />
-          <Pick value={where} options={WHERE} onChange={setWhere} />
-          <Pick value={how} options={HOW} onChange={setHow} />
-          {how !== 2 && <Pick value={until} options={UNTIL} onChange={setUntil} />}
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          {blockedCombo ? (
-            <span className="flex items-center gap-1.5 text-[12.5px] text-warn font-medium">
-              <Ban size={14} /> Sending can&apos;t be undone, so it always asks. Pick &ldquo;but ask me first&rdquo;.
-            </span>
-          ) : (
-            <span className="text-[12.5px] text-fg-3">The broker enforces this. The AI can&apos;t change it.</span>
-          )}
-          <span className="flex-1" />
-          <Button variant="primary" onClick={add} disabled={blockedCombo}>
-            <Plus size={14} /> Add rule
-          </Button>
-        </div>
-      </div>
-
-      <h3 className="mt-7 mb-2.5 text-[15px] font-semibold">Your rules</h3>
-      <ul className="rounded-2xl border border-line divide-y divide-line">
-        {rules.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 px-4 py-3">
-            <span className={clsx("size-2 rounded-full shrink-0", r.tone === "ok" ? "bg-ok" : r.tone === "accent" ? "bg-accent" : "bg-danger")} />
-            <span className="flex-1 text-[13.5px]">{r.text}</span>
-            <Button size="sm" variant="ghost" onClick={() => setRules((x) => x.filter((y) => y.id !== r.id))}>
-              Remove
-            </Button>
-          </li>
-        ))}
-        <li className="flex items-center gap-3 px-4 py-3 text-fg-2">
-          <span className="size-2 rounded-full shrink-0 bg-danger" />
-          <span className="flex-1 text-[13.5px]">Never let any AI open Taxes 2025</span>
-          <Chip icon={Lock}>Set in Access map</Chip>
-        </li>
-        <li className="flex items-center gap-3 px-4 py-3 text-fg-2">
-          <span className="size-2 rounded-full shrink-0 bg-accent" />
-          <span className="flex-1 text-[13.5px]">Always ask before anything that can&apos;t be undone</span>
-          <Chip icon={Lock}>Built in</Chip>
-        </li>
-        <li className="flex items-center gap-3 px-4 py-3 text-fg-2">
-          <span className="size-2 rounded-full shrink-0 bg-accent" />
-          <span className="flex-1 text-[13.5px]">Always ask before using online AI ({<Cloud size={12} className="inline -mt-0.5" />} with personal details removed)</span>
-          <Chip icon={Cpu}>Brain settings</Chip>
-        </li>
-      </ul>
     </>
   );
 }
