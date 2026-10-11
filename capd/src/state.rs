@@ -461,6 +461,10 @@ impl State {
                 if let Some(bad) = roles.iter().find(|r| !self.iam.roles.iter().any(|x| &x.id == *r && !x.global)) {
                     return Err(format!("no role {bad} to give"));
                 }
+                // a name alone proves nothing: an unpaired app gets roles only by being paired
+                if id.starts_with("unpaired:") && !roles.is_empty() {
+                    return Err("pair this app first; then give it roles".into());
+                }
                 let i = self.iam.identities.iter_mut().find(|i| i.id == id && i.kind != "owner").ok_or("no such AI")?;
                 i.roles = roles.clone();
                 self.iam.save();
@@ -571,10 +575,10 @@ impl State {
                 let name = p["name"].as_str().filter(|n| !n.trim().is_empty()).unwrap_or(&id).chars().take(60).collect::<String>();
                 if id.starts_with("helper:") {
                     self.iam.register(&id, &name, "helper", "Created by SIOS for you", crate::iam::SIOS, vec![crate::iam::ACTS_FOR_YOU.into()], now());
-                } else if id.starts_with("app:") {
+                } else if id.starts_with("unpaired:") {
                     self.iam.register(&id, &name, "app", "None: the name it reported itself", crate::iam::SIOS, vec![], now());
                 } else {
-                    return Err("SIOS may only register helper: and app: identities".into());
+                    return Err("SIOS may only register helper: and unpaired: identities".into());
                 }
                 Ok(json!(self.iam.get(&id)))
             }
@@ -635,10 +639,11 @@ impl State {
         if self.iam.get(who).is_none() {
             if let Some(name) = who.strip_prefix("helper:") {
                 self.iam.register(who, name, "helper", "Created by SIOS for you", crate::iam::SIOS, vec![crate::iam::ACTS_FOR_YOU.into()], now());
-            } else if let Some(name) = who.strip_prefix("app:") {
+            } else if let Some(name) = who.strip_prefix("unpaired:") {
                 self.iam.register(who, name, "app", "None: the name it reported itself", crate::iam::SIOS, vec![], now());
             } else {
-                return Err(format!("{who} isn't a known identity"));
+                // "app:" ids exist only once the owner pairs the app
+                return Err(format!("{who} isn't a known identity; pair it first"));
             }
         }
         let kind = self.iam.get(who).map(|i| i.kind.clone()).unwrap_or_default();
@@ -1208,6 +1213,9 @@ impl State {
             "memory.share" => {
                 let principal = p["principal"].as_str().filter(|s| !s.is_empty()).ok_or("which AI?")?.to_string();
                 let groups: Vec<String> = p["groups"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(String::from)).filter(|g| crate::memory::GROUPS.contains(&g.as_str())).collect();
+                if principal.starts_with("unpaired:") && !groups.is_empty() {
+                    return Err("pair this app first; anything can claim a name".into());
+                }
                 self.record(&owner, "memory.share", &principal, "you", &format!("{} may now read: {}", principal, if groups.is_empty() { "nothing".into() } else { groups.join(", ") }), &json!([]));
                 if groups.is_empty() {
                     self.memory.shares.remove(&principal);
@@ -1877,17 +1885,23 @@ mod tests {
         let svc = r.st.service_secret.clone();
         let svc_call = |r: &mut Rig, method: &str, params: Value| r.st.handle(&json!({ "method": method, "params": params, "service": svc }));
         // an app that only names itself is registered with no roles: it can't do anything
-        let v = r.agent("request_pass", json!({ "principal": "app:sneaky", "tools": ["fs.read"], "paths": ["Projects"] }))["ok"].clone();
+        let v = r.agent("request_pass", json!({ "principal": "unpaired:sneaky", "tools": ["fs.read"], "paths": ["Projects"] }))["ok"].clone();
         r.owner("grant", json!({ "id": v["id"] }));
         let t = v["token"].as_str().unwrap().to_string();
         let b = r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }));
         assert_eq!(decision(&b), "block");
         assert!(b["reason"].as_str().unwrap().contains("no roles"));
         // and it can never act as the owner, nor can SIOS's brain ask for a pass in the owner's name
-        assert!(r.agent("request_pass", json!({ "principal": "app:sneaky", "own": true, "tools": ["memory.search"], "paths": ["Projects"] }))["error"].is_string());
+        assert!(r.agent("request_pass", json!({ "principal": "unpaired:sneaky", "own": true, "tools": ["memory.search"], "paths": ["Projects"] }))["error"].is_string());
         assert!(r.agent("request_pass", json!({ "principal": "you", "tools": ["fs.delete"], "paths": ["Projects"] }))["error"].is_string());
-        // the owner gives it Reader: now it can look, but not change
-        r.owner("iam.set_roles", json!({ "id": "app:sneaky", "roles": ["reader"] }));
+        // a name alone can't be given roles, and can't claim a paired app's id
+        assert!(r.owner("iam.set_roles", json!({ "id": "unpaired:sneaky", "roles": ["reader"] }))["error"].is_string());
+        assert!(r.agent("request_pass", json!({ "principal": "app:claude-desktop", "tools": ["fs.read"], "paths": ["Projects"] }))["error"].is_string());
+        // once paired and given Reader, it can look, but not change
+        r.owner("iam.pair", json!({ "name": "sneaky", "roles": ["reader"] }));
+        let v = r.agent("request_pass", json!({ "principal": "app:sneaky", "tools": ["fs.read"], "paths": ["Projects"] }))["ok"].clone();
+        r.owner("grant", json!({ "id": v["id"] }));
+        let t = v["token"].as_str().unwrap().to_string();
         assert_eq!(decision(&r.call(&t, "fs.read", json!({ "path": "Projects/notes.md" }))), "allow");
         // a global deny beats it
         let mut every: crate::iam::Role = serde_json::from_value(r.owner("iam.get", json!({}))["ok"]["roles"][0].clone()).unwrap();
@@ -1909,6 +1923,8 @@ mod tests {
         assert!(!std::fs::read_to_string(r.st.dir.join("iam.json")).unwrap().contains(tok));
         // only the owner changes roles; the service can't give itself any
         assert!(svc_call(&mut r, "iam.set_roles", json!({ "id": "app:sneaky", "roles": ["acts-for-you"] }))["error"].is_string());
+        assert!(svc_call(&mut r, "iam.register", json!({ "id": "app:claude-desktop" }))["error"].is_string());
+        assert!(r.owner("memory.share", json!({ "principal": "unpaired:sneaky", "groups": ["Work"] }))["error"].is_string());
         assert!(svc_call(&mut r, "iam.register", json!({ "id": "sios2" }))["error"].is_string());
         // pause survives a restart
         r.owner("pause", json!({ "principal": "app:sneaky" }));

@@ -134,8 +134,9 @@ impl Brain {
     }
 
     /// Who is asking. The owner's shell: SIOS acting for the owner. An outside AI:
-    /// the identity its pairing token proves, or "app:<the name it gave>",
-    /// which the broker registers unverified with no roles.
+    /// the identity its pairing token proves ("app:..."), or else
+    /// "unpaired:<the name it gave>", which the broker keeps apart from paired
+    /// apps and never gives roles: a name alone proves nothing.
     fn requester(&self, p: &Value, owner: bool) -> Result<(String, bool), String> {
         if owner && p["principal"].as_str().is_none_or(|x| x == "owner") && p["pair"].is_null() {
             return Ok(("owner".into(), true));
@@ -145,7 +146,7 @@ impl Brain {
             return Ok((v["id"].as_str().unwrap_or_default().to_string(), false));
         }
         let name = p["principal"].as_str().unwrap_or("outside AI");
-        Ok((format!("app:{}", slug(name)), false))
+        Ok((format!("unpaired:{}", slug(name)), false))
     }
 
     fn save_watchers(&self) {
