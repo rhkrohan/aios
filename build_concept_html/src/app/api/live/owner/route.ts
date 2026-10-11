@@ -23,6 +23,7 @@ const ACTIONS: Record<string, string> = {
   memory_edit: "memory.edit",
   memory_delete: "memory.delete",
   memory_forget_about: "memory.forget_about",
+  memory_unforget: "memory.unforget",
   memory_confirm: "memory.confirm",
   memory_dismiss: "memory.dismiss",
   memory_share: "memory.share",

@@ -119,7 +119,7 @@ function H({ title, sub }: { title: string; sub: string }) {
 
 // ------------------------------------------------------------------ decisions data
 
-type Verdict = "allowed" | "asked" | "blocked" | "sandboxed";
+type Verdict = "allowed" | "asked" | "denied" | "blocked";
 interface Decision {
   id: string;
   at: number;
@@ -137,52 +137,9 @@ interface Decision {
 const VERDICT: Record<Verdict, { label: string; tone: Tone }> = {
   allowed: { label: "Allowed", tone: "ok" },
   asked: { label: "Asked you", tone: "accent" },
+  denied: { label: "You said no", tone: "warn" },
   blocked: { label: "Blocked", tone: "danger" },
-  sandboxed: { label: "Sandboxed", tone: "neutral" },
 };
-
-const HISTORY: Decision[] = [
-  {
-    id: "h1",
-    at: Date.now() - 38 * 60e3,
-    who: "weather-tools.dev",
-    action: "Tried to read all of Google Drive",
-    tool: "drive.files.find",
-    target: "Entire Drive",
-    verdict: "blocked",
-    why: "Not one of its tools. Unknown publishers only get what they declared.",
-  },
-  {
-    id: "h2",
-    at: Date.now() - 52 * 60e3,
-    who: `${BRAND.name} assistant`,
-    action: "Send a request after reading a web page",
-    tool: "browser.act",
-    target: "unknown-site.example",
-    verdict: "asked",
-    why: "Network action after reading untrusted content always asks.",
-  },
-  {
-    id: "h3",
-    at: Date.now() - 95 * 60e3,
-    who: "Claude Desktop",
-    action: "Open Taxes 2025",
-    tool: "files.read",
-    target: "~/Documents/Taxes 2025",
-    verdict: "blocked",
-    why: "You blocked this folder for every AI.",
-  },
-  {
-    id: "h4",
-    at: Date.now() - 140 * 60e3,
-    who: "Budget Book",
-    action: "Read a bank export",
-    tool: "budget.statements.read",
-    target: "~/Downloads/statement.csv",
-    verdict: "sandboxed",
-    why: "Runs with no network, so the file can't leave this computer.",
-  },
-];
 
 function useDecisions(): Decision[] {
   const audit = useOS((s) => s.audit);
@@ -194,13 +151,13 @@ function useDecisions(): Decision[] {
       action: e.outcome === "blocked" ? `Tried ${e.tool}` : e.tool,
       tool: e.tool,
       target: e.target,
-      verdict: e.outcome === "blocked" || e.outcome === "asked-no" ? "blocked" : e.outcome === "asked-yes" ? "asked" : "allowed",
+      verdict: e.outcome === "blocked" ? "blocked" : e.outcome === "asked-no" ? "denied" : e.outcome === "asked-yes" ? "asked" : "allowed",
       why: e.reason,
       checks: e.checks,
       hash: e.hash,
       seq: e.seq,
     }));
-    return [...live, ...HISTORY];
+    return live;
   }, [audit]);
 }
 
@@ -829,7 +786,7 @@ function Decisions() {
       </div>
 
       <div className="flex gap-1 mb-3">
-        {(["all", "allowed", "asked", "blocked", "sandboxed"] as const).map((f) => (
+        {(["all", "allowed", "asked", "denied", "blocked"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

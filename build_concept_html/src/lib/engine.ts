@@ -223,7 +223,8 @@ async function executeSteps(run: Run, specs: StepSpec[], plan: Plan, ctx: ExecCt
       }
 
       if (verdict.decision === "ask") {
-        const kind = verdict.askKind === "reversible" ? "reversible" : "irreversible";
+        // asking because of outside content doesn't make an action permanent; the sheet shows the taint separately
+        const kind = spec.tool.permission === "irreversible" ? "irreversible" : "reversible";
         const answer = await ask(runId, spec, kind, verdict);
         if (answer === "deny") {
           audit("asked-no", "You said no.");

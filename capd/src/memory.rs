@@ -174,6 +174,16 @@ impl MemStore {
         scored.into_iter().take(limit).map(|(_, m)| m.clone()).collect()
     }
 
+    /// Memories that mention every word of the query (for forgetting: one shared
+    /// word is not enough). Episodes included; nothing is hidden from the owner.
+    pub fn matching_all(&self, query: &str) -> Vec<Memory> {
+        let q = words(query);
+        if q.is_empty() {
+            return vec![];
+        }
+        self.memories.iter().filter(|m| { let hay = m.text.to_lowercase(); q.iter().all(|w| hay.contains(w.as_str())) }).cloned().collect()
+    }
+
     /// How many Sensitive memories matched but were held back from an online model.
     pub fn held_back(&self, query: &str, v: &Viewer) -> usize {
         if !v.online {
@@ -204,7 +214,15 @@ impl MemStore {
         // the same thing twice is one memory (episodes are a journal: every one is kept)
         if let Some(m) = self.memories.iter_mut().find(|m| kind != "episode" && m.kind != "episode" && m.text.eq_ignore_ascii_case(text)) {
             m.last_used = now;
-            return Ok(m.clone());
+            // saying it again can add a label (say, Sensitive), never drop one
+            for l in labels {
+                if !m.labels.contains(&l) {
+                    m.labels.push(l);
+                }
+            }
+            let m = m.clone();
+            self.save();
+            return Ok(m);
         }
         // anything with a name and an email is also a person, so "my accountant" resolves
         let person = if kind == "person" || (kind == "fact" && group == "People") { parse_person(text) } else { None };

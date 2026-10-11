@@ -25,6 +25,9 @@ use crate::model::Model;
 use crate::plan::{self, Plan};
 use crate::routines::Routines;
 
+/// Goals finished since brain-d started, to pace the pattern check.
+static DONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[derive(Default)]
 pub struct Goal {
     pub events: Vec<Value>,
@@ -121,8 +124,9 @@ pub fn run(ctx: &Ctx, g: &Shared, request: &str, principal: &str, own: bool, his
                 crate::memory::episode(&ctx.capd, turn.goal.as_deref().unwrap_or(""), &turn.understanding, &turn.reply, by, &r.recall.ids);
                 let capd = ctx.capd.clone();
                 std::thread::spawn(move || {
-                    if let (Ok(eps), Ok(m)) = (capd.call("memory.episodes", json!({ "n": 200 })), Model::from_env()) {
-                        if eps.as_array().map(|a| a.len()).unwrap_or(0) % 3 == 0 {
+                    // every third finished goal (not the episode count: that stops growing at its cap)
+                    if DONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 3 == 2 {
+                        if let Ok(m) = Model::from_env() {
                             crate::memory::consolidate(&capd, &m);
                         }
                     }

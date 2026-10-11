@@ -35,7 +35,8 @@ pub fn now() -> u64 {
 
 /// Compare secrets without leaking how much of a guess was right.
 fn ct_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    // an empty secret proves nothing
+    !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 pub fn random_hex(n: usize) -> String {
@@ -53,7 +54,17 @@ struct Session {
     actions: u32,
 }
 
+struct Assessed {
+    cap: Cap,
+    decision: Decision,
+    checks: Vec<crate::policy::Check>,
+    reason: String,
+    target: String,
+}
+
 struct Pending {
+    /// The token itself, so an approval re-checks everything before it runs.
+    token: String,
     cap: Cap,
     tool: String,
     args: Value,
@@ -87,6 +98,8 @@ pub struct State {
     log: Log,
     pub meta: Store,
     pub memory: crate::memory::MemStore,
+    /// What each forget_about removed, so the owner can put it back.
+    forgotten: Vec<(String, Vec<crate::memory::Memory>)>,
 }
 
 fn load_or_create(path: &Path, make: impl FnOnce() -> String) -> std::io::Result<String> {
@@ -113,9 +126,17 @@ impl State {
             std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
         }
         std::fs::create_dir_all(root)?;
+        // The key and secrets must be out of every AI's reach: never inside the sandbox.
+        let (d, r) = (dir.canonicalize()?, root.canonicalize()?);
+        if d.starts_with(&r) {
+            return Err(std::io::Error::other(format!("capd's state folder {} is inside the folder AIs can reach ({}); set SIOS_ROOT to a folder that doesn't contain it", d.display(), r.display())));
+        }
         let key = hex::decode(load_or_create(&dir.join("capd.key"), || random_hex(32))?).map_err(|e| std::io::Error::other(e.to_string()))?;
         let owner_secret = load_or_create(&dir.join("owner.secret"), || random_hex(24))?;
         let service_secret = load_or_create(&dir.join("service.secret"), || random_hex(24))?;
+        if owner_secret.len() < 16 || service_secret.len() < 16 {
+            return Err(std::io::Error::other("owner.secret or service.secret is empty or too short; delete it and restart capd to make a new one"));
+        }
         Ok(State {
             key,
             owner_secret,
@@ -135,6 +156,7 @@ impl State {
             paused: HashSet::new(),
             log: Log::open(&dir.join("audit.jsonl"))?,
             meta: Store::open(&dir.join("meta.json")),
+            forgotten: Vec::new(),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
                 if let Ok(b) = std::fs::read(dir.join("people.json")) {
@@ -261,7 +283,7 @@ impl State {
         if method.starts_with("memory.") && !service && !owner {
             return json!({ "error": "only SIOS's own brain or the owner can do that" });
         }
-        const OWNER_MEMORY: [&str; 8] = ["memory.list", "memory.add", "memory.edit", "memory.delete", "memory.forget_about", "memory.confirm", "memory.dismiss", "memory.share"];
+        const OWNER_MEMORY: [&str; 9] = ["memory.list", "memory.add", "memory.edit", "memory.delete", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share"];
         if OWNER_MEMORY.contains(&method) && !owner {
             return json!({ "error": "only the owner can do that" });
         }
@@ -491,6 +513,43 @@ impl State {
         let tool = crate::manifest::canonical(p["tool"].as_str().unwrap_or(""));
         let args = p["args"].clone();
         let dry = p["dry_run"].as_bool() == Some(true);
+        let Assessed { cap, decision, checks, reason, target } = self.assess(token, &tool, &args, dry);
+        let checks_v = json!(checks);
+        // a dry run answers "what would happen?" without doing, logging or spending anything
+        if dry {
+            let d = match decision {
+                Decision::Allow => "allow",
+                Decision::Ask => "ask",
+                Decision::Block => "block",
+            };
+            return Ok(json!({ "decision": d, "reason": reason, "checks": checks_v, "dry_run": true }));
+        }
+        match decision {
+            Decision::Block => {
+                self.record(&cap, &tool, &target, "blocked", &reason, &checks_v);
+                Ok(json!({ "decision": "block", "reason": reason, "checks": checks_v }))
+            }
+            Decision::Ask => {
+                let id = random_hex(6);
+                self.record(&cap, &tool, &target, "asked", &reason, &checks_v);
+                self.pending.insert(id.clone(), Pending { token: token.to_string(), cap, tool, args, checks: checks_v.clone(), reason: reason.clone(), answer: None });
+                Ok(json!({ "decision": "ask", "approval": id, "reason": reason, "checks": checks_v }))
+            }
+            Decision::Allow => {
+                self.record(&cap, &tool, &target, "allowed", &reason, &checks_v);
+                // allowed but the tool itself failed (say, the folder doesn't exist): say so plainly
+                Ok(match self.execute(&cap, &tool, &args) {
+                    Ok(result) => json!({ "decision": "allow", "result": result, "checks": checks_v }),
+                    Err(e) => json!({ "decision": "allow", "error": e, "checks": checks_v }),
+                })
+            }
+        }
+    }
+
+    /// Gather the facts about one call and decide. Changes nothing, so an
+    /// approval can run it again just before acting.
+    fn assess(&self, token: &str, tool: &str, args: &Value, dry: bool) -> Assessed {
+        let tool = tool.to_string();
         let tok = if dry { self.check_token_any(token) } else { self.check_token(token) };
         // an unverifiable token is still recorded, against "unknown"
         let cap = match &tok {
@@ -512,12 +571,9 @@ impl State {
         let spec = tools::spec(&tool);
         // a call that doesn't fit the tool is refused up front, with the exact fields
         if let (Some(s), Ok(_)) = (spec, &tok) {
-            if let Err(e) = crate::manifest::check_args(s, &cap, &args) {
-                let checks = json!([{ "id": "args", "result": "fail", "detail": e }]);
-                if !dry {
-                    self.record(&cap, &tool, "", "blocked", &e, &checks);
-                }
-                return Ok(json!({ "decision": "block", "reason": e, "checks": checks }));
+            if let Err(e) = crate::manifest::check_args(s, &cap, args) {
+                let checks = vec![crate::policy::Check { id: "args".into(), result: crate::policy::Res::Fail, detail: e.clone() }];
+                return Assessed { cap, decision: Decision::Block, checks, reason: e, target: String::new() };
             }
         }
         let sid = self.session_of(&cap);
@@ -599,37 +655,8 @@ impl State {
             carrying,
         };
         let (decision, checks, reason) = evaluate(&facts);
-        let checks_v = json!(checks);
         let target = tlist.join(", ");
-        // a dry run answers "what would happen?" without doing, logging or spending anything
-        if p["dry_run"].as_bool() == Some(true) {
-            let d = match decision {
-                Decision::Allow => "allow",
-                Decision::Ask => "ask",
-                Decision::Block => "block",
-            };
-            return Ok(json!({ "decision": d, "reason": reason, "checks": checks_v, "dry_run": true }));
-        }
-        match decision {
-            Decision::Block => {
-                self.record(&cap, &tool, &target, "blocked", &reason, &checks_v);
-                Ok(json!({ "decision": "block", "reason": reason, "checks": checks_v }))
-            }
-            Decision::Ask => {
-                let id = random_hex(6);
-                self.record(&cap, &tool, &target, "asked", &reason, &checks_v);
-                self.pending.insert(id.clone(), Pending { cap, tool, args, checks: checks_v.clone(), reason: reason.clone(), answer: None });
-                Ok(json!({ "decision": "ask", "approval": id, "reason": reason, "checks": checks_v }))
-            }
-            Decision::Allow => {
-                self.record(&cap, &tool, &target, "allowed", &reason, &checks_v);
-                // allowed but the tool itself failed (say, the folder doesn't exist): say so plainly
-                Ok(match self.execute(&cap, &tool, &args) {
-                    Ok(result) => json!({ "decision": "allow", "result": result, "checks": checks_v }),
-                    Err(e) => json!({ "decision": "allow", "error": e, "checks": checks_v }),
-                })
-            }
-        }
+        Assessed { cap, decision, checks, reason, target }
     }
 
     /// Run the tool for real and update the goal's session: uses, budget, taint, lineage, undo.
@@ -672,11 +699,20 @@ impl State {
         if p.answer.is_some() {
             return Err("already decided".into());
         }
-        let (cap, tool, args, checks) = (p.cap.clone(), p.tool.clone(), p.args.clone(), p.checks.clone());
+        let (token, cap, tool, args, checks) = (p.token.clone(), p.cap.clone(), p.tool.clone(), p.args.clone(), p.checks.clone());
         let target = args.as_object().map(|o| o.values().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", ")).unwrap_or_default();
         let answer = if yes {
-            self.record(&cap, &tool, &target, "approved", "the owner approved it", &checks);
-            self.execute(&cap, &tool, &args)
+            // Things may have changed while it waited (revoked, paused, uses spent,
+            // a folder swapped): check again, and only the owner's "ask" is waived.
+            let now = self.assess(&token, &tool, &args, false);
+            if now.decision == Decision::Block {
+                let checks_v = json!(now.checks);
+                self.record(&cap, &tool, &now.target, "blocked", &format!("approved, but no longer allowed: {}", now.reason), &checks_v);
+                Err(format!("approved, but no longer allowed: {}", now.reason))
+            } else {
+                self.record(&cap, &tool, &target, "approved", "the owner approved it", &checks);
+                self.execute(&cap, &tool, &args)
+            }
         } else {
             self.record(&cap, &tool, &target, "denied", "the owner said no", &checks);
             Err("the owner said no".into())
@@ -907,6 +943,12 @@ impl State {
                 let m = self.memory.memories.iter_mut().find(|m| m.id == id).ok_or("no memory with that id")?;
                 if let Some(text) = p["text"].as_str() {
                     m.text = text.chars().take(500).collect();
+                    // a person's card shows the parsed name, email and role: keep them in step
+                    if m.person.is_some() {
+                        if let Some(np) = crate::memory::parse_person(&m.text) {
+                            m.person = Some(np);
+                        }
+                    }
                 }
                 if let Some(g) = p["group"].as_str().filter(|g| crate::memory::GROUPS.contains(g)) {
                     m.group = g.into();
@@ -926,13 +968,31 @@ impl State {
             }
             "memory.forget_about" => {
                 let q = p["query"].as_str().unwrap_or("");
-                let all = crate::memory::Viewer { principal: "you", own: true, online: false };
-                let ids: Vec<String> = self.memory.search(q, &all, 500).into_iter().map(|m| m.id).collect();
-                for id in &ids {
-                    self.memory.remove(id);
+                let gone = self.memory.matching_all(q);
+                // look first: what would go, without removing anything
+                if p["preview"].as_bool() == Some(true) {
+                    return Ok(json!({ "would_forget": gone }));
                 }
-                self.record(&owner, "memory.forget_about", q, "you", &format!("you forgot {} memories about this", ids.len()), &json!([]));
-                Ok(json!({ "forgot": ids.len() }))
+                for m in &gone {
+                    self.memory.remove(&m.id);
+                }
+                let batch = random_hex(4);
+                self.record(&owner, "memory.forget_about", q, "you", &format!("you forgot {} memories about this", gone.len()), &json!([]));
+                let n = gone.len();
+                self.forgotten.push((batch.clone(), gone));
+                Ok(json!({ "forgot": n, "undo": batch }))
+            }
+            // put back what one forget_about removed
+            "memory.unforget" => {
+                let b = p["undo"].as_str().unwrap_or("");
+                let i = self.forgotten.iter().position(|(id, _)| id == b).ok_or("nothing to put back with that id")?;
+                let (_, ms) = self.forgotten.remove(i);
+                let n = ms.len();
+                for m in ms {
+                    self.memory.restore(m);
+                }
+                self.record(&owner, "memory.unforget", b, "you", &format!("you put back {n} forgotten memories"), &json!([]));
+                Ok(json!({ "restored": n }))
             }
             "memory.confirm" | "memory.dismiss" => {
                 let id = p["id"].as_str().unwrap_or("");
@@ -1357,6 +1417,45 @@ mod tests {
     }
 
     #[test]
+    fn memory_owner_fixes() {
+        let mut r = rig();
+        // saying it again as Sensitive adds the label
+        r.owner("memory.add", json!({ "text": "Therapy on Tuesdays", "group": "Personal" }));
+        let m = r.owner("memory.add", json!({ "text": "Therapy on Tuesdays", "group": "Personal", "labels": ["Sensitive"] }))["ok"].clone();
+        assert_eq!(m["labels"], json!(["Sensitive"]));
+        // editing a person keeps the card in step
+        let p = r.owner("memory.add", json!({ "text": "Priya Shah priya@tax.example accountant", "group": "People" }))["ok"].clone();
+        r.owner("memory.edit", json!({ "id": p["id"], "text": "Marcus Webb marcus@webbtax.example accountant" }));
+        let m = r.st.memory.memories.iter().find(|m| m.id == p["id"].as_str().unwrap()).unwrap();
+        assert_eq!(m.person.as_ref().unwrap().name, "Marcus Webb");
+        // forgetting needs every word, can be previewed, and can be put back
+        r.owner("memory.add", json!({ "text": "Board meeting is November 14", "group": "Work" }));
+        r.owner("memory.add", json!({ "text": "Lunch meeting with Sam", "group": "Work" }));
+        let before = r.st.memory.memories.len();
+        let pv = r.owner("memory.forget_about", json!({ "query": "board meeting", "preview": true }))["ok"].clone();
+        assert_eq!(pv["would_forget"].as_array().unwrap().len(), 1);
+        assert_eq!(r.st.memory.memories.len(), before);
+        let f = r.owner("memory.forget_about", json!({ "query": "board meeting" }))["ok"].clone();
+        assert_eq!(f["forgot"], 1);
+        assert_eq!(r.st.memory.memories.len(), before - 1);
+        r.owner("memory.unforget", json!({ "undo": f["undo"] }));
+        assert_eq!(r.st.memory.memories.len(), before);
+    }
+
+    #[test]
+    fn state_inside_the_sandbox_or_an_empty_secret_refuses_to_start() {
+        let r = tempfile::tempdir().unwrap();
+        assert!(State::open(&r.path().join(".sios"), r.path()).is_err());
+        let d = tempfile::tempdir().unwrap();
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(d.path().join("owner.secret")).unwrap();
+        }
+        assert!(State::open(d.path(), &tempfile::tempdir().unwrap().path().join("home")).is_err());
+        assert!(!ct_eq(b"", b""));
+    }
+
+    #[test]
     fn agents_cannot_use_owner_methods() {
         let mut r = rig();
         assert!(r.agent("mint", json!({ "principal": "a", "tools": ["fs.read"] }))["error"].is_string());
@@ -1489,6 +1588,33 @@ mod tests {
         r.owner("approve", json!({ "id": id }));
         assert_eq!(r.agent("await", json!({ "approval": id }))["ok"]["state"], "approved");
         assert_eq!(std::fs::read_dir(r.st.dir.join("outbox")).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn approving_checks_again_before_it_runs() {
+        let send = json!({ "to": ["sara@example.com"], "subject": "hi", "body": "hello" });
+        // revoked while it waited
+        let mut r = rig();
+        let t = r.mint(json!({ "principal": "a", "tools": ["mail.send"] }));
+        let id = r.call(&t, "mail.send", send.clone())["approval"].as_str().unwrap().to_string();
+        r.owner("revoke", json!({ "id": token::verify(&r.st.key, &t).unwrap().id }));
+        r.owner("approve", json!({ "id": id }));
+        assert_eq!(r.agent("await", json!({ "approval": id }))["ok"]["state"], "denied");
+        assert!(!r.st.dir.join("outbox").exists() || std::fs::read_dir(r.st.dir.join("outbox")).unwrap().count() == 0);
+        // paused while it waited
+        let t = r.mint(json!({ "principal": "b", "tools": ["mail.send"] }));
+        let id = r.call(&t, "mail.send", send.clone())["approval"].as_str().unwrap().to_string();
+        r.owner("pause", json!({ "principal": "b" }));
+        r.owner("approve", json!({ "id": id }));
+        assert_eq!(r.agent("await", json!({ "approval": id }))["ok"]["state"], "denied");
+        // two asks queued on a one-use pass: only one may run
+        let t = r.mint(json!({ "principal": "c", "tools": ["mail.send"], "uses": 1 }));
+        let a = r.call(&t, "mail.send", send.clone())["approval"].as_str().unwrap().to_string();
+        let b = r.call(&t, "mail.send", send)["approval"].as_str().unwrap().to_string();
+        r.owner("approve", json!({ "id": a }));
+        r.owner("approve", json!({ "id": b }));
+        assert_eq!(r.agent("await", json!({ "approval": a }))["ok"]["state"], "approved");
+        assert_eq!(r.agent("await", json!({ "approval": b }))["ok"]["state"], "denied");
     }
 
     #[test]
