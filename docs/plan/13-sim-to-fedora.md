@@ -41,6 +41,7 @@ The digital version (the preview in `build_concept_html`, plus `capd` and `brain
 | Web forms (`forms.fill`, `forms.attach`, `forms.submit`) | Job page in the Browser; attach and submit count as sending out | Browser adapter in the AI's own profile (CDP); attach/submit egress-checked, actions from page text blocked | |
 | Memory recall and redaction | brain-d asks capd before each plan; names become placeholders at the default privacy level | Same, with local embeddings for search | D14, D21 |
 | Helper pets (the pet team) | brain-d helpers: each its own principal "Name (helper)", jobs watch / every / once, reports back to the shell | A systemd user timer or inotify watch per helper, owned by brain-d; same identities and passes | D4, D20 |
+| Agent IAM: identities, roles, what-if (proposed D22) | `lib/iam.ts` in the sim: identities with proof and roles, roles of allow and deny statements, an "iam" check in `policy.ts`; Security Center pages Identities, Roles, What if. Strictest rule wins against the Access map. Not yet in capd | sios-broker reads `/var/lib/sios/iam.json` (same shape), edited only from the trusted prompt; identity from pairing tokens and SO_PEERCRED | D4, D20, D22 |
 | Starting and stopping | The page starts both services (stands in for systemd) | systemd units: broker at boot, brain-d per session | |
 
 ## Flows that must stay identical
