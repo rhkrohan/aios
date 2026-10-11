@@ -32,6 +32,13 @@ The digital version (the preview in `build_concept_html`, plus `capd` and `brain
 | Conversation | brain-d keeps the last turns per thread in memory | Same, plus Vault for longer memory | D8 |
 | Confusion test | Test lab runs graded messy requests against the real model | Part of the CI evaluation suite | |
 | Memory (facts, preferences, people, episodes) | capd memory module, `~/.sios/memory.json`; Memory app in the shell | Vault: encrypted under `~/.local/share/sios/vault`, enforced by the broker | D8, D21 |
+| Memory map (context graph over time) | Memory app, Map tab: episodes store the ids they recalled (`links`) and who ran them (`by`); drawn from `memory.list` | Same records in Vault; the map is a shell view over them, read as the owner only | D21 |
+| Memory over time (simulation) | `capd memsim`: months of scripted life through the real memory store with a fake clock, weekly checks, optional GPT through brain-d; Test lab panel and the map | Same command in the image for CI and support (`capd memsim --days 365`); never touches the owner's Vault | D21 |
+| Everyday demo ("A week with SIOS") | Scripted tour of four chores (trip, lease, job application, taxes) through the real simulated engine and broker; captions plus browser speech | Same chores as a live test pack for real models; the narration is a demo-only layer | D21 |
+| Reminders (`reminders.add`) | Adds to the Today widget list | evolution-data-server tasks (GNOME To Do / Calendar), through a reminders adapter | |
+| Away reply (`mail.auto_reply`) | Asks every time (outward-facing) | Mail adapter (Gmail/IMAP vacation responder), egress-checked by capd | |
+| Document compare (`docs.compare`) | Compare app, side by side with plain-word notes | Local document tool (text extraction plus diff), no network | |
+| Web forms (`forms.fill`, `forms.attach`, `forms.submit`) | Job page in the Browser; attach and submit count as sending out | Browser adapter in the AI's own profile (CDP); attach/submit egress-checked, actions from page text blocked | |
 | Memory recall and redaction | brain-d asks capd before each plan; names become placeholders at the default privacy level | Same, with local embeddings for search | D14, D21 |
 | Helper pets (the pet team) | brain-d helpers: each its own principal "Name (helper)", jobs watch / every / once, reports back to the shell | A systemd user timer or inotify watch per helper, owned by brain-d; same identities and passes | D4, D20 |
 | Starting and stopping | The page starts both services (stands in for systemd) | systemd units: broker at boot, brain-d per session | |

@@ -25,6 +25,8 @@ New ideas land here first. Status: Exploring, Accepted, Parked. When accepted, l
 | Goal budgets | Each goal has an action and cost limit; sub-goals count against the parent; going over asks | Broker (new Spend check), router | Exploring (in concept sim) |
 | Plan approval | Approve a multi-step plan once (reversible steps covered); irreversible steps still ask | Broker, UX, reduces prompt fatigue | Exploring (in concept sim) |
 | Threads file view | Files drawn as where they came from and what was made from them; click to light a whole thread, drag onto the orb to ask | Files, UX | Exploring (in concept sim) |
+| Memory that changes its mind | Found by the memory simulation: a newer fact about the same thing (new accountant, moved city, new folder) should replace the old one (kept as history, out of recall); episodes shouldn't crowd facts out of the briefing; learned habits get re-checked when a fact they rest on changes | capd memory, brain-d recall | Proposed (memsim shows 5 of 6 checks failing over 6 months) |
+| Everyday test pack | The demo's four chores (trip, lease, job, taxes) as a capd test pack with the same files and inbox, so real models can be tried on them on the live machine | capd packs, Test lab | Proposed |
 
 ## Name candidates (decision paused)
 Premium: Sovereign, Halcyon, Atrium, Vesper, Aurum, Sable, Meridian

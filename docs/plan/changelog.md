@@ -2,6 +2,9 @@
 
 Newest first. One line per change.
 
+- 2026-10-09: Mapping doc: everyday demo and its new tools (reminders, away reply, document compare, web forms). ideas.md: everyday test pack for the live machine.
+- 2026-10-09: Mapping doc: memory simulation row. ideas.md: "memory that changes its mind" (stale facts, episodes crowding out facts, learned habits going stale), found by the simulation.
+- 2026-10-09: Mapping doc: memory map row (episodes keep links to the memories they recalled and who ran them).
 - 2026-10-09: Mapping doc: helper pets row (each helper its own AI identity with a long-running job).
 - 2026-10-09: D21 accepted (memory model). 09-memory.md rewritten (Linux concepts mapped to AI memory). Part of Phase 3 (memory, people, redaction) pulled forward into the digital version. Mapping doc rows added.
 - 2026-10-09: 13-sim-to-fedora.md: rows for more system tools, app installs, system state, standing rules, watchers, conversation and the confusion test.
