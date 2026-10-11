@@ -8,12 +8,14 @@
 import clsx from "clsx";
 import { AlertTriangle, Ban, BadgeCheck, Bot, Check, Eye, FlaskConical, Hand, Info, KeyRound, Lock, Pause, Play, Plus, ShieldCheck, Smartphone, Trash2, User, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { runRequest } from "@/lib/engine";
 import { describeStatement, findings, rolesOf, type Identity, type IdentityKind, type Mode, type Role, type Statement } from "@/lib/iam";
 import { evaluate, principalName } from "@/lib/policy";
 import { TRUST_LEVELS, levelFromScore, trustLevelOf } from "@/lib/trust";
 import { useOS, uid } from "@/lib/store";
+import { liveOwner } from "@/lib/livemirror";
+import { toChecks } from "@/lib/livemachine";
 import type { Permission, PolicyVerdict } from "@/lib/types";
 import { LogoTile } from "../icons/BrandLogos";
 import { StringOrb } from "../icons/StringOrb";
@@ -207,11 +209,13 @@ export function Identities({ go }: { go: (p: IamPage, props?: Record<string, str
   const iam = useOS((s) => s.iam);
   const [sel, setSel] = useState(iam.identities.find((i) => i.kind !== "owner")?.id ?? "owner");
   const paused = useOS((s) => s.pausedPrincipals);
+  const live = useOS((s) => s.settings.liveMachine);
   const who = iam.identities.find((i) => i.id === sel) ?? iam.identities[0];
   return (
     <>
       <H title="Identities" sub="Every AI that can act here has its own identity, proof of who it is, and roles. The broker checks all three on every action." />
       <div className="grid grid-cols-[250px_1fr] gap-4 items-start">
+        <div className="grid gap-2">
         <ul className="rounded-2xl border border-line p-1.5 grid gap-0.5">
           {iam.identities.map((i) => (
             <li key={i.id}>
@@ -230,6 +234,8 @@ export function Identities({ go }: { go: (p: IamPage, props?: Record<string, str
             </li>
           ))}
         </ul>
+        {live && <PairApp onPaired={setSel} />}
+        </div>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={who.id} className="min-w-0" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
             <IdentityDetail who={who} go={go} />
@@ -245,7 +251,10 @@ function IdentityDetail({ who, go }: { who: Identity; go: (p: IamPage, props?: R
   const paused = useOS((s) => s.pausedPrincipals.includes(who.id));
   const toggle = useOS((s) => s.togglePrincipal);
   const setRoles = useOS((s) => s.setIdentityRoles);
-  const connected = useOS((s) => !!s.connectedApps[who.id]);
+  const live = useOS((s) => s.settings.liveMachine);
+  // on the live machine, being known to capd is what counts; in the sim, the Connections page
+  const connected = useOS((s) => live || !!s.connectedApps[who.id]);
+  const unpaired = who.id.startsWith("unpaired:");
   const audit = useOS((s) => s.audit);
   const mine = audit.filter((e) => e.principal === who.id).slice(0, 5);
   const owner = who.kind === "owner";
@@ -270,7 +279,7 @@ function IdentityDetail({ who, go }: { who: Identity; go: (p: IamPage, props?: R
         </div>
         {!owner && (
           <div className="flex gap-1.5">
-            {connected && (
+            {connected && !live && (
               <Button size="sm" onClick={() => void runRequest(useOS.getState().theme === "dark" ? "Turn on light mode" : "Turn on dark mode", { principal: who.id })}>
                 Test a request
               </Button>
@@ -314,7 +323,15 @@ function IdentityDetail({ who, go }: { who: Identity; go: (p: IamPage, props?: R
                 Edit roles
               </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            {unpaired && (
+              <div className="mb-2.5 flex items-start gap-2 rounded-xl bg-warn-soft px-3 py-2 text-[12.5px]">
+                <AlertTriangle size={14} className="text-warn shrink-0 mt-0.5" />
+                <span>
+                  This app only told SIOS its name, and anything can claim a name. Pair it (left) to give it roles; the broker refuses roles for an unpaired app.
+                </span>
+              </div>
+            )}
+            <div className={clsx("flex flex-wrap gap-1.5", unpaired && "opacity-50 pointer-events-none")}>
               {iam.roles
                 .filter((r) => !r.global)
                 .map((r) => {
@@ -398,22 +415,68 @@ function Effective({ title, tone, icon: Icon, items, empty, foot }: { title: str
   );
 }
 
+/** Pair an outside app: the token it carries proves who it is from then on. Shown once. */
+function PairApp({ onPaired }: { onPaired: (id: string) => void }) {
+  const [name, setName] = useState("");
+  const [got, setGot] = useState<{ id: string; token: string } | null>(null);
+  const [err, setErr] = useState("");
+  const pair = async () => {
+    setErr("");
+    try {
+      const r = await liveOwner("iam_pair", { name: name.trim(), roles: ["reader"] });
+      setGot(r);
+      onPaired(r.id);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+  if (got)
+    return (
+      <div className="rounded-2xl border border-ok/40 bg-ok-soft/40 p-3 text-[12px] grid gap-1.5">
+        <div className="font-semibold text-[13px]">Paired {got.id}</div>
+        <div className="text-fg-2">Put this in the app&apos;s MCP settings. It is shown once; SIOS keeps only a fingerprint.</div>
+        <code className="block rounded-lg bg-surface p-2 font-mono text-[11px] break-all select-all">SIOS_PAIR_TOKEN={got.token}</code>
+        <div className="text-fg-2">It starts as a Reader. Give it more on the right.</div>
+        <Button size="sm" variant="ghost" onClick={() => (setGot(null), setName(""))}>
+          Done
+        </Button>
+      </div>
+    );
+  return (
+    <div className="rounded-2xl border border-line p-3 grid gap-2">
+      <div className="text-[13px] font-semibold">Pair an app</div>
+      <input
+        aria-label="App name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Claude Desktop"
+        className="h-8 px-2.5 rounded-lg bg-surface-2 border border-line text-[13px] outline-none focus:border-accent"
+      />
+      <Button size="sm" variant="primary" onClick={pair} disabled={!name.trim()}>
+        <KeyRound size={13} /> Pair
+      </Button>
+      {err && <div className="text-[12px] text-danger">{err}</div>}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ roles
 
 /** Actions people think in, mapped to tool patterns. */
-const ACTIONS: { label: string; tools: string[]; risk: Permission }[] = [
-  { label: "look at and search files", tools: ["files.read", "files.find", "files.list"], risk: "read" },
-  { label: "move and organize files", tools: ["files.move", "files.organize"], risk: "reversible" },
-  { label: "write and edit files", tools: ["files.write"], risk: "reversible" },
-  { label: "put files in the Trash", tools: ["files.trash"], risk: "reversible" },
-  { label: "write email drafts", tools: ["gmail.draft"], risk: "reversible" },
-  { label: "send email", tools: ["gmail.send"], risk: "irreversible" },
-  { label: "send Slack messages", tools: ["slack.message.send"], risk: "irreversible" },
-  { label: "submit web forms", tools: ["forms.submit"], risk: "irreversible" },
-  { label: "change settings", tools: ["settings.*"], risk: "reversible" },
-  { label: "change Wi-Fi", tools: ["network.*"], risk: "reversible" },
-  { label: "search memory", tools: ["memory.search"], risk: "read" },
-  { label: "do anything", tools: ["*"], risk: "irreversible" },
+/** Actions people think in, mapped to tool patterns: the sim's names, and capd's on the live machine. */
+const ACTIONS: { label: string; tools: string[]; live: string[]; risk: Permission }[] = [
+  { label: "look at and search files", tools: ["files.read", "files.find", "files.list"], live: ["fs.read", "fs.find", "fs.list"], risk: "read" },
+  { label: "move and organize files", tools: ["files.move", "files.organize"], live: ["fs.move", "fs.organize", "fs.mkdir"], risk: "reversible" },
+  { label: "write and edit files", tools: ["files.write"], live: ["fs.write", "fs.copy"], risk: "reversible" },
+  { label: "put files in the Trash", tools: ["files.trash"], live: ["fs.trash", "fs.restore"], risk: "reversible" },
+  { label: "write email drafts", tools: ["gmail.draft"], live: [], risk: "reversible" },
+  { label: "send email", tools: ["gmail.send"], live: ["mail.send"], risk: "irreversible" },
+  { label: "send Slack messages", tools: ["slack.message.send"], live: [], risk: "irreversible" },
+  { label: "submit web forms", tools: ["forms.submit"], live: [], risk: "irreversible" },
+  { label: "change settings", tools: ["settings.*"], live: ["ui.*", "sys.*"], risk: "reversible" },
+  { label: "change Wi-Fi", tools: ["network.*"], live: ["net.*"], risk: "reversible" },
+  { label: "search memory", tools: ["memory.search"], live: ["memory.search", "people.resolve"], risk: "read" },
+  { label: "do anything", tools: ["*"], live: ["*"], risk: "irreversible" },
 ];
 const PLACES = ["anywhere", "~/Downloads", "~/Projects", "~/Documents", "~/Pictures", "~/Documents/Taxes 2025"];
 const HOW = ["can do it on its own", "can do it, but asks first", "can never do it"];
@@ -450,7 +513,9 @@ export function Roles() {
   const [place, setPlace] = useState(0);
   const [how, setHow] = useState(0);
   const [when, setWhen] = useState(0);
-  const a = ACTIONS[act];
+  const live = useOS((s) => s.settings.liveMachine);
+  const actions = live ? ACTIONS.filter((x) => x.live.length) : ACTIONS;
+  const a = actions[Math.min(act, actions.length - 1)];
   const permanent = a.risk === "irreversible" && how === 0;
 
   const addStatement = () => {
@@ -460,7 +525,7 @@ export function Roles() {
     const s: Statement = {
       id: uid("st"),
       effect,
-      tools: a.tools,
+      tools: live ? a.live : a.tools,
       places: PLACES[place] === "anywhere" ? [] : [PLACES[place]],
       mode,
       note: note.charAt(0).toUpperCase() + note.slice(1),
@@ -558,7 +623,7 @@ export function Roles() {
             <div className="text-[14px] leading-[2.4]">
               An AI with this role
               <Pick label="How" value={how} options={HOW} onChange={setHow} />
-              <Pick label="Action" value={act} options={ACTIONS.map((x) => x.label)} onChange={setAct} />
+              <Pick label="Action" value={Math.min(act, actions.length - 1)} options={actions.map((x) => x.label)} onChange={setAct} />
               <Pick label="Where" value={place} options={PLACES.map(placeLabel)} onChange={setPlace} />
               <Pick label="When" value={when} options={WHEN} onChange={setWhen} />
             </div>
@@ -584,17 +649,17 @@ export function Roles() {
 
 // ------------------------------------------------------------------ what if
 
-const TRY: { label: string; tool: string; risk: Permission; input?: Record<string, unknown> }[] = [
-  { label: "Read a file", tool: "files.read", risk: "read" },
-  { label: "Search files", tool: "files.find", risk: "read" },
-  { label: "Move a file", tool: "files.move", risk: "reversible" },
-  { label: "Write a file", tool: "files.write", risk: "reversible" },
-  { label: "Put a file in the Trash", tool: "files.trash", risk: "reversible" },
-  { label: "Change the theme", tool: "settings.set_theme", risk: "reversible", input: { theme: "dark" } },
-  { label: "Join a Wi-Fi network", tool: "network.connect_wifi", risk: "reversible", input: { ssid: "Cafe" } },
+const TRY: { label: string; tool: string; risk: Permission; input?: Record<string, unknown>; live?: { tool: string; args: (place: string) => Record<string, unknown> } }[] = [
+  { label: "Read a file", tool: "files.read", risk: "read", live: { tool: "fs.read", args: (p) => ({ path: `${p}/x.txt` }) } },
+  { label: "Search files", tool: "files.find", risk: "read", live: { tool: "fs.find", args: (p) => ({ path: p, query: "x" }) } },
+  { label: "Move a file", tool: "files.move", risk: "reversible", live: { tool: "fs.move", args: (p) => ({ from: `${p}/x.txt`, to: `${p}/y.txt` }) } },
+  { label: "Write a file", tool: "files.write", risk: "reversible", live: { tool: "fs.write", args: (p) => ({ path: `${p}/x.txt`, text: "x" }) } },
+  { label: "Put a file in the Trash", tool: "files.trash", risk: "reversible", live: { tool: "fs.trash", args: (p) => ({ path: `${p}/x.txt` }) } },
+  { label: "Change the theme", tool: "settings.set_theme", risk: "reversible", input: { theme: "dark" }, live: { tool: "ui.set_theme", args: () => ({ theme: "dark" }) } },
+  { label: "Join a Wi-Fi network", tool: "network.connect_wifi", risk: "reversible", input: { ssid: "Cafe" }, live: { tool: "net.connect_wifi", args: () => ({ ssid: "Cafe" }) } },
   { label: "Write an email draft", tool: "gmail.draft", risk: "reversible", input: { to: "sara@example.com" } },
-  { label: "Send an email", tool: "gmail.send", risk: "irreversible", input: { to: "sara@example.com" } },
-  { label: "Search memory", tool: "memory.search", risk: "read", input: { query: "accountant" } },
+  { label: "Send an email", tool: "gmail.send", risk: "irreversible", input: { to: "sara@example.com" }, live: { tool: "mail.send", args: () => ({ to: ["sara@example.com"], subject: "Hi", body: "Hi" }) } },
+  { label: "Search memory", tool: "memory.search", risk: "read", input: { query: "accountant" }, live: { tool: "memory.search", args: () => ({ query: "accountant" }) } },
 ];
 const TRY_PLACES = ["~/Downloads", "~/Projects", "~/Documents", "~/Documents/Taxes 2025", "~/Pictures"];
 
@@ -606,13 +671,38 @@ const VERDICT: Record<PolicyVerdict["decision"], { label: string; tone: Tone; cl
 
 export function WhatIf({ who: initialWho }: { who?: string }) {
   const state = useOS();
-  const [who, setWho] = useState(initialWho ?? "claude-desktop");
+  const live = state.settings.liveMachine;
+  const tries = live ? TRY.filter((x) => x.live) : TRY;
+  const [who, setWho] = useState(initialWho ?? state.iam.identities.find((i) => i.kind !== "owner")?.id ?? "owner");
   const [act, setAct] = useState(2);
   const [place, setPlace] = useState(0);
   const [tainted, setTainted] = useState(false);
-  const t = TRY[act];
+  const t = tries[Math.min(act, tries.length - 1)];
   const usesPlace = t.tool.startsWith("files.");
-  const verdictFor = (principal: string) =>
+  // on the live machine capd answers (iam.whatif): nothing runs, nothing is logged
+  const [liveV, setLiveV] = useState<Record<string, PolicyVerdict>>({});
+  const ids = state.iam.identities.map((i) => i.id).join(",");
+  useEffect(() => {
+    if (!live || !t.live) return;
+    let on = true;
+    const spec = t.live;
+    const where = TRY_PLACES[place].replace("~/", "");
+    void Promise.all(
+      ids.split(",").map(async (id) => {
+        try {
+          const r = await liveOwner("iam_whatif", { principal: id, tool: spec.tool, args: spec.args(where), tainted });
+          return [id, { decision: r.decision, reason: r.reason, checks: toChecks(r.checks) } as PolicyVerdict] as const;
+        } catch (e) {
+          return [id, { decision: "block", reason: e instanceof Error ? e.message : String(e), checks: [] } as PolicyVerdict] as const;
+        }
+      }),
+    ).then((rows) => on && setLiveV(Object.fromEntries(rows)));
+    return () => {
+      on = false;
+    };
+  }, [live, t, place, tainted, ids]);
+  const verdictFor = (principal: string): PolicyVerdict =>
+    live ? (liveV[principal] ?? { decision: "ask", reason: "Asking the broker…", checks: [] }) :
     evaluate(state, {
       principal,
       tool: { name: t.tool, adapter: "what-if", permission: t.risk, input: usesPlace ? { path: TRY_PLACES[place] } : (t.input ?? {}) },
@@ -625,7 +715,10 @@ export function WhatIf({ who: initialWho }: { who?: string }) {
 
   return (
     <>
-      <H title="What if" sub="Ask the broker what it would decide, without anything happening. Same checks, same order, nothing run and nothing logged." />
+      <H
+        title="What if"
+        sub={`Ask the broker what it would decide, without anything happening. Same checks, same order, nothing run and nothing logged.${live ? " Answered by capd on the live machine." : ""}`}
+      />
       <div className="rounded-2xl border border-line p-4">
         <div className="text-[14px] leading-[2.4]">
           What if
@@ -642,7 +735,7 @@ export function WhatIf({ who: initialWho }: { who?: string }) {
             ))}
           </select>
           tried to
-          <Pick label="Action" value={act} options={TRY.map((x) => x.label.toLowerCase())} onChange={setAct} />
+          <Pick label="Action" value={Math.min(act, tries.length - 1)} options={tries.map((x) => x.label.toLowerCase())} onChange={setAct} />
           {usesPlace && (
             <>
               in

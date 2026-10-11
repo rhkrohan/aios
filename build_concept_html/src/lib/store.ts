@@ -214,6 +214,18 @@ interface OSState {
   dismissToast: (id: string) => void;
 }
 
+/** On the live machine, identity and role changes are capd's to make; the mirror shows the result. */
+function toCapd(action: string, params: Record<string, unknown>) {
+  void import("./livemirror").then(async (m) => {
+    try {
+      await m.liveOwner(action, params);
+      m.refreshLive();
+    } catch (e) {
+      useOS.getState().pushToast({ title: "The broker refused", body: e instanceof Error ? e.message : String(e), tone: "warn" });
+    }
+  });
+}
+
 let idc = 0;
 export const uid = (p = "id") => `${p}_${Date.now().toString(36)}_${(++idc).toString(36)}`;
 
@@ -389,6 +401,7 @@ export const useOS = create<OSState>((set, get) => ({
   },
   togglePrincipal: (id) => {
     const p = get().pausedPrincipals;
+    if (get().settings.liveMachine) return void toCapd(p.includes(id) ? "resume" : "pause", { principal: id });
     set({ pausedPrincipals: p.includes(id) ? p.filter((x) => x !== id) : [...p, id] });
   },
   cancelRun: (id) => {
@@ -408,15 +421,23 @@ export const useOS = create<OSState>((set, get) => ({
     set({ trust: { ...get().trust, [principal]: { ...cur, override: level } } });
   },
   setIdentityRoles: (id, roles) => {
+    if (get().settings.liveMachine) return void toCapd("iam_set_roles", { id, roles });
     const iam = get().iam;
     set({ iam: { ...iam, identities: iam.identities.map((i) => (i.id === id ? { ...i, roles } : i)) } });
   },
   saveRole: (role) => {
+    if (get().settings.liveMachine) {
+      // show it at once; capd's copy replaces it on the next sync
+      const iam = get().iam;
+      set({ iam: { ...iam, roles: iam.roles.some((r) => r.id === role.id) ? iam.roles.map((r) => (r.id === role.id ? role : r)) : [...iam.roles, role] } });
+      return void toCapd("iam_save_role", { role });
+    }
     const iam = get().iam;
     const has = iam.roles.some((r) => r.id === role.id);
     set({ iam: { ...iam, roles: has ? iam.roles.map((r) => (r.id === role.id ? role : r)) : [...iam.roles, role] } });
   },
   removeRole: (id) => {
+    if (get().settings.liveMachine) return void toCapd("iam_remove_role", { id });
     const iam = get().iam;
     if (iam.roles.find((r) => r.id === id)?.global) return;
     set({ iam: { roles: iam.roles.filter((r) => r.id !== id), identities: iam.identities.map((i) => ({ ...i, roles: i.roles.filter((r) => r !== id) })) } });

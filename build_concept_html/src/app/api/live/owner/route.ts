@@ -27,6 +27,13 @@ const ACTIONS: Record<string, string> = {
   memory_confirm: "memory.confirm",
   memory_dismiss: "memory.dismiss",
   memory_share: "memory.share",
+  iam_get: "iam.get",
+  iam_set_roles: "iam.set_roles",
+  iam_save_role: "iam.save_role",
+  iam_remove_role: "iam.remove_role",
+  iam_pair: "iam.pair",
+  iam_remove: "iam.remove",
+  iam_whatif: "iam.whatif",
 };
 
 export async function POST(req: Request) {
@@ -37,7 +44,7 @@ export async function POST(req: Request) {
   if (!method) return NextResponse.json({ error: "unknown action" }, { status: 400 });
   // while capd is starting, reads come back empty instead of failing
   if (!(await capdUp())) {
-    if (["outbox", "audit", "packs", "rules", "memory_list"].includes(String(action))) return NextResponse.json({ ok: null, starting: true });
+    if (["outbox", "audit", "packs", "rules", "memory_list", "iam_get"].includes(String(action))) return NextResponse.json({ ok: null, starting: true });
     return NextResponse.json({ error: "The live machine isn't running yet." }, { status: 503 });
   }
   try {

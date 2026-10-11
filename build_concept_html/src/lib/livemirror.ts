@@ -12,6 +12,7 @@ import { followExternal, liveFetch } from "./livemachine";
 import { useOS } from "./store";
 import { TEAM } from "./seed";
 import type { AuditEntry, FileItem, MailMessage, Person } from "./types";
+import type { IAM, Identity } from "./iam";
 
 interface LiveNode {
   name: string;
@@ -128,6 +129,12 @@ function mailFrom(out: { id: string; to: string[] | string; subject?: string; bo
 
 let kick: (() => void) | null = null;
 /** Pull the real sandbox right now (after your own file actions). */
+/** capd keeps "since" in seconds; the shell in milliseconds. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function iamFrom(v: any): IAM {
+  return { identities: (v.identities ?? []).map((i: Identity) => ({ ...i, since: i.since * 1000 })), roles: v.roles ?? [] };
+}
+
 export function refreshLive() {
   kick?.();
 }
@@ -146,7 +153,8 @@ export function useLiveMirror() {
   useEffect(() => {
     if (!live) return;
     // the pretend machine, for when you switch back
-    const saved = { fs: useOS.getState().fs, mail: useOS.getState().mail, audit: useOS.getState().audit };
+    const saved = { fs: useOS.getState().fs, mail: useOS.getState().mail, audit: useOS.getState().audit, iam: useOS.getState().iam, pausedPrincipals: useOS.getState().pausedPrincipals };
+    let lastIam = "";
     let last = "";
     let lastMail = "";
     let lastAudit = "";
@@ -166,8 +174,14 @@ export function useLiveMirror() {
     // what left the computer, and every decision, from capd itself
     const records = async () => {
       try {
-        const [out, audit] = await Promise.all([owner("outbox"), owner("audit", { n: 200 })]);
+        const [out, audit, iam] = await Promise.all([owner("outbox"), owner("audit", { n: 200 }), owner("iam_get")]);
         if (!alive) return;
+        // identities and roles are capd's: what the Security Center shows is what it enforces
+        const ik = JSON.stringify(iam);
+        if (iam && ik !== lastIam) {
+          lastIam = ik;
+          useOS.setState({ iam: iamFrom(iam), pausedPrincipals: iam.paused ?? [] });
+        }
         const mk = JSON.stringify(out);
         if (mk !== lastMail) {
           lastMail = mk;
@@ -224,10 +238,10 @@ export function useLiveMirror() {
         /* brain-d not running yet */
       }
     };
-    // "Stop all AI" pauses every AI capd has seen, for real; resuming lifts it
+    // "Stop all AI" pauses every AI capd knows, for real (even ones that haven't acted yet); resuming lifts it
     const unsub = useOS.subscribe((st, prev) => {
       if (st.aiPaused === prev.aiPaused) return;
-      const who = Array.from(new Set(st.audit.map((e) => e.principal).filter((p) => p !== "you")));
+      const who = Array.from(new Set([...st.iam.identities.filter((i) => i.kind !== "owner").map((i) => i.id), ...st.audit.map((e) => e.principal).filter((p) => p !== "you")]));
       for (const principal of who) void owner(st.aiPaused ? "pause" : "resume", { principal }).catch(() => {});
     });
     void pull();
@@ -243,7 +257,7 @@ export function useLiveMirror() {
       clearInterval(t);
       unsub();
       kick = null;
-      useOS.setState({ fs: saved.fs, mail: saved.mail, audit: saved.audit, liveIntact: null });
+      useOS.setState({ fs: saved.fs, mail: saved.mail, audit: saved.audit, iam: saved.iam, pausedPrincipals: saved.pausedPrincipals, liveIntact: null });
     };
   }, [live]);
 }

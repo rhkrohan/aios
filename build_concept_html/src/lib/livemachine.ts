@@ -14,6 +14,7 @@ export const LIVE_PRINCIPAL = "OpenAI (live)";
 const CHECK_LABEL: Record<string, string> = {
   token: "Is its pass genuine and current?",
   principal: "Is this AI active?",
+  iam: "What do its roles allow?",
   tool: "Is this a real tool?",
   grant: "Does its pass include this tool?",
   slice: "Is this inside its folders?",
@@ -26,7 +27,7 @@ const CHECK_LABEL: Record<string, string> = {
   level: "Does this need your OK?",
 };
 
-function toChecks(raw: unknown): PolicyCheck[] {
+export function toChecks(raw: unknown): PolicyCheck[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((c: { id: string; result: PolicyCheck["result"]; detail: string }) => ({ id: c.id, label: CHECK_LABEL[c.id] ?? c.id, result: c.result, detail: c.detail }));
 }
