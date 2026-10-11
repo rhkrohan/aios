@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { initialFs, NETWORKS } from "./seed";
+import { BASE_INBOX, initialFs, NETWORKS } from "./seed";
 import { GENESIS, chainHash, payloadOf } from "./audit";
 import { SEED_TRUST, type TrustRecord } from "./trust";
 import type {
@@ -29,8 +29,9 @@ const APP_DEFAULTS: Record<AppId, { title: string; w: number; h: number }> = {
   security: { title: "Security Center", w: 1060, h: 680 },
   goals: { title: "Goals", w: 1100, h: 680 },
   systemmap: { title: "System Map", w: 1180, h: 700 },
-  memory: { title: "Memory", w: 980, h: 640 },
+  memory: { title: "Memory", w: 1160, h: 760 },
   team: { title: "Team", w: 940, h: 660 },
+  compare: { title: "Compare", w: 900, h: 560 },
   terminal: { title: "Terminal", w: 680, h: 420 },
 };
 
@@ -85,6 +86,9 @@ interface OSState {
   theme: "light" | "dark";
   wallpaper: WallpaperId;
   todos: Todo[];
+  addTodo: (t: Omit<Todo, "id" | "done">) => void;
+  inbox: import("./types").InboxMessage[];
+  addInbox: (m: import("./types").InboxMessage) => void;
   suggestionDismissed: boolean;
   installed: Record<string, Installed>;
   /** Servers added by URL. Not in the catalog, unknown publisher. */
@@ -216,6 +220,7 @@ export const useOS = create<OSState>((set, get) => ({
     { id: "t3", text: "Test the ISO in a VM", done: false },
   ],
   suggestionDismissed: false,
+  inbox: BASE_INBOX,
   installed: {
     gmail: { version: "2.0.3", account: "rohan@example.com", disabledTools: [], installedAt: Date.now() - 86400e3 * 9 },
     slack: { version: "3.1.0", account: "sios-team.slack.com", disabledTools: [], installedAt: Date.now() - 86400e3 * 4 },
@@ -322,6 +327,8 @@ export const useOS = create<OSState>((set, get) => ({
 
   setTheme: (t) => set({ theme: t }),
   setWallpaper: (w) => set({ wallpaper: w }),
+  addTodo: (t) => set({ todos: [...get().todos, { ...t, id: uid("todo"), done: false }] }),
+  addInbox: (m) => set({ inbox: [m, ...get().inbox.filter((x) => x.id !== m.id)] }),
   toggleTodo: (id) => set({ todos: get().todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }),
   dismissSuggestion: () => set({ suggestionDismissed: true }),
   install: (id, version, account) =>

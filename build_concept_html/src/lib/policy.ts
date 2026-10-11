@@ -28,7 +28,7 @@ export const principalName = (id: string) => PRINCIPALS[id]?.name ?? id;
 
 // ---------------------------------------------------------------- tool facts
 
-const BUILT_IN_PREFIXES = ["files.", "apps.", "settings.", "network.", "people.", "memory.", "browser.", "user.", "system.", "goal."];
+const BUILT_IN_PREFIXES = ["files.", "apps.", "settings.", "network.", "people.", "memory.", "browser.", "user.", "system.", "goal.", "mail.", "reminders.", "docs.", "forms.", "helpers."];
 
 export function areaOfTool(name: string): string {
   if (name.startsWith("files.") || name.startsWith("memory.") || name.startsWith("people.")) return "Files";
@@ -43,7 +43,7 @@ export function areaOfTool(name: string): string {
 /** Sends something off this computer. After untrusted input, these always ask. */
 export function isEgress(tool: ToolCall) {
   if (tool.permission === "read") return false;
-  return /^(gmail\.|slack\.|calendar\.invite|browser\.act|github\.issue\.create|linear\.|notion\.|drive\.|mcp\.)/.test(tool.name);
+  return /^(gmail\.|mail\.auto_reply|forms\.(submit|attach)|slack\.|calendar\.invite|browser\.act|github\.issue\.create|linear\.|notion\.|drive\.|mcp\.)/.test(tool.name);
 }
 
 function capabilityFor(tool: string) {

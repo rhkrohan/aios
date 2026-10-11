@@ -5,41 +5,28 @@ import { FileText, Inbox, Paperclip, Send } from "lucide-react";
 import { useState } from "react";
 import { BRAND } from "@/lib/brand";
 import { useOS } from "@/lib/store";
-import type { Person } from "@/lib/types";
+import type { Win } from "@/lib/types";
 import { Avatar, Chip } from "../ui";
 
-const INBOX: { id: string; from: Person; subject: string; body: string; time: string }[] = [
-  {
-    id: "i1",
-    from: { name: "Sara Okafor", email: "sara.okafor@example.com", initials: "SO", tone: "#8a6d9e" },
-    subject: "Approval screen, first pass",
-    body: "Hey! Pushed a first pass of the approval prompt. Main idea: lead with what changes, keep the tool names behind a fold. Thoughts?",
-    time: "9:41 AM",
-  },
-  {
-    id: "i2",
-    from: { name: "GitHub", email: "noreply@github.com", initials: "GH", tone: "#4a4f57" },
-    subject: "[rhkrohan/aios] build.yml succeeded on main",
-    body: "Build and push image: success. Signed with cosign. ghcr.io/rhkrohan/aios:latest",
-    time: "8:02 AM",
-  },
-  {
-    id: "i3",
-    from: { name: "Daniel Kim", email: "dkim@example.com", initials: "DK", tone: "#5f8a6a" },
-    subject: "Re: tunnel-first pitch",
-    body: "The line about making your own computer the agent lands well. I'd lead with that.",
-    time: "Yesterday",
-  },
-];
-
-export function MailApp() {
+export function MailApp({ win }: { win?: Win }) {
   const sent = useOS((s) => s.mail);
-  const [box, setBox] = useState<"inbox" | "sent">(sent.length ? "sent" : "inbox");
-  const [sel, setSel] = useState<string | null>(null);
+  const INBOX = useOS((s) => s.inbox);
+  const [box, setBox] = useState<"inbox" | "sent">(win?.props?.box === "inbox" ? "inbox" : sent.length ? "sent" : "inbox");
+  const [sel, setSel] = useState<string | null>(win?.props?.open ?? null);
+  // another app (or the assistant) asked to show a particular message
+  const wantBox = win?.props?.box;
+  const wantOpen = win?.props?.open;
+  const want = `${wantBox ?? ""}|${wantOpen ?? ""}`;
+  const [seen, setSeen] = useState(want);
+  if (want !== seen) {
+    setSeen(want);
+    if (wantBox === "inbox" || wantBox === "sent") setBox(wantBox);
+    if (wantOpen) setSel(wantOpen);
+  }
 
   const rows =
     box === "inbox"
-      ? INBOX.map((m) => ({ id: m.id, who: m.from.name, people: [m.from], subject: m.subject, body: m.body, time: m.time, attachment: undefined as string | undefined, ai: false }))
+      ? INBOX.map((m) => ({ id: m.id, who: m.from.name, people: [m.from], subject: m.subject, body: m.body, time: m.time, attachment: m.attachment, ai: false }))
       : sent.map((m) => ({ id: m.id, who: "To " + m.to.map((p) => p.name.split(" ")[0]).join(", "), people: m.to, subject: m.subject, body: m.body, time: m.time, attachment: m.attachment, ai: true }));
   const current = rows.find((r) => r.id === sel) ?? rows[0];
 

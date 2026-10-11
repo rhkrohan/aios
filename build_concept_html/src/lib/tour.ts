@@ -6,20 +6,36 @@
 // happening inside.
 
 import { create } from "zustand";
+import { music, setMuted, setPaused, sfx, speak, stopAll } from "./demoAudio";
+import { playEveryday } from "./everydayTour";
 import { resetMachine, useOS } from "./store";
 
+export type TourKind = "everyday" | "how-it-works";
 export const CHAPTERS = ["Ask", "Broker", "Undo", "Hidden trap", "Other AIs", "On record", "One big goal", "The machine"];
+export const EVERYDAY_CHAPTERS = ["Monday", "A trip", "The lease", "A job", "Taxes", "Your week"];
+export const chaptersFor = (k: TourKind) => (k === "everyday" ? EVERYDAY_CHAPTERS : CHAPTERS);
 
 interface TourState {
   active: boolean;
+  /** everyday: four real chores, captions and a voice. how-it-works: the architecture tour. */
+  kind: TourKind;
   paused: boolean;
   finished: boolean;
   chapter: number;
   cursor: { x: number; y: number; visible: boolean };
   clicks: number;
-  start: () => void;
+  /** The line on screen (and spoken, when sound is on). */
+  caption: string;
+  sound: boolean;
+  /** The inside view (brain, broker, tunnel). Open by default only in the technical tour. */
+  xray: boolean;
+  /** Getting the voice and sounds ready before the first act. */
+  preparing: { done: number; of: number } | null;
+  startedAt: number;
+  start: (kind?: TourKind) => void;
   stop: () => void;
   togglePause: () => void;
+  set: (p: Partial<Pick<TourState, "sound" | "xray">>) => void;
 }
 
 let runToken = 0;
@@ -29,21 +45,70 @@ export const useTour = create<TourState>((set, get) => ({
   paused: false,
   finished: false,
   chapter: 0,
+  kind: "everyday",
   cursor: { x: 0, y: 0, visible: false },
   clicks: 0,
-  start: () => {
+  caption: "",
+  sound: true,
+  xray: false,
+  preparing: null,
+  startedAt: 0,
+  start: (kind = get().kind) => {
     runToken++;
+    hush();
     const x = typeof window !== "undefined" ? window.innerWidth / 2 : 0;
     const y = typeof window !== "undefined" ? window.innerHeight / 2 : 0;
-    set({ active: true, paused: false, finished: false, chapter: 0, cursor: { x, y, visible: true } });
-    void play(runToken);
+    set({ active: true, kind, paused: false, finished: false, chapter: 0, caption: "", preparing: null, xray: kind === "how-it-works", startedAt: Date.now(), cursor: { x, y, visible: true } });
+    if (kind === "everyday") void playEveryday(runToken, KIT).catch((e) => !(e instanceof Cancelled) && console.error(e));
+    else void play(runToken);
   },
   stop: () => {
     runToken++;
-    set({ active: false, paused: false, finished: false, cursor: { ...get().cursor, visible: false } });
+    hush();
+    set({ active: false, paused: false, finished: false, caption: "", preparing: null, cursor: { ...get().cursor, visible: false } });
   },
-  togglePause: () => set({ paused: !get().paused }),
+  togglePause: () => {
+    const paused = !get().paused;
+    setPaused(paused);
+    set({ paused });
+  },
+  set: (p) => {
+    if (p.sound !== undefined) setMuted(!p.sound);
+    set(p);
+  },
 }));
+
+// ---------------------------------------------------------------- voice and sound (lib/demoAudio.ts)
+
+function hush() {
+  stopAll();
+}
+
+/** Show a caption and have the narrator say it (or what's given to say). Waits until it's been said, or read. */
+async function say(token: number, caption: string, voice = caption) {
+  guard(token);
+  useTour.setState({ caption });
+  const reading = Math.max(1800, voice.split(/\s+/).length * 340);
+  const spoke = tour().sound && voice ? await speak(voice) : false;
+  guard(token);
+  if (spoke) await wait(token, 250);
+  else await wait(token, reading);
+}
+
+/** Show a caption and start saying it, without waiting: the action carries on underneath. */
+function caption(token: number, text: string) {
+  void say(token, text).catch(() => {});
+}
+
+/** A new act: a shimmer, and its own music fading in. */
+async function scene(token: number, bed: string | null, ms = 1400) {
+  guard(token);
+  if (tour().sound) {
+    void sfx("card", 0.45);
+    void music(bed);
+  }
+  await wait(token, ms);
+}
 
 // ---------------------------------------------------------------- helpers
 
@@ -120,6 +185,7 @@ async function click(token: number, target: Target, ms?: number) {
   if (!el) return;
   await wait(token, 180);
   useTour.setState({ clicks: tour().clicks + 1 });
+  if (tour().sound) void sfx("click", 0.4);
   (el as HTMLElement).click();
   await wait(token, 250);
 }
@@ -131,6 +197,7 @@ async function type(token: number, text: string) {
   if (!input) return;
   await moveTo(token, () => input, 400);
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  if (tour().sound) void sfx("type", 0.35);
   for (let i = 1; i <= text.length; i++) {
     guard(token);
     setter.call(input, text.slice(0, i));
@@ -166,6 +233,11 @@ const ended = () => {
 
 const chapter = (n: number) => useTour.setState({ chapter: n });
 const closePanel = () => os().setCommandOpen(false);
+
+/** What the other tours are made of (lib/everydayTour.ts). */
+const finish = () => useTour.setState({ finished: true, caption: "", cursor: { ...tour().cursor, visible: false } });
+export const KIT = { wait, until, moveTo, click, type, ask, approve, btn, ended, lastRun, chapter, closePanel, say, caption, scene, guard, finish, store: useTour };
+export type TourKit = typeof KIT;
 
 // ---------------------------------------------------------------- the choreography
 
@@ -298,3 +370,6 @@ async function play(token: number) {
     if (!(e instanceof Cancelled)) throw e;
   }
 }
+
+// QA hook: ?debug exposes the tour too.
+if (typeof window !== "undefined" && window.location.search.includes("debug")) (window as unknown as { __tour: typeof useTour }).__tour = useTour;

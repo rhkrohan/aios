@@ -54,7 +54,8 @@ function shortLabel(text: string) {
 
 export function Pet() {
   const pet = usePet();
-  const tourActive = useTour((s) => s.active);
+  // the technical tour clears the stage; the everyday one keeps the pets (Wings joins in)
+  const tourActive = useTour((s) => s.active && s.kind !== "everyday");
   const run = useOS((s) => s.runs[0]);
   const windows = useOS((s) => s.windows);
   const approval = useOS((s) => s.approval);

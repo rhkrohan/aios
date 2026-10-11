@@ -13,6 +13,7 @@ import { liveOwner, refreshLive } from "@/lib/livemirror";
 import { useOS } from "@/lib/store";
 import { Button } from "../ui";
 import { ConfusionTest } from "./ConfusionTest";
+import { MemorySim } from "./MemorySim";
 
 interface Pack {
   name: string;
@@ -91,6 +92,10 @@ export function TestLab() {
     <div className="space-y-6">
       <section>
         <ConfusionTest />
+      </section>
+
+      <section>
+        <MemorySim />
       </section>
 
       <section>

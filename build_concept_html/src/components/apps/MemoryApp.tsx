@@ -6,12 +6,16 @@
 // which groups each outside AI may read.
 
 import clsx from "clsx";
-import { Brain, Check, Clock, EyeOff, Lock, Plus, Search, Share2, Sparkles, Trash2, Users, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Brain, Check, Clock, EyeOff, Lock, Plus, Search, Share2, Sparkles, Trash2, Users, Waypoints, X, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { switchMachine } from "@/lib/livemachine";
+import { liveFetch } from "@/lib/livemachine";
 import { liveOwner } from "@/lib/livemirror";
 import { useOS } from "@/lib/store";
+import type { Win } from "@/lib/types";
 import { Avatar, Button } from "../ui";
+import { MemoryMap, type MapMem } from "./MemoryMap";
+import type { SimReport } from "./MemorySim";
 
 interface Mem {
   id: string;
@@ -24,6 +28,8 @@ interface Mem {
   last_used: number;
   uses: number;
   person?: { name: string; email: string; role: string };
+  links?: string[];
+  by?: string;
 }
 interface Sugg {
   id: string;
@@ -38,11 +44,12 @@ interface Data {
   groups: string[];
 }
 
-type Tab = "about" | "people" | "timeline" | "waiting" | "sharing";
+type Tab = "about" | "people" | "timeline" | "map" | "waiting" | "sharing";
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "about", label: "About you", icon: Brain },
   { id: "people", label: "People", icon: Users },
   { id: "timeline", label: "Timeline", icon: Clock },
+  { id: "map", label: "Map over time", icon: Waypoints },
   { id: "waiting", label: "Waiting for your OK", icon: Sparkles },
   { id: "sharing", label: "Who can see what", icon: Share2 },
 ];
@@ -65,8 +72,18 @@ function when(secs: number) {
   return new Date(secs * 1000).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-export function MemoryApp() {
+export function MemoryApp({ win }: { win: Win }) {
   const live = useOS((s) => s.settings.liveMachine);
+  const setProps = useOS((s) => s.setWindowProps);
+  const sim = win.props?.source === "sim";
+  const [simRep, setSimRep] = useState<SimReport | null>(null);
+  useEffect(() => {
+    if (!sim) return;
+    liveFetch("/api/live/memsim")
+      .then((r) => r.json())
+      .then((j) => setSimRep(j.report))
+      .catch(() => setSimRep(null));
+  }, [sim]);
   const audit = useOS((s) => s.audit);
   const pushToast = useOS((s) => s.pushToast);
   const [data, setData] = useState<Data | null>(null);
@@ -117,6 +134,21 @@ export function MemoryApp() {
     ]),
   );
 
+  if (sim) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="px-5 h-12 shrink-0 border-b border-line flex items-center gap-3 text-[13px]">
+          <button onClick={() => setProps(win.id, { source: "" })} className="inline-flex items-center gap-1.5 text-fg-2 hover:text-fg">
+            <ArrowLeft size={14} /> Your memory
+          </button>
+          <span className="h-5 px-2 rounded-full bg-warn-soft text-warn text-[11.5px] font-medium inline-flex items-center">Simulation</span>
+          <span className="text-fg-2 truncate">{simRep ? `${simRep.days} made-up days from the Test lab, ${simRep.memories.length} memories over its life. Not your memory.` : "Run Memory over time in the Test lab first."}</span>
+        </div>
+        <div className="flex-1 min-h-0 px-5 py-4">{simRep && <MemoryMap memories={simRep.memories as MapMem[]} shares={simRep.shares} />}</div>
+      </div>
+    );
+  }
+
   if (!live) {
     return (
       <div className="h-full grid place-items-center p-8 text-center">
@@ -132,7 +164,7 @@ export function MemoryApp() {
     );
   }
 
-  const count: Record<Tab, number> = { about: about.length, people: people.length, timeline: timeline.length, waiting: waiting.length, sharing: Object.keys(data?.shares ?? {}).length };
+  const count: Record<Tab, number> = { about: about.length, people: people.length, timeline: timeline.length, map: 0, waiting: waiting.length, sharing: Object.keys(data?.shares ?? {}).length };
 
   const Card = ({ m }: { m: Mem }) => (
     <li className="group rounded-2xl border border-line bg-surface p-3.5 hover:border-ai-line transition-colors">
@@ -255,7 +287,12 @@ export function MemoryApp() {
           )}
         </div>
 
-        <div className="flex-1 overflow-auto scroll-thin px-5 py-4">
+        {tab === "map" && (
+          <div className="flex-1 min-h-0 px-5 py-4">
+            <MemoryMap memories={mems} shares={data?.shares ?? {}} />
+          </div>
+        )}
+        <div className={clsx("flex-1 overflow-auto scroll-thin px-5 py-4", tab === "map" && "hidden")}>
           {tab === "about" && (about.length ? <ul className="grid gap-2">{about.map((m) => <Card key={m.id} m={m} />)}</ul> : <Empty text="Nothing yet. Say “remember …” to SIOS, or add something above." />)}
           {tab === "people" && (people.length ? <ul className="grid gap-2 sm:grid-cols-2">{people.map((m) => <Card key={m.id} m={m} />)}</ul> : <Empty text="No people yet." />)}
           {tab === "timeline" &&

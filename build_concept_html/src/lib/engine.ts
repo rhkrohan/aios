@@ -150,6 +150,15 @@ async function executeSteps(run: Run, specs: StepSpec[], plan: Plan, ctx: ExecCt
       continue;
     }
 
+    // ---- a question back to you: pick one of two, then carry on ----
+    if (spec.choose) {
+      await sleep(spec.ms);
+      const answer = await ask(runId, spec, "reversible");
+      const label = spec.choose(answer === "deny" ? "b" : "a");
+      os().updateStep(runId, step.id, { status: "done", broker: "asked-approved", doneLabel: label, ms: Date.now() - t0 });
+      continue;
+    }
+
     // ---- tool: the permission broker decides (lib/policy.ts) ----
     let decision: BrokerDecision | undefined;
     if (spec.tool) {
@@ -350,6 +359,7 @@ async function ask(runId: string, spec: StepSpec, kind: "reversible" | "irrevers
     scope: spec.approval?.scope,
     primaryLabel: spec.approval?.primaryLabel,
     denyLabel: spec.approval?.denyLabel,
+    noDuration: spec.approval?.noDuration,
     principalName: run.principal !== "owner" ? principalName(run.principal) : undefined,
     tainted: verdict?.askKind === "tainted" || (!!run.tainted && verdict?.checks.some((c) => c.id === "taint" && c.result === "ask")),
     checks: verdict?.checks,

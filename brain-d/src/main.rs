@@ -197,6 +197,15 @@ impl Brain {
                 .capd
                 .call("memory.brief", json!({ "request": p["query"].as_str().unwrap_or(""), "principal": p["principal"].as_str().unwrap_or("outside AI"), "limit": 10 }))
                 .map(|b| json!({ "memories": b["items"].as_array().into_iter().flatten().map(|m| m["text"].clone()).collect::<Vec<_>>(), "held_back_sensitive": b["held_back_sensitive"] })),
+            // the memory simulation (capd memsim --ai) borrows the model for two small jobs
+            "memsim.pattern" => {
+                let eps: Vec<String> = p["episodes"].as_array().into_iter().flatten().filter_map(|e| e.as_str().map(String::from)).take(20).collect();
+                model::Model::from_env().map(|m| memory::find_pattern(&m, &eps).unwrap_or(json!({ "found": false })))
+            }
+            "memsim.answer" => {
+                let mems: Vec<String> = p["memories"].as_array().into_iter().flatten().filter_map(|e| e.as_str().map(String::from)).take(12).collect();
+                model::Model::from_env().and_then(|m| memory::answer_from(&m, p["question"].as_str().unwrap_or(""), &mems)).map(Value::from)
+            }
             "goals.recent" => Ok(json!(self.recent.lock().unwrap().iter().rev().take(20).map(|(g, r, p)| json!({ "goal": g, "request": r, "principal": p })).collect::<Vec<_>>())),
             "goal.events" => self.events(p["goal"].as_str().unwrap_or(""), p["since"].as_u64().unwrap_or(0) as usize).ok_or_else(|| "no such goal".into()),
             other => Err(format!("unknown method {other}")),

@@ -8,6 +8,7 @@ mod audit;
 mod fsguard;
 mod manifest;
 mod memory;
+mod memsim;
 mod packs;
 mod meta;
 mod policy;
@@ -52,6 +53,8 @@ const HELP: &str = "capd: SIOS capability daemon
   capd revoke ID | pause P | resume P
   capd undo GOAL_ID|*             undo everything a goal changed
   capd audit [n]                  verify the log and show the last n decisions
+  capd memsim [--days 180] [--seed 7] [--ai] [--out DIR]
+                                  run months of made-up life through the memory store
 
 Folders: state in $SIOS_STATE (~/.sios), sandbox in $SIOS_ROOT (~/SIOS-sandbox).";
 
@@ -61,6 +64,24 @@ fn main() {
     match cmd {
         "serve" => serve(),
         "seed" => seed(),
+        "memsim" => {
+            let o = memsim::Options {
+                days: num(&args, "--days").unwrap_or(180).clamp(7, 730),
+                seed: num(&args, "--seed").unwrap_or(7),
+                ai: args.iter().any(|a| a == "--ai"),
+                out: flag(&args, "--out").map(PathBuf::from).unwrap_or_else(|| state_dir().join("memsim")),
+                brain_sock: state_dir().join("brain.sock"),
+                start: 0,
+            };
+            let o = memsim::Options { start: (state::now() / 86400).saturating_sub(o.days) * 86400 + 9 * 3600, ..o };
+            match memsim::run(&o) {
+                Ok(r) => println!("{}", json!({ "done": true, "findings": r["findings"], "out": o.out.join("run.json") })),
+                Err(e) => {
+                    eprintln!("memsim failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         "help" | "-h" | "--help" => println!("{HELP}"),
         _ => {
             let req = match build_request(cmd, &args[1..]) {

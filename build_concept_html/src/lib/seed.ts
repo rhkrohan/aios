@@ -1,4 +1,4 @@
-import type { FileItem, Network, Person } from "./types";
+import type { InboxMessage, FileItem, Network, Person } from "./types";
 
 let n = 0;
 type Meta = Pick<FileItem, "origin" | "trust" | "labels" | "versions">;
@@ -106,6 +106,31 @@ export const TEAM: Person[] = [
   { name: "Muhammad Rashid", email: "m.rashid@example.com", role: "Co-founder", initials: "MR", tone: "#5b7fa6" },
   { name: "Sara Okafor", email: "sara.okafor@example.com", role: "Design", initials: "SO", tone: "#8a6d9e" },
   { name: "Daniel Kim", email: "dkim@example.com", role: "Advisor", initials: "DK", tone: "#5f8a6a" },
+];
+
+/** The inbox the machine starts with. */
+export const BASE_INBOX: InboxMessage[] = [
+  {
+    id: "i1",
+    from: { name: "Sara Okafor", email: "sara.okafor@example.com", initials: "SO", tone: "#8a6d9e" },
+    subject: "Approval screen, first pass",
+    body: "Hey! Pushed a first pass of the approval prompt. Main idea: lead with what changes, keep the tool names behind a fold. Thoughts?",
+    time: "9:41 AM",
+  },
+  {
+    id: "i2",
+    from: { name: "GitHub", email: "noreply@github.com", initials: "GH", tone: "#4a4f57" },
+    subject: "[rhkrohan/aios] build.yml succeeded on main",
+    body: "Build and push image: success. Signed with cosign. ghcr.io/rhkrohan/aios:latest",
+    time: "8:02 AM",
+  },
+  {
+    id: "i3",
+    from: { name: "Daniel Kim", email: "dkim@example.com", initials: "DK", tone: "#5f8a6a" },
+    subject: "Re: tunnel-first pitch",
+    body: "The line about making your own computer the agent lands well. I'd lead with that.",
+    time: "Yesterday",
+  },
 ];
 
 export const NETWORKS: Network[] = [

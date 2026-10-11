@@ -836,6 +836,9 @@ impl State {
             }
             "memory.save" => {
                 let m = self.memory.add(args["text"].as_str().unwrap_or(""), args["kind"].as_str().unwrap_or("fact"), args["group"].as_str().unwrap_or(""), vec![], &format!("{}, for \"{}\"", cap.principal, cap.goal), now())?;
+                if m.by.is_empty() {
+                    self.memory.attach(&m.id, &cap.principal, &[]);
+                }
                 Ok(out(json!({ "saved": m.id, "text": m.text, "group": m.group }), Some(tools::Undo::MemRemove { id: m.id })))
             }
             "memory.forget" => {
@@ -875,6 +878,8 @@ impl State {
             // brain-d, after a goal: what happened (written by the OS, not the model)
             "memory.episode" => {
                 let m = self.memory.add(p["text"].as_str().unwrap_or(""), "episode", "History", vec![], &format!("goal {}", p["goal"].as_str().unwrap_or("")), t)?;
+                let links: Vec<String> = p["links"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(String::from)).take(20).collect();
+                self.memory.attach(&m.id, p["by"].as_str().unwrap_or("SIOS"), &links);
                 Ok(json!({ "id": m.id }))
             }
             "memory.episodes" => Ok(json!(self.memory.recent_episodes(p["n"].as_u64().unwrap_or(10) as usize))),

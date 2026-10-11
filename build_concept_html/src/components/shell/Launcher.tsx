@@ -31,7 +31,7 @@ const APPS: { id: AppId; name: string; words: string }[] = [
   { id: "goals", name: "Goals", words: "processes tasks running monitor" },
   { id: "systemmap", name: "System Map", words: "twin architecture simulate diagram" },
   { id: "team", name: "Team", words: "agents helpers pets workers brains claude muse openai" },
-  { id: "memory", name: "Memory", words: "remember vault facts people preferences history what do you know about me" },
+  { id: "memory", name: "Memory", words: "remember vault facts people preferences history what do you know about me map graph context over time" },
   { id: "settings", name: "Settings", words: "preferences system control" },
 ];
 
@@ -139,7 +139,8 @@ export function Launcher() {
       { key: "act:theme", group: "Actions", title: theme === "dark" ? "Turn on light mode" : "Turn on dark mode", words: "dark light mode theme appearance", icon: <Tile icon={theme === "dark" ? Sun : Moon} />, run: () => os().setTheme(theme === "dark" ? "light" : "dark") },
       { key: "act:live", group: "Actions", title: live ? "Switch the live machine off" : "Switch the live machine on", words: "live machine real files sandbox capd openai", icon: <Tile icon={Radio} />, run: () => os().updateSettings({ liveMachine: !live }) },
       { key: "act:lock", group: "Actions", title: "Lock screen", words: "lock screen away", icon: <Tile icon={Lock} />, run: () => os().setPower("locked") },
-      { key: "act:demo", group: "Actions", title: "Watch the demo", words: "demo tour auto watch", icon: <Tile icon={Play} />, run: () => useTour.getState().start() },
+      { key: "act:demo", group: "Actions", title: "Watch the demo", words: "demo tour auto watch everyday week", icon: <Tile icon={Play} />, run: () => useTour.getState().start("everyday") },
+      { key: "act:demo-how", group: "Actions", title: "How SIOS works (technical tour)", words: "demo tour how it works technical broker architecture", icon: <Tile icon={Play} />, run: () => useTour.getState().start("how-it-works") },
     ];
     out.push(...actions.filter((a) => query && has(`${a.title} ${a.words}`, query)));
     if (query) {

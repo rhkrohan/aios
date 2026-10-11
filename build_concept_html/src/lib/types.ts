@@ -79,7 +79,19 @@ export interface MailMessage {
   time: string;
 }
 
-export type AppId = "files" | "activity" | "settings" | "mail" | "browser" | "terminal" | "store" | "security" | "goals" | "systemmap" | "memory" | "team";
+export type AppId = "files" | "activity" | "settings" | "mail" | "browser" | "terminal" | "store" | "security" | "goals" | "systemmap" | "memory" | "team" | "compare";
+
+/** A message in the inbox. */
+export interface InboxMessage {
+  id: string;
+  from: Person;
+  subject: string;
+  body: string;
+  time: string;
+  attachment?: string;
+  /** Arrived just now (the demo adds a few). */
+  fresh?: boolean;
+}
 
 export interface Win {
   id: string;

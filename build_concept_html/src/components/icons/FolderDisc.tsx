@@ -106,7 +106,9 @@ export function FolderDisc({
   const segs = s.segments.map((g, i) => {
     const start = s.segments.slice(0, i).reduce((t, x) => t + (x.n / Math.max(1, s.total)) * TAU, 0);
     const span = (g.n / Math.max(1, s.total)) * TAU;
-    return { ...g, a0: start + gap / 2, a1: start + span - gap / 2 };
+    // folders inside: a white segment (near-white inside a window, so it still shows)
+    const color = g.kind === "folder" ? (tone === "glass" ? "#ffffff" : "#dfe4ec") : g.color;
+    return { ...g, color, a0: start + gap / 2, a1: start + span - gap / 2 };
   });
   const untrustedSpan = (s.untrusted / Math.max(1, s.total)) * TAU;
   const onGlass = tone === "glass";

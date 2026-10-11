@@ -70,7 +70,7 @@ export function ago(secs: number) {
 export function PetTeam() {
   const pet = usePet();
   const live = useOS((s) => s.settings.liveMachine);
-  const tour = useTour((s) => s.active);
+  const tour = useTour((s) => s.active && s.kind !== "everyday");
   const team = useTeam();
 
   // keep the team in step with brain-d, and announce finished runs once
@@ -108,7 +108,17 @@ export function PetTeam() {
     };
   }, [live]);
 
-  if (!pet.visible || tour) return null;
+  if (tour) return null;
+  const quiet = team.helpers.filter((h) => h.helper.hidden);
+  // the leader hidden: only the tray of quiet helpers (and any card) stays
+  if (!pet.visible) {
+    return (
+      <>
+        <QuietTray list={quiet} />
+        <AnimatePresence>{team.open && <ReportCard key={team.open} s={team.helpers.find((h) => h.helper.id === team.open)} anchor={{ x: window.innerWidth - 120, y: window.innerHeight - 260 }} />}</AnimatePresence>
+      </>
+    );
+  }
 
   // their own spot: a row to the left of the leader's resting place, staying put
   const home = homeSpot();
@@ -134,9 +144,57 @@ export function PetTeam() {
         <Plus size={14} strokeWidth={2.6} />
       </motion.button>
 
+      <QuietTray list={quiet} />
       <AnimatePresence>{team.creating && <NewHelper key="new" live={live} anchor={{ x: pet.x, y: pet.y }} />}</AnimatePresence>
       <AnimatePresence>{team.open && <ReportCard key={team.open} s={team.helpers.find((h) => h.helper.id === team.open)} anchor={{ x: pet.x, y: pet.y }} />}</AnimatePresence>
     </>
+  );
+}
+
+/** Helpers working quietly: a slim tray on the right edge, one small orb each. */
+function QuietTray({ list }: { list: HelperStatus[] }) {
+  const set = useTeam((t) => t.set);
+  const reportingId = useTeam((t) => t.reporting?.id);
+  return (
+    <AnimatePresence>
+      {list.length > 0 && (
+        <motion.div
+          initial={{ x: 60, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 60, opacity: 0 }}
+          className="glass fixed right-0 bottom-[210px] z-[969] flex flex-col items-center gap-1.5 py-2 pl-2 pr-1.5 rounded-l-2xl bg-glass-strong backdrop-blur-xl border border-glass-line border-r-0 shadow-pop"
+          role="list"
+          aria-label="Helpers working quietly"
+        >
+          {list.map((s) => {
+            const busy = s.state === "working";
+            const news = reportingId === s.helper.id;
+            return (
+              <motion.button
+                key={s.helper.id}
+                role="listitem"
+                onClick={() => set({ open: s.helper.id, creating: false })}
+                title={`${s.helper.name}: ${jobLine(s.helper)}`}
+                aria-label={`${s.helper.name}, working quietly, ${s.state}`}
+                className="relative block"
+                style={{ width: 30, height: 30 }}
+                animate={news ? { y: [0, -6, 0, -3, 0] } : { y: 0 }}
+                transition={{ duration: 0.8, repeat: news ? 3 : 0 }}
+                whileHover={{ x: -3 }}
+              >
+                <HelperBody size={30} color={s.helper.color} mood={s.state === "paused" ? "paused" : s.state === "waiting" ? "waiting" : busy ? "working" : "idle"} busy={busy} />
+                {busy && (
+                  <motion.span className="absolute -top-1 -left-1 size-3 rounded-full bg-white grid place-items-center shadow" animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
+                    <RotateCw size={7} className="text-ai-ink" />
+                  </motion.span>
+                )}
+                {s.state === "waiting" && <span className="absolute -top-1.5 -left-0.5 text-[11px] font-black text-ai-ink">?</span>}
+              </motion.button>
+            );
+          })}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -439,8 +497,11 @@ function ReportCard({ s, anchor }: { s?: HelperStatus; anchor: { x: number; y: n
         </Button>
       </div>
       <div className="mt-2 flex items-center justify-between text-[12px]">
-        <button onClick={() => act("helpers_update", { id: h.id, hidden: true }, `${h.name} is working out of sight`).then(() => set({ open: null }))} className="inline-flex items-center gap-1 text-fg-2 hover:text-fg">
-          <EyeOff size={12} /> Hide from desktop
+        <button
+          onClick={() => act("helpers_update", { id: h.id, hidden: !h.hidden }, h.hidden ? `${h.name} is back on the desktop` : `${h.name} is working quietly`).then(() => set({ open: null }))}
+          className="inline-flex items-center gap-1 text-fg-2 hover:text-fg"
+        >
+          {h.hidden ? <Eye size={12} /> : <EyeOff size={12} />} {h.hidden ? "Show on desktop" : "Work quietly"}
         </button>
         <button
           onClick={() => {

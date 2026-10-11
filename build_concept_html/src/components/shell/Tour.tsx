@@ -10,15 +10,20 @@ import {
   Play,
   RotateCcw,
   ShieldCheck,
+  Mic,
   User,
+  Volume2,
+  VolumeX,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { currentVoice, setVoice } from "@/lib/demoAudio";
+import { liveFetch } from "@/lib/livemachine";
 import { useOS } from "@/lib/store";
 import { checkMeta } from "../checks";
-import { CHAPTERS, useTour } from "@/lib/tour";
+import { chaptersFor, useTour, type TourKind } from "@/lib/tour";
 import type { PolicyCheck, Run, Step } from "@/lib/types";
 
 // ---------------------------------------------------------------- cursor
@@ -194,12 +199,18 @@ function XRay() {
 // ---------------------------------------------------------------- chip + controls
 
 export function Tour() {
-  const { active, chapter, paused, finished, start, stop, togglePause } = useTour();
+  const { active, chapter, paused, finished, start, stop, togglePause, kind, sound, xray, set } = useTour();
+  const CHAPTERS = chaptersFor(kind);
+  const [gate, setGate] = useState(false);
 
-  // ?demo in the URL starts auto mode on load, for sharing a link.
+  // ?demo in the URL starts auto mode on load, for sharing a link (?demo=how for the technical tour).
   useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("demo")) {
-      const t = setTimeout(() => useTour.getState().start(), 600);
+    const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    if (q?.has("demo")) {
+      const k: TourKind = q.get("demo") === "how" ? "how-it-works" : "everyday";
+      // browsers only allow sound after a click: if nobody has clicked yet, ask for one
+      const clicked = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive;
+      const t = setTimeout(() => (k === "everyday" && !clicked ? setGate(true) : useTour.getState().start(k)), 600);
       return () => clearTimeout(t);
     }
   }, []);
@@ -207,7 +218,25 @@ export function Tour() {
   return (
     <>
       <Cursor />
-      <AnimatePresence>{active && <XRay key="xray" />}</AnimatePresence>
+      <AnimatePresence>{active && xray && <XRay key="xray" />}</AnimatePresence>
+      <AnimatePresence>{active && kind === "everyday" && finished && <Finale key="finale" />}</AnimatePresence>
+      <Preparing />
+      <AnimatePresence>
+        {gate && (
+          <motion.div key="gate" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[2470] grid place-items-center bg-[rgba(10,14,24,.45)] backdrop-blur-md">
+            <button
+              autoFocus
+              onClick={() => {
+                setGate(false);
+                useTour.getState().start("everyday");
+              }}
+              className="h-14 px-7 rounded-full bg-white text-[#1d1f24] text-[17px] font-semibold inline-flex items-center gap-2.5 shadow-pop"
+            >
+              <Play size={16} fill="currentColor" /> Watch the demo, sound on
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {active && (
           <motion.div
@@ -234,11 +263,22 @@ export function Tour() {
                 exit={{ opacity: 0, y: -6 }}
                 className="text-[14px] font-semibold min-w-[96px]"
               >
-                {finished ? "That's SIOS" : CHAPTERS[chapter]}
+                {finished ? (kind === "everyday" ? "Your week" : "That's SIOS") : CHAPTERS[chapter]}
               </motion.span>
             </AnimatePresence>
+            {kind === "everyday" && (
+              <>
+                <VoicePicker />
+                <ChipBtn onClick={() => set({ sound: !sound })} label={sound ? "Turn the sound off" : "Turn the sound on"}>
+                  {sound ? <Volume2 size={15} /> : <VolumeX size={15} />}
+                </ChipBtn>
+                <ChipBtn onClick={() => set({ xray: !xray })} label={xray ? "Hide the inside view" : "Show what happens inside"}>
+                  <ShieldCheck size={15} className={xray ? "text-ai" : undefined} />
+                </ChipBtn>
+              </>
+            )}
             {finished ? (
-              <ChipBtn onClick={start} label="Watch again">
+              <ChipBtn onClick={() => start()} label="Watch again">
                 <RotateCcw size={15} />
               </ChipBtn>
             ) : (
@@ -266,5 +306,168 @@ function ChipBtn({ children, onClick, label }: { children: React.ReactNode; onCl
     >
       {children}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------- captions and the end card
+
+/** Where each tool lives, in the words of the app you'd see. */
+const APP_OF: [RegExp, string][] = [
+  [/^(gmail|mail)\./, "Mail"],
+  [/^files\./, "Files"],
+  [/^reminders\./, "Reminders"],
+  [/^(browser|forms)\./, "Browser"],
+  [/^docs\./, "Compare"],
+  [/^memory\./, "Memory"],
+  [/^helpers\./, "Team"],
+];
+
+function Finale() {
+  const startedAt = useTour((t) => t.startedAt);
+  const start = useTour((t) => t.start);
+  const runs = useOS((s) => s.runs).filter((r) => !r.parentId && r.startedAt >= startedAt);
+  const audit = useOS((s) => s.audit).filter((e) => e.at >= startedAt);
+  const openApp = useOS((s) => s.openApp);
+  const steps = runs.flatMap((r) => r.steps).filter((s) => s.tool);
+  const actions = steps.filter((s) => s.status === "done").length;
+  const apps = new Set(steps.map((s) => APP_OF.find(([re]) => re.test(s.tool!.name))?.[1]).filter(Boolean)).size;
+  const asked = audit.filter((e) => e.outcome === "asked-yes" || e.outcome === "asked-no").length;
+  const blocked = audit.filter((e) => e.outcome === "blocked").length;
+  const sentWithoutYou = audit.filter((e) => e.outcome === "allowed" && /^(gmail\.send|mail\.auto_reply|forms\.(submit|attach))/.test(e.tool)).length;
+  const stats: [number, string][] = [
+    [runs.length, runs.length === 1 ? "sentence" : "sentences"],
+    [actions, `actions across ${apps} apps`],
+    [asked, asked === 1 ? "question for you" : "questions for you"],
+    [blocked, blocked === 1 ? "trick blocked" : "tricks blocked"],
+    [sentWithoutYou, "things sent without you"],
+  ];
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[2450] grid place-items-center bg-[rgba(10,14,24,.35)] backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: "spring", stiffness: 140, damping: 18, delay: 0.15 }}
+        className="glass w-[min(560px,calc(100vw-32px))] rounded-[28px] bg-glass-strong backdrop-blur-3xl border border-glass-line shadow-pop p-8"
+        role="dialog"
+        aria-label="Your week"
+      >
+        <div className="text-[13px] font-semibold text-ai-ink">Your week with SIOS</div>
+        <h2 className="mt-1 text-[28px] leading-tight font-semibold tracking-[-0.02em]">You said four sentences. It did the rest.</h2>
+        <ul className="mt-6 grid gap-2.5">
+          {stats.map(([n, label], i) => (
+            <motion.li key={label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.18 }} className="flex items-baseline gap-3">
+              <span className={clsx("w-14 text-right text-[30px] font-semibold tabular-nums tracking-[-0.02em]", i === 4 ? "text-ok" : "text-fg")}>{n}</span>
+              <span className="text-[16px] text-fg-2">{label}</span>
+            </motion.li>
+          ))}
+        </ul>
+        <div className="mt-7 flex gap-2">
+          <button
+            onClick={() => {
+              useTour.getState().stop();
+              openApp("security", { page: "decisions" });
+            }}
+            className="h-10 px-4 rounded-full bg-ai text-white text-[14px] font-medium"
+          >
+            See everything it did
+          </button>
+          <button onClick={() => start()} className="h-10 px-4 rounded-full border border-line text-[14px] font-medium inline-flex items-center gap-1.5">
+            <RotateCcw size={14} /> Watch again
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------- act cards, getting ready, the narrator's voice
+
+function Preparing() {
+  const p = useTour((t) => t.preparing);
+  return (
+    <AnimatePresence>
+      {p && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[2470] grid place-items-center bg-[rgba(10,14,24,.45)] backdrop-blur-md">
+          <div className="w-[320px] text-center text-white">
+            <div className="text-[17px] font-medium">Getting the narrator ready</div>
+            <div className="mt-1 text-[13px] text-white/70">Only the first time. After this it starts right away.</div>
+            <div className="mt-4 h-1.5 rounded-full bg-white/20 overflow-hidden">
+              <motion.div className="h-full bg-white" animate={{ width: `${Math.round((100 * p.done) / Math.max(1, p.of))}%` }} />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+interface NarratorVoice {
+  id: string;
+  name: string;
+  about: string;
+  preview?: string;
+}
+
+/** Choose the narrator from the voices on your ElevenLabs account that suit it. */
+function VoicePicker() {
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<NarratorVoice[] | null>(null);
+  const [chosen, setChosen] = useState<string | null>(currentVoice());
+  const [fallback, setFallback] = useState<string | null>(null);
+  const toggle = () => {
+    setOpen((o) => !o);
+    if (!list)
+      liveFetch("/api/audio?voices")
+        .then((r) => r.json())
+        .then((d) => {
+          setList(d.voices ?? []);
+          setFallback(d.default ?? null);
+        })
+        .catch(() => setList([]));
+  };
+  const current = chosen ?? fallback;
+  return (
+    <div className="relative">
+      <ChipBtn onClick={toggle} label="Choose the narrator's voice">
+        <Mic size={15} />
+      </ChipBtn>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="glass absolute right-0 top-11 w-72 max-h-[60vh] overflow-auto scroll-thin rounded-2xl bg-glass-strong backdrop-blur-3xl border border-glass-line shadow-pop p-1.5"
+            role="listbox"
+            aria-label="Narrator voices"
+          >
+            <div className="px-2.5 pt-1.5 pb-1 text-[11.5px] text-fg-3">Voices from your ElevenLabs account. The next line uses the one you pick.</div>
+            {list === null && <div className="px-2.5 py-3 text-[13px] text-fg-3">Loading voices…</div>}
+            {list?.length === 0 && <div className="px-2.5 py-3 text-[13px] text-fg-3">No voices. Is ELEVENLABS_API_KEY in .env.local?</div>}
+            {list?.map((v) => (
+              <div key={v.id} className={clsx("flex items-center gap-2 rounded-xl px-2.5 py-2", current === v.id ? "bg-ai-soft" : "hover:bg-black/[.04]")}>
+                <button
+                  role="option"
+                  aria-selected={current === v.id}
+                  onClick={() => {
+                    setVoice(v.id);
+                    setChosen(v.id);
+                  }}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <div className="text-[13.5px] font-medium">{v.name}</div>
+                  <div className="text-[11.5px] text-fg-3 truncate">{v.about}</div>
+                </button>
+                {v.preview && (
+                  <button onClick={() => void new Audio(v.preview).play().catch(() => {})} aria-label={`Hear ${v.name}`} title="Hear a sample" className="size-7 grid place-items-center rounded-full text-fg-2 hover:bg-black/[.06]">
+                    <Play size={12} fill="currentColor" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

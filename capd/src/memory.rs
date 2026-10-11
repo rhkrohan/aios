@@ -51,6 +51,12 @@ pub struct Memory {
     pub uses: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub person: Option<Person>,
+    /// Episodes: the memories that were recalled for that goal (the context graph's edges).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<String>,
+    /// Which AI wrote it or ran the goal ("SIOS", "Pip (helper)", "Claude Desktop (MCP)").
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub by: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -132,7 +138,7 @@ impl MemStore {
                 continue;
             }
             let text = format!("{} <{}>{}", person.name, person.email, if person.role.is_empty() { String::new() } else { format!(", {}", person.role) });
-            self.memories.push(Memory { id: new_id(), text, kind: "person".into(), group: "People".into(), labels: vec![], source: "your contacts".into(), created: now, last_used: 0, uses: 0, person: Some(person) });
+            self.memories.push(Memory { id: new_id(), text, kind: "person".into(), group: "People".into(), labels: vec![], source: "your contacts".into(), created: now, last_used: 0, uses: 0, person: Some(person), links: vec![], by: String::new() });
         }
         self.save();
     }
@@ -149,6 +155,8 @@ impl MemStore {
     pub fn search(&self, query: &str, v: &Viewer, limit: usize) -> Vec<Memory> {
         let q = words(query);
         let ql = query.to_lowercase();
+        // recency counts days back from the newest memory (0..999), so it never wraps around
+        let newest = self.memories.iter().map(|m| m.last_used.max(m.created)).max().unwrap_or(0);
         let mut scored: Vec<(i64, &Memory)> = self
             .memories
             .iter()
@@ -158,7 +166,8 @@ impl MemStore {
                 let hits = q.iter().filter(|w| hay.contains(w.as_str())).count() as i64;
                 let group_hit = ql.contains(&m.group.to_lowercase()) as i64;
                 let score = hits * 10 + group_hit * 5;
-                (score > 0).then_some((score * 1000 + m.uses.min(50) as i64 * 5 + (m.last_used.max(m.created) / 86400) as i64 % 1000, m))
+                let recency = 999 - (newest.saturating_sub(m.last_used.max(m.created)) / 86400).min(999) as i64;
+                (score > 0).then_some((score * 1000 + m.uses.min(50) as i64 * 5 + recency, m))
             })
             .collect();
         scored.sort_by(|a, b| b.0.cmp(&a.0));
@@ -192,15 +201,15 @@ impl MemStore {
         }
         let kind = if ["fact", "preference", "person", "episode"].contains(&kind) { kind } else { "fact" };
         let group = if GROUPS.contains(&group) { group.to_string() } else if kind == "preference" { "Habits".into() } else { "Personal".into() };
-        // the same thing twice is one memory
-        if let Some(m) = self.memories.iter_mut().find(|m| m.text.eq_ignore_ascii_case(text)) {
+        // the same thing twice is one memory (episodes are a journal: every one is kept)
+        if let Some(m) = self.memories.iter_mut().find(|m| kind != "episode" && m.kind != "episode" && m.text.eq_ignore_ascii_case(text)) {
             m.last_used = now;
             return Ok(m.clone());
         }
         // anything with a name and an email is also a person, so "my accountant" resolves
         let person = if kind == "person" || (kind == "fact" && group == "People") { parse_person(text) } else { None };
         let (kind, group) = if person.is_some() { ("person", "People".to_string()) } else { (kind, group) };
-        let m = Memory { id: new_id(), text: text.chars().take(500).collect(), kind: kind.into(), group, labels, source: source.into(), created: now, last_used: now, uses: 0, person };
+        let m = Memory { id: new_id(), text: text.chars().take(500).collect(), kind: kind.into(), group, labels, source: source.into(), created: now, last_used: now, uses: 0, person, links: vec![], by: String::new() };
         self.memories.push(m.clone());
         if kind == "episode" {
             // oldest episodes go first, like page reclaim
@@ -240,6 +249,16 @@ impl MemStore {
         self.suggestions.push(s.clone());
         self.save();
         Ok(s)
+    }
+
+    /// Mark who wrote a memory and what it came from. Links only to memories that exist.
+    pub fn attach(&mut self, id: &str, by: &str, links: &[String]) {
+        let known: Vec<String> = links.iter().filter(|l| self.memories.iter().any(|m| &m.id == *l)).cloned().collect();
+        if let Some(m) = self.memories.iter_mut().find(|m| m.id == id) {
+            m.by = by.chars().take(60).collect();
+            m.links = known;
+        }
+        self.save();
     }
 
     pub fn recent_episodes(&self, n: usize) -> Vec<Memory> {
@@ -282,6 +301,30 @@ pub fn new_id() -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recency_doesnt_wrap_around() {
+        let d = tempfile::tempdir().unwrap();
+        let mut st = MemStore::open(&d.path().join("m.json"));
+        // day 20999 and day 21000: the old modulo made the newer one look 999 days older
+        st.add("Lunch spot is Dizengoff", "fact", "Personal", vec![], "you", 20_999 * 86400).unwrap();
+        st.add("Lunch spot is Federal Donuts", "fact", "Personal", vec![], "you", 21_000 * 86400).unwrap();
+        let v = Viewer { principal: "you", own: true, online: false };
+        assert!(st.search("lunch spot", &v, 5)[0].text.contains("Federal"));
+    }
+
+    #[test]
+    fn episodes_link_to_the_memories_they_used() {
+        let d = tempfile::tempdir().unwrap();
+        let mut st = MemStore::open(&d.path().join("m.json"));
+        let fact = st.add("My accountant is Priya Shah, priya@ledger.example", "fact", "People", vec![], "you", 1).unwrap();
+        let ep = st.add("day 1: emailed the invoice to Priya", "episode", "History", vec![], "goal g1", 2).unwrap();
+        st.attach(&ep.id, "Pip (helper)", &[fact.id.clone(), "gone".into()]);
+        let back = MemStore::open(&d.path().join("m.json"));
+        let e = back.memories.iter().find(|m| m.id == ep.id).unwrap();
+        assert_eq!(e.links, vec![fact.id], "only links to memories that exist, and kept across a restart");
+        assert_eq!(e.by, "Pip (helper)");
+    }
+
     use super::*;
 
     fn store() -> (tempfile::TempDir, MemStore) {

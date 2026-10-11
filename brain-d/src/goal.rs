@@ -117,7 +117,8 @@ pub fn run(ctx: &Ctx, g: &Shared, request: &str, principal: &str, own: bool, his
             // after a goal that did something: an episode, used memories marked, and now and then a pattern check
             if turn.goal.is_some() && !turn.reply.is_empty() {
                 let _ = ctx.capd.call("memory.touch", json!({ "ids": r.recall.ids }));
-                crate::memory::episode(&ctx.capd, turn.goal.as_deref().unwrap_or(""), &turn.understanding, &turn.reply);
+                let by = if principal == "owner" { "SIOS" } else { principal };
+                crate::memory::episode(&ctx.capd, turn.goal.as_deref().unwrap_or(""), &turn.understanding, &turn.reply, by, &r.recall.ids);
                 let capd = ctx.capd.clone();
                 std::thread::spawn(move || {
                     if let (Ok(eps), Ok(m)) = (capd.call("memory.episodes", json!({ "n": 200 })), Model::from_env()) {

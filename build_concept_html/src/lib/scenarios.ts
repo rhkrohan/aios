@@ -38,6 +38,8 @@ export interface StepSpec {
   optional?: boolean;
   /** Delegation steps: start a sub-goal (given the parent run id) and resolve with its run id. */
   runChild?: (parentId: string) => Promise<string>;
+  /** Ask you to pick between two answers ("Which Sara?"). The approval's primary button is "a", its other button "b". Returns the done label. */
+  choose?: (pick: "a" | "b") => string;
   /** Live-planned steps: runs the real executor after the broker allows it. */
   liveExec?: () => { output: Record<string, unknown>; undo?: () => void; fail?: string };
   /** Runs after the step succeeds. May return an undo function. */

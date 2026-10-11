@@ -17,13 +17,15 @@ import { AnimatePresence } from "motion/react";
 import { useEffect } from "react";
 import { BRAND } from "@/lib/brand";
 import { useOS } from "@/lib/store";
+import { EVERYDAY } from "@/lib/everyday";
 import { MISSIONS } from "@/lib/missions";
 import { registerScenarios } from "@/lib/scenarios";
 
-registerScenarios(MISSIONS);
+registerScenarios([...EVERYDAY, ...MISSIONS]);
 import type { Win } from "@/lib/types";
 import { ApprovalSheet } from "../approval/ApprovalSheet";
 import { ActivityApp } from "../apps/ActivityApp";
+import { CompareApp } from "../apps/CompareApp";
 import { FilesApp } from "../apps/FilesApp";
 import { MailApp } from "../apps/MailApp";
 import { SettingsApp } from "../apps/SettingsApp";
@@ -53,7 +55,7 @@ function AppBody({ win }: { win: Win }) {
     case "settings":
       return <SettingsApp win={win} />;
     case "mail":
-      return <MailApp />;
+      return <MailApp win={win} />;
     case "browser":
       return <BrowserApp win={win} />;
     case "terminal":
@@ -67,7 +69,9 @@ function AppBody({ win }: { win: Win }) {
     case "systemmap":
       return <SystemMapApp win={win} />;
     case "memory":
-      return <MemoryApp />;
+      return <MemoryApp win={win} />;
+    case "compare":
+      return <CompareApp win={win} />;
     case "team":
       return <TeamApp />;
   }
@@ -136,7 +140,7 @@ export function Desktop() {
         <div className="mt-5 font-display font-normal text-[13px] tracking-[.62em] pl-[.62em] uppercase text-white/85">{BRAND.tagline}</div>
         {!tourActive && (
         <button
-          onClick={() => useTour.getState().start()}
+          onClick={() => useTour.getState().start("everyday")}
           className="pointer-events-auto mt-7 h-10 pl-3 pr-4 rounded-full flex items-center gap-2 text-[13.5px] font-semibold text-white bg-white/15 hover:bg-white/25 backdrop-blur-xl ring-1 ring-white/35 [text-shadow:none] transition-colors"
         >
           <span className="size-6 rounded-full bg-white text-[#1d1f24] grid place-items-center">

@@ -107,7 +107,7 @@ export function TeamApp() {
                   </div>
                   <div className="text-[12px] text-fg-3 truncate">Works as &ldquo;{h.name} (helper)&rdquo;</div>
                 </div>
-                <VisibilityToggle on={!h.hidden} onChange={(v) => act("helpers_update", { id: h.id, hidden: !v }, v ? `${h.name} is back on the desktop` : `${h.name} is working out of sight`)} />
+                <VisibilityToggle on={!h.hidden} onChange={(v) => act("helpers_update", { id: h.id, hidden: !v }, v ? `${h.name} is back on the desktop` : `${h.name} is working quietly`)} />
               </div>
               <div className="mt-3 rounded-xl bg-fg/[.05] px-3 py-2 text-[12.5px] leading-snug">{jobLine(h)}</div>
               <div className="mt-3">
@@ -148,10 +148,10 @@ function VisibilityToggle({ on, onChange }: { on: boolean; onChange: (v: boolean
     <button
       onClick={() => onChange(!on)}
       aria-pressed={on}
-      title={on ? "Shown on the desktop" : "Hidden (still working)"}
+      title={on ? "Shown on the desktop" : "Working quietly (in the tray on the right edge)"}
       className={clsx("h-8 px-2.5 rounded-full text-[12px] font-medium inline-flex items-center gap-1.5 border", on ? "border-line text-fg-2" : "border-dashed border-line text-fg-3")}
     >
-      {on ? <Eye size={13} /> : <EyeOff size={13} />} {on ? "Shown" : "Hidden"}
+      {on ? <Eye size={13} /> : <EyeOff size={13} />} {on ? "Shown" : "Quiet"}
     </button>
   );
 }

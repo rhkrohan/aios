@@ -138,13 +138,13 @@ fn redact_emails(red: &mut Redactor, text: &str) -> String {
 }
 
 /// After a goal: write what happened as an episode (the OS does this, not the model).
-pub fn episode(capd: &Capd, goal: &str, understanding: &str, reply: &str) {
+pub fn episode(capd: &Capd, goal: &str, understanding: &str, reply: &str, by: &str, recalled: &[String]) {
     let day = {
         let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         format!("day {}", secs / 86400)
     };
     let text = format!("{day}: {understanding} Result: {reply}");
-    let _ = capd.call("memory.episode", json!({ "text": text.chars().take(400).collect::<String>(), "goal": goal }));
+    let _ = capd.call("memory.episode", json!({ "text": text.chars().take(400).collect::<String>(), "goal": goal, "by": by, "links": recalled }));
 }
 
 /// Every few episodes, ask the model whether a stable preference shows up.
@@ -152,8 +152,15 @@ pub fn episode(capd: &Capd, goal: &str, understanding: &str, reply: &str) {
 pub fn consolidate(capd: &Capd, model: &crate::model::Model) {
     let Ok(eps) = capd.call("memory.episodes", json!({ "n": 8 })) else { return };
     let eps: Vec<String> = eps.as_array().into_iter().flatten().filter_map(|e| e["text"].as_str().map(String::from)).collect();
+    if let Some(v) = find_pattern(model, &eps) {
+        let _ = capd.call("memory.suggest", json!({ "text": v["text"], "kind": "preference", "group": v["group"], "why": v["why"] }));
+    }
+}
+
+/// The model's half of consolidation: one stable preference in recent goals, or nothing.
+pub fn find_pattern(model: &crate::model::Model, eps: &[String]) -> Option<serde_json::Value> {
     if eps.len() < 3 {
-        return;
+        return None;
     }
     let schema = json!({
         "type": "object", "additionalProperties": false,
@@ -165,17 +172,23 @@ pub fn consolidate(capd: &Capd, model: &crate::model::Model) {
             "why": { "type": "string", "description": "Which past goals show it, in a few words." }
         }
     });
-    let Ok(v) = model.structured(
-        "You look at what an assistant did for its owner recently and decide whether ONE stable preference clearly shows up at least twice (where things go, how they like things done). Never anything about passwords, health or money amounts. If nothing is clear, found=false.",
-        &format!("RECENT GOALS (oldest first)\n{}", eps.join("\n")),
-        "pattern",
-        schema,
-    ) else {
-        return;
-    };
-    if v["found"].as_bool() == Some(true) {
-        let _ = capd.call("memory.suggest", json!({ "text": v["text"], "kind": "preference", "group": v["group"], "why": v["why"] }));
-    }
+    let v = model
+        .structured(
+            "You look at what an assistant did for its owner recently and decide whether ONE stable preference clearly shows up at least twice (where things go, how they like things done). Never anything about passwords, health or money amounts. If nothing is clear, found=false.",
+            &format!("RECENT GOALS (oldest first)\n{}", eps.join("\n")),
+            "pattern",
+            schema,
+        )
+        .ok()?;
+    (v["found"].as_bool() == Some(true)).then_some(v)
+}
+
+/// For the memory simulation: answer a question only from the memories a briefing would hold.
+pub fn answer_from(model: &crate::model::Model, question: &str, memories: &[String]) -> Result<String, String> {
+    model.text(
+        "Answer the owner's question in a few words, using only these memories (most relevant first). If they disagree, say which one you went with.",
+        &format!("WHAT I REMEMBER\n{}\n\nQUESTION: {question}", memories.join("\n")),
+    )
 }
 
 #[cfg(test)]
