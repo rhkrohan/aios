@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-12: ideas.md: three ways to bring SIOS to Mac users (Mac app running the arm64 image, native install via Asahi or on Intel Macs, the SIOS brain on macOS).
 - 2026-10-12: Stage A of the Fedora UI built (SIOS look and layout in system_files); 08-ux.md "On Fedora" section and a mapping row added.
 - 2026-10-12: 15-build-blueprint.md added: engines, security and agent pipelines, file layout, goal processes, tested vs not tested, and the step-by-step path to a real device. capd IAM deny rules fixed to fire on any overlap.
 - 2026-10-11: IAM in capd and brain-d (stable ids, pairing tokens, unpaired apps get no roles, brain.sock secret); live Security Center; mapping row and build order updated.
