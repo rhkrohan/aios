@@ -66,6 +66,34 @@ rpm -q kvantum > /dev/null || dnf5 -y install kvantum
 test -s /usr/share/Kvantum/SIOS/SIOS.svg
 test -s /usr/share/Kvantum/SIOS/SIOS.kvconfig
 
+### Make sure our defaults win
+# KDE reads /etc/xdg before the kde-profile defaults folder, so if the base
+# image (Aurora) ships its own file there, write our keys into it as well.
+merge_defaults() {
+    local src="$1" dst="$2" group="" line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ''|'#'*) ;;
+            '['*) group="$line" ;;
+            *=*)
+                key="${line%%=*}"; value="${line#*=}"
+                # "[A][B]" -> --group A --group B
+                local args=() g="${group#[}"; g="${g%]}"
+                IFS=']' read -ra parts <<< "${g//\]\[/]}"
+                for part in "${parts[@]}"; do [ -n "$part" ] && args+=(--group "${part#[}"); done
+                kwriteconfig6 --file "$dst" "${args[@]}" --key "$key" "$value" ;;
+        esac
+    done < "$src"
+}
+for f in "$XDG"/*; do
+    name="$(basename "$f")"
+    if [ -f "/etc/xdg/$name" ]; then
+        echo "base image has /etc/xdg/$name; merging SIOS defaults into it"
+        merge_defaults "$f" "/etc/xdg/$name"
+    fi
+done
+kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage
+
 ### The login screen: SDDM with our theme
 # Fedora 44's own login manager (Plasma Login Manager) can't be themed beyond
 # its wallpaper, so we use SDDM, KDE's long-standing login manager, which
