@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-12: D27 (Kvantum app style with a SIOS theme; relaxes "stock KDE only" for app styling, not window effects) and D28 (SDDM login with a SIOS theme) accepted by the owner.
 - 2026-10-12: Fedora desktop brought in line with the preview (owner: "looks nothing like the simulation"): desktop widgets, dock with orb, top-bar menus, dusk wallpaper, SIOS boot screen and name; 08-ux.md table updated.
 - 2026-10-12: ideas.md: three ways to bring SIOS to Mac users (Mac app running the arm64 image, native install via Asahi or on Intel Macs, the SIOS brain on macOS).
 - 2026-10-12: Stage A of the Fedora UI built (SIOS look and layout in system_files); 08-ux.md "On Fedora" section and a mapping row added.
