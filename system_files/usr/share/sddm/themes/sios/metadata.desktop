@@ -1,0 +1,11 @@
+[SddmGreeterTheme]
+Name=SIOS
+Description=SIOS login screen: the blurred dusk photo, a big clock, and a round password field
+Author=SIOS
+License=GPL-2.0-or-later
+Type=sddm-theme
+Version=0.1
+MainScript=Main.qml
+ConfigFile=theme.conf
+Screenshot=background.jpg
+QtVersion=6

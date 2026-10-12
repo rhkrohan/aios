@@ -34,6 +34,41 @@ if command -v kpackagetool6 > /dev/null; then
     for w in $WIDGETS; do kpackagetool6 --type Plasma/Applet --list --global | grep -q "$w"; done
 fi
 
+### Windows: title bars like the preview's (Window.tsx)
+# 44px light title bar with the app icon and title on the left, minimize,
+# maximize and close on the right, a hairline under it, no side borders, and
+# a big soft shadow. Stock Breeze decoration, just configured. Keys are added
+# to the base image's defaults rather than replacing its files.
+XDG=/usr/share/kde-settings/kde-profile/default/xdg
+mkdir -p "$XDG"
+kw() { kwriteconfig6 --file "$XDG/$1" --group "$2" --key "$3" "$4"; }
+kw kwinrc org.kde.kdecoration2 library org.kde.breeze
+kw kwinrc org.kde.kdecoration2 theme Breeze
+kw kwinrc org.kde.kdecoration2 ButtonsOnLeft M
+kw kwinrc org.kde.kdecoration2 ButtonsOnRight IAX
+kw kwinrc org.kde.kdecoration2 BorderSize None
+kw kwinrc org.kde.kdecoration2 BorderSizeAuto false
+kw breezerc Windeco TitleAlignment AlignLeft
+kw breezerc Windeco ButtonSize ButtonLarge
+kw breezerc Windeco DrawTitleBarSeparator true
+kw breezerc Windeco DrawBackgroundGradient false
+kw breezerc Windeco DrawBorderOnMaximizedWindows false
+kw breezerc Common ShadowSize ShadowLarge
+kw breezerc Common ShadowStrength 90
+kw breezerc Common OutlineIntensity OutlineOff
+grep -q "ButtonsOnRight=IAX" "$XDG/kwinrc"
+
+### The login screen: SDDM with our theme
+# Fedora 44's own login manager (Plasma Login Manager) can't be themed beyond
+# its wallpaper, so we use SDDM, KDE's long-standing login manager, which
+# loads a QML theme. If our theme ever fails to load, SDDM falls back to its
+# built-in one, so people can still log in.
+rpm -q sddm sddm-wayland-plasma > /dev/null || dnf5 -y install sddm sddm-wayland-plasma
+systemctl disable plasmalogin.service 2> /dev/null || true
+systemctl enable sddm.service
+test -s /usr/share/sddm/themes/sios/Main.qml
+grep -q "QtVersion=6" /usr/share/sddm/themes/sios/metadata.desktop
+
 ### The name: SIOS instead of Fedora (boot menu, About, login)
 # ID stays "fedora" so tools that check for Fedora keep working; only the
 # names people see change. The boot menu entries take PRETTY_NAME.
