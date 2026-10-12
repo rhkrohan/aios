@@ -33,8 +33,9 @@ PlasmoidItem {
     PlasmaExtras.Menu {
         id: systemMenu
         placement: PlasmaExtras.Menu.BottomPosedLeftAlignedPopup
-        PlasmaExtras.MenuItem { text: "System Settings"; icon: "systemsettings"; onClicked: root.sh("systemsettings") }
-        PlasmaExtras.MenuItem { text: "About this computer"; icon: "sios-logo"; onClicked: root.sh("kinfocenter") }
+        PlasmaExtras.MenuItem { text: "Settings"; icon: "sios-settings"; onClicked: root.sh("sios-settings || systemsettings") }
+        PlasmaExtras.MenuItem { text: "Monitor"; icon: "sios-monitor"; onClicked: root.sh("sios-monitor || plasma-systemmonitor") }
+        PlasmaExtras.MenuItem { text: "About this computer"; icon: "sios-logo"; onClicked: root.sh("sios-settings || kinfocenter") }
         PlasmaExtras.MenuItem { separator: true }
         PlasmaExtras.MenuItem { text: "Lock screen"; icon: "system-lock-screen"; onClicked: session.lock() }
         PlasmaExtras.MenuItem { text: "Sleep"; icon: "system-suspend"; onClicked: session.suspend() }

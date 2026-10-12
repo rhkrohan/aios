@@ -60,6 +60,10 @@ test -s /etc/flatpak/remotes.d/flathub.flatpakrepo
 test -x /usr/bin/sios-monitor
 test -f /usr/share/applications/org.sios.monitor.desktop
 
+### SIOS Settings: look, Wi-Fi, updates, about; the assistant's sections later
+test -x /usr/bin/sios-settings
+test -f /usr/share/applications/org.sios.settings.desktop
+
 ### Files (Dolphin) like the preview's Files app
 # Toolbar: back, forward, path, search, sort, grid, list, new folder, details
 # (/usr/share/kxmlgui5/dolphin/dolphinui.rc); defaults in dolphinrc; the
