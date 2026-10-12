@@ -28,8 +28,8 @@ PlasmoidItem {
             font.family: "Jost"
             font.weight: Font.Light
             font.pixelSize: 15
-            font.letterSpacing: font.pixelSize * 0.42
-            leftPadding: font.letterSpacing
+            font.letterSpacing: 15 * 0.42
+            leftPadding: 15 * 0.42
             Accessible.name: "SIOS"
             Accessible.role: Accessible.StaticText
         }

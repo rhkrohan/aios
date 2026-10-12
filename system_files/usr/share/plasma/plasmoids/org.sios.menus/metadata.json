@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "org.sios.menus",
+        "Name": "SIOS menus",
+        "Description": "Workspaces, Files, Apps and System in the top bar",
+        "Icon": "sios-logo",
+        "Authors": [{ "Name": "SIOS" }],
+        "Category": "Miscellaneous",
+        "License": "GPL-2.0-or-later",
+        "Version": "0.1"
+    }
+}

@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "org.sios.discs",
+        "Name": "SIOS folder discs",
+        "Description": "Your main folders as discs; the rings show what's inside",
+        "Icon": "sios-logo",
+        "Authors": [{ "Name": "SIOS" }],
+        "Category": "Miscellaneous",
+        "License": "GPL-2.0-or-later",
+        "Version": "0.1"
+    }
+}

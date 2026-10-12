@@ -17,7 +17,7 @@ smallestReadableFont=Instrument Sans,8,-1,5,50,0,0,0,0,0
 toolBarFont=Instrument Sans,9,-1,5,50,0,0,0,0,0
 
 [Icons]
-Theme=breeze
+Theme=SIOS
 
 [WM]
 activeFont=Instrument Sans,10,-1,5,63,0,0,0,0,0

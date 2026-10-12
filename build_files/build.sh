@@ -9,18 +9,58 @@ cp -avf "/ctx/system_files"/. /
 ### SIOS look and layout (docs/plan/15-build-blueprint.md, Stage A)
 # Our fonts (Instrument Sans, Jost, JetBrains Mono; all SIL Open Font License)
 fc-cache -f /usr/share/fonts/sios
+gtk-update-icon-cache -q -f /usr/share/icons/SIOS 2>/dev/null || true
+gtk-update-icon-cache -q -f /usr/share/icons/SIOS-Dark 2>/dev/null || true
 
-# Fail the build loudly if a theme package or the wordmark widget is broken,
+# Fail the build loudly if a theme package or one of our widgets is broken,
 # instead of shipping a desktop that silently falls back to stock KDE.
+WIDGETS="org.sios.wordmark org.sios.menus org.sios.dock org.sios.hero org.sios.discs org.sios.today"
 for f in /usr/share/plasma/look-and-feel/org.sios.desktop/metadata.json \
          /usr/share/plasma/look-and-feel/org.sios.desktop.dark/metadata.json \
-         /usr/share/plasma/plasmoids/org.sios.wordmark/metadata.json \
+         /usr/share/wallpapers/SIOS-Dusk/metadata.json \
+         /usr/share/wallpapers/SIOS-Lake/metadata.json \
          /usr/share/wallpapers/SIOS-Tunnel/metadata.json; do
     if command -v python3 > /dev/null; then python3 -m json.tool "$f" > /dev/null; else test -s "$f"; fi
 done
+for w in $WIDGETS; do
+    if command -v python3 > /dev/null; then python3 -m json.tool "/usr/share/plasma/plasmoids/$w/metadata.json" > /dev/null; fi
+    test -s "/usr/share/plasma/plasmoids/$w/contents/ui/main.qml"
+done
 test -f /usr/share/color-schemes/SIOSLight.colors
 test -f /usr/share/color-schemes/SIOSDark.colors
+test -f /usr/share/icons/SIOS/index.theme
 if command -v kpackagetool6 > /dev/null; then
     kpackagetool6 --type Plasma/LookAndFeel --list --global | grep -q "org.sios.desktop"
-    kpackagetool6 --type Plasma/Applet --list --global | grep -q "org.sios.wordmark"
+    for w in $WIDGETS; do kpackagetool6 --type Plasma/Applet --list --global | grep -q "$w"; done
 fi
+
+### The name: SIOS instead of Fedora (boot menu, About, login)
+# ID stays "fedora" so tools that check for Fedora keep working; only the
+# names people see change. The boot menu entries take PRETTY_NAME.
+FEDORA_VERSION="$(. /usr/lib/os-release && echo "$VERSION_ID")"
+sed -i \
+    -e 's/^NAME=.*/NAME="SIOS"/' \
+    -e "s/^PRETTY_NAME=.*/PRETTY_NAME=\"SIOS (Fedora ${FEDORA_VERSION} base)\"/" \
+    -e 's/^VARIANT=.*/VARIANT="SIOS"/' \
+    -e 's/^VARIANT_ID=.*/VARIANT_ID=sios/' \
+    -e 's/^LOGO=.*/LOGO=sios-logo/' \
+    -e 's/^DEFAULT_HOSTNAME=.*/DEFAULT_HOSTNAME="sios"/' \
+    /usr/lib/os-release
+grep -q '^VARIANT_ID=' /usr/lib/os-release || echo 'VARIANT_ID=sios' >> /usr/lib/os-release
+grep -q '^LOGO=' /usr/lib/os-release || echo 'LOGO=sios-logo' >> /usr/lib/os-release
+
+### The boot screen: the SIOS mark and name instead of the Fedora logo
+# Our theme reuses the spinner theme's animation frames; only the logo is ours.
+for f in /usr/share/plymouth/themes/spinner/{animation,throbber}-*.png \
+         /usr/share/plymouth/themes/spinner/{bullet,capslock,entry,keyboard,keymap-render,lock}.png; do
+    [ -f "$f" ] && cp -n "$f" /usr/share/plymouth/themes/sios/
+done
+plymouth-set-default-theme sios
+# The boot screen runs before the disk is mounted, from the initramfs, so
+# rebuild it with our theme inside. Same command Universal Blue images use.
+KVER="$(ls /usr/lib/modules | head -n 1)"
+export DRACUT_NO_XATTR=1
+dracut --no-hostonly --kver "$KVER" --reproducible --zstd -v --add ostree -f "/usr/lib/modules/$KVER/initramfs.img"
+chmod 0600 "/usr/lib/modules/$KVER/initramfs.img"
+lsinitrd "/usr/lib/modules/$KVER/initramfs.img" > /tmp/initramfs-files.txt
+grep -q "plymouth/themes/sios/watermark.png" /tmp/initramfs-files.txt

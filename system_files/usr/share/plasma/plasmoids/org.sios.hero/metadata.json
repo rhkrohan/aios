@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "org.sios.hero",
+        "Name": "SIOS hero",
+        "Description": "The big SIOS name and tagline on the desktop",
+        "Icon": "sios-logo",
+        "Authors": [{ "Name": "SIOS" }],
+        "Category": "Miscellaneous",
+        "License": "GPL-2.0-or-later",
+        "Version": "0.1"
+    }
+}

@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=SIOS Dark
+Comment=SIOS line icons for the dock apps; everything else is Breeze
+Inherits=breeze-dark,hicolor
+Directories=scalable/apps
+
+[scalable/apps]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+Context=Applications

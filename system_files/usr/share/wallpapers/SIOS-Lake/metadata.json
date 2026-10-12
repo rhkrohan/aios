@@ -1,0 +1,13 @@
+{
+    "KPackageStructure": "Wallpaper/Images",
+    "KPlugin": {
+        "Id": "SIOS-Lake",
+        "Name": "SIOS Lake",
+        "Authors": [
+            {
+                "Name": "Unsplash (see CREDITS.md)"
+            }
+        ],
+        "License": "Unsplash License"
+    }
+}

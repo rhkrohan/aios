@@ -1,5 +1,5 @@
 /*
-    SIOS splash: the tunnel, the wordmark and the tagline, fading in.
+    SIOS splash: the desktop's dusk photo, the wordmark and the tagline, fading in.
     Same type as the preview's boot screen (Jost ExtraLight, wide tracking).
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -9,7 +9,7 @@ import org.kde.kirigami as Kirigami
 
 Rectangle {
     id: root
-    color: "#0e1216"
+    color: "#1a1f2a"
 
     property int stage
 
@@ -23,7 +23,7 @@ Rectangle {
         anchors.fill: parent
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
-        source: "file:///usr/share/wallpapers/SIOS-Tunnel/contents/images_dark/1920x1080.png"
+        source: "file:///usr/share/wallpapers/SIOS-Dusk/contents/images_dark/2880x1920.jpg"
         sourceSize.width: 1920
         sourceSize.height: 1080
     }
@@ -35,30 +35,30 @@ Rectangle {
 
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * 0.24
+            y: parent.height * 0.16
             spacing: Kirigami.Units.gridUnit
 
             Text {
                 id: wordmark
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "SIOS"
-                color: "#f5f6f8"
+                color: "#ffffff"
                 font.family: "Jost"
                 font.weight: Font.ExtraLight
-                font.pixelSize: Math.round(root.height * 0.095)
-                font.letterSpacing: font.pixelSize * 0.5
-                leftPadding: font.letterSpacing
+                font.pixelSize: Math.max(56, Math.min(104, Math.round(root.width * 0.072)))
+                font.letterSpacing: Math.max(56, Math.min(104, Math.round(root.width * 0.072))) * 0.5
+                leftPadding: Math.max(56, Math.min(104, Math.round(root.width * 0.072))) * 0.5
                 Accessible.name: "SIOS"
                 Accessible.role: Accessible.StaticText
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "A MORE HUMAN OPERATING SYSTEM"
-                color: "#a8adb6"
-                font.family: "Instrument Sans"
-                font.pixelSize: Math.max(11, Math.round(root.height * 0.012))
-                font.letterSpacing: font.pixelSize * 0.62
-                leftPadding: font.letterSpacing
+                color: Qt.rgba(1, 1, 1, 0.85)
+                font.family: "Jost"
+                font.pixelSize: 13
+                font.letterSpacing: 13 * 0.62
+                leftPadding: 13 * 0.62
             }
         }
     }

@@ -5,7 +5,7 @@ widgetStyle=Breeze
 ColorScheme=SIOSLight
 
 [kdeglobals][Icons]
-Theme=breeze
+Theme=SIOS
 
 [plasmarc][Theme]
 name=default
@@ -26,4 +26,4 @@ library=org.kde.breeze
 Theme=org.sios.desktop
 
 [Wallpaper]
-Image=SIOS-Tunnel
+Image=SIOS-Dusk

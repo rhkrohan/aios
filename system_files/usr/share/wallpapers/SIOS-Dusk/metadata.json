@@ -1,0 +1,13 @@
+{
+    "KPackageStructure": "Wallpaper/Images",
+    "KPlugin": {
+        "Id": "SIOS-Dusk",
+        "Name": "SIOS Dusk",
+        "Authors": [
+            {
+                "Name": "Unsplash (see CREDITS.md)"
+            }
+        ],
+        "License": "Unsplash License"
+    }
+}
