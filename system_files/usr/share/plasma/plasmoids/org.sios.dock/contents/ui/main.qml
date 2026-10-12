@@ -1,7 +1,7 @@
 /*
     The SIOS dock, like the preview's Dock.tsx:
       Files  Browser  Mail  |  orb  |  Store  Activity  Settings  [other open apps]
-    Thin line icons (the SIOS icon theme), a soft highlight on the focused app,
+    Each app's own icon (Files is the SIOS disc), a soft highlight on the focused app,
     a dot under running apps, a tooltip above. It is a real task manager: it
     uses KDE's TasksModel, so clicking starts, focuses or minimizes the app.
     The orb opens search for now; the Ask bar takes it over in Stage B.
@@ -58,7 +58,10 @@ PlasmoidItem {
     }
     function pick(choices) { return choices.find(c => installed[c]) || ""; }
     readonly property var launchers: leftApps.map(pick).concat(rightApps.map(pick)).filter(x => x).map(x => "applications:" + x)
-    readonly property int leftCount: leftApps.map(pick).filter(x => x).length
+    // which side of the orb an app sits on goes by which app it is, not by its
+    // place in the list (a running app can move in the list)
+    readonly property var leftLaunchers: leftApps.map(pick).filter(x => x).map(x => "applications:" + x)
+    function onLeft(model) { return leftLaunchers.indexOf(String(model.LauncherUrlWithoutIcon || "")) >= 0; }
 
     TaskManager.VirtualDesktopInfo { id: desktopInfo }
     TaskManager.ActivityInfo { id: activityInfo }
@@ -96,7 +99,7 @@ PlasmoidItem {
         Layout.leftMargin: 4
         Layout.rightMargin: 4
         implicitWidth: 1
-        implicitHeight: 24
+        implicitHeight: 32
         color: root.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(29 / 255, 29 / 255, 31 / 255, 0.1)
     }
 
@@ -107,12 +110,12 @@ PlasmoidItem {
         readonly property bool active: !!model.IsActive && !model.IsLauncher
         readonly property bool running: !model.IsLauncher || !!model.IsStartup
         Layout.alignment: Qt.AlignVCenter
-        implicitWidth: 44
-        implicitHeight: 44
+        implicitWidth: 58
+        implicitHeight: 58
 
         Rectangle {
             anchors.fill: parent
-            radius: 14
+            radius: 16
             visible: btn.active
             color: root.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.85)
             border.width: root.dark ? 0 : 1
@@ -121,7 +124,7 @@ PlasmoidItem {
         Kirigami.Icon {
             anchors.centerIn: parent
             source: btn.model.decoration
-            implicitWidth: mouse.containsMouse ? 26 : 22
+            implicitWidth: mouse.containsMouse ? 46 : 42
             implicitHeight: implicitWidth
             Behavior on implicitWidth { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         }
@@ -129,9 +132,9 @@ PlasmoidItem {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.bottom
             anchors.topMargin: 1
-            width: 4
-            height: 4
-            radius: 2
+            width: 5
+            height: 5
+            radius: 2.5
             color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.5)
             visible: btn.running
         }
@@ -159,7 +162,7 @@ PlasmoidItem {
 
         Repeater {
             model: tasks
-            delegate: AppButton { visible: index < root.leftCount }
+            delegate: AppButton { visible: root.onLeft(model) }
         }
 
         Separator {}
@@ -168,10 +171,11 @@ PlasmoidItem {
         Item {
             id: orbSlot
             Layout.alignment: Qt.AlignVCenter
-            implicitWidth: 44
-            implicitHeight: 44
+            implicitWidth: 58
+            implicitHeight: 58
             Rectangle {
                 anchors.fill: parent
+                anchors.margins: 2
                 radius: width / 2
                 color: root.dark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.7)
                 border.width: 1
@@ -179,8 +183,8 @@ PlasmoidItem {
             }
             Orb {
                 anchors.centerIn: parent
-                width: 30
-                height: 30
+                width: 42
+                height: 42
                 lively: orbMouse.containsMouse
             }
             Tip { show: orbMouse.containsMouse; text: "Search  (Ask SIOS is coming)" }
@@ -198,7 +202,7 @@ PlasmoidItem {
 
         Repeater {
             model: tasks
-            delegate: AppButton { visible: index >= root.leftCount }
+            delegate: AppButton { visible: !root.onLeft(model) }
         }
     }
 }

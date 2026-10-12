@@ -38,7 +38,7 @@ clock.reloadConfig();
 // ---- dock: floating, only as wide as its apps, with the orb in the middle
 const dock = new Panel;
 dock.location = "bottom";
-dock.height = 58;
+dock.height = 74;
 dock.floating = true;
 dock.hiding = "none";
 dock.lengthMode = "fit";

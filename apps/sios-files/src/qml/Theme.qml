@@ -4,7 +4,9 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property bool dark: Qt.styleHints.colorScheme === Qt.ColorScheme.Dark
+    // follows the system colours (KDE's light or dark scheme)
+    readonly property SystemPalette system: SystemPalette { colorGroup: SystemPalette.Active }
+    readonly property bool dark: system.window.hslLightness < 0.5
 
     readonly property color surface: dark ? "#1e2023" : "#ffffff"
     readonly property color surface2: dark ? "#24272b" : "#f7f7f5"

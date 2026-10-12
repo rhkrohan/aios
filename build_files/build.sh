@@ -74,7 +74,7 @@ kw kwinrc org.kde.kdecoration2 ButtonsOnRight IAX
 kw kwinrc org.kde.kdecoration2 BorderSize None
 kw kwinrc org.kde.kdecoration2 BorderSizeAuto false
 kw breezerc Windeco TitleAlignment AlignLeft
-kw breezerc Windeco ButtonSize ButtonLarge
+kw breezerc Windeco ButtonSize ButtonVeryLarge
 kw breezerc Windeco DrawTitleBarSeparator true
 kw breezerc Windeco DrawBackgroundGradient false
 kw breezerc Windeco DrawBorderOnMaximizedWindows false

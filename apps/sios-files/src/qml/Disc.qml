@@ -1,5 +1,5 @@
-// A folder as a disc, like the preview's FolderDisc (icons/FolderDisc.tsx),
-// in its "inside a window" look: the outer ring shows what kinds of files are
+// A folder as a disc, drawn like the desktop's glass discs (a blue glass puck
+// with white rings and a white core; icons/FolderDisc.tsx): the outer ring shows what kinds of files are
 // inside (sized by how many), the inner ring turns amber for the share that
 // came from the web, and the core carries the folder's emblem.
 import QtQuick
@@ -34,34 +34,38 @@ Item {
             c.scale(k, k);
             const arc = (r, a0, a1) => c.arc(50, 50, r, a0 - Math.PI / 2, a1 - Math.PI / 2, false);
 
-            // body and rim
-            const g = c.createRadialGradient(50, 38, 0, 50, 38, 65);
-            g.addColorStop(0, String(Theme.surface));
-            g.addColorStop(1, String(Theme.surface3));
+            // the puck: a darker edge underneath gives it depth, like the desktop discs
+            c.fillStyle = Theme.dark ? "#1b2233" : "#4c5d86";
+            c.beginPath(); c.arc(50, 53.5, 47, 0, TAU); c.fill();
+            // glass body: the blue the desktop discs take from the wallpaper
+            const g = c.createRadialGradient(50, 34, 4, 50, 50, 52);
+            g.addColorStop(0, Theme.dark ? "#5a6c95" : "#a7b6d6");
+            g.addColorStop(0.55, Theme.dark ? "#43537a" : "#8394bd");
+            g.addColorStop(1, Theme.dark ? "#33405f" : "#6a7ba6");
             c.fillStyle = g;
-            c.beginPath(); c.arc(50, 50, 48, 0, TAU); c.fill();
-            c.strokeStyle = String(Theme.line); c.lineWidth = 1;
-            c.beginPath(); c.arc(50, 50, 48, 0, TAU); c.stroke();
+            c.beginPath(); c.arc(50, 50, 47, 0, TAU); c.fill();
+            c.strokeStyle = "rgba(255,255,255,0.75)"; c.lineWidth = 1.4;
+            c.beginPath(); c.arc(50, 50, 47, 0, TAU); c.stroke();
 
-            // outer ring: what's inside
+            // outer ring: what's inside (white for folders, the kind's colour for files)
             const s = disc.stats || { total: 0, segments: [] };
             const total = Math.max(1, s.total || 0);
             const segs = s.segments || [];
             c.save();
             const grow = disc.open ? 1.03 : 1;
             c.translate(50, 50); c.scale(grow, grow); c.translate(-50, -50);
-            c.lineWidth = 6;
-            c.strokeStyle = String(Theme.surface3);
-            c.beginPath(); c.arc(50, 50, 41, 0, TAU); c.stroke();
-            const gap = segs.length > 1 ? 0.07 : 0;
+            c.lineWidth = 7;
+            c.strokeStyle = "rgba(255,255,255,0.32)";
+            c.beginPath(); c.arc(50, 50, 40, 0, TAU); c.stroke();
+            const gap = segs.length > 1 ? 0.08 : 0;
             c.lineCap = segs.length > 1 ? "round" : "butt";
             let start = 0;
             for (const seg of segs) {
                 const span = seg.n / total * TAU;
-                c.globalAlpha = disc.open ? 1 : 0.88;
-                c.strokeStyle = seg.kind === "folder" ? "#dfe4ec" : (Theme.kindColor[seg.kind] || "#6b7480");
+                c.globalAlpha = disc.open ? 1 : 0.92;
+                c.strokeStyle = seg.kind === "folder" ? "#ffffff" : (Theme.kindColor[seg.kind] || "#6b7480");
                 c.beginPath();
-                if (span >= TAU - 1e-3) c.arc(50, 50, 41, 0, TAU); else arc(41, start + gap / 2, start + span - gap / 2);
+                if (span >= TAU - 1e-3) c.arc(50, 50, 40, 0, TAU); else arc(40, start + gap / 2, start + span - gap / 2);
                 c.stroke();
                 start += span;
             }
@@ -69,23 +73,23 @@ Item {
             c.restore();
 
             // groove, inner ring and the share from the web
-            c.strokeStyle = String(Theme.line); c.lineWidth = 0.6;
-            c.beginPath(); c.arc(50, 50, 34.5, 0, TAU); c.stroke();
-            c.strokeStyle = String(Theme.surface3); c.lineWidth = 2.2;
-            c.beginPath(); c.arc(50, 50, 29, 0, TAU); c.stroke();
+            c.strokeStyle = "rgba(255,255,255,0.55)"; c.lineWidth = 0.8;
+            c.beginPath(); c.arc(50, 50, 33, 0, TAU); c.stroke();
+            c.strokeStyle = "rgba(255,255,255,0.45)"; c.lineWidth = 2.6;
+            c.beginPath(); c.arc(50, 50, 28, 0, TAU); c.stroke();
             if ((s.untrusted || 0) > 0) {
-                c.strokeStyle = "#e0a03a"; c.lineCap = "round";
-                c.beginPath(); arc(29, 0, Math.min(s.untrusted / total * TAU, TAU - 0.001)); c.stroke();
+                c.strokeStyle = "#f0b04a"; c.lineCap = "round";
+                c.beginPath(); arc(28, 0, Math.min(s.untrusted / total * TAU, TAU - 0.001)); c.stroke();
             }
 
-            // core
-            const core = c.createRadialGradient(50, 42, 0, 50, 42, 23);
-            core.addColorStop(0, Theme.dark ? "#3a3f45" : "#ffffff");
-            core.addColorStop(1, Theme.dark ? "#2c3034" : "#eef1f6");
+            // core: a white button with a soft shadow, so it sits above the glass
+            c.fillStyle = "rgba(10,20,40,0.22)";
+            c.beginPath(); c.arc(50, 52, 20, 0, TAU); c.fill();
+            const core = c.createRadialGradient(50, 42, 0, 50, 42, 24);
+            core.addColorStop(0, "#ffffff");
+            core.addColorStop(1, "#eef2f8");
             c.fillStyle = core;
-            c.beginPath(); c.arc(50, 50, 19, 0, TAU); c.fill();
-            c.strokeStyle = String(Theme.line); c.lineWidth = 0.8;
-            c.stroke();
+            c.beginPath(); c.arc(50, 50, 19.5, 0, TAU); c.fill();
         }
     }
 
@@ -93,6 +97,6 @@ Item {
         anchors.centerIn: parent
         name: disc.emblem
         size: Math.max(10, Math.round(disc.size * 0.2))
-        color: Theme.dark ? "#c9ced6" : "#4a5568"
+        color: "#2a3346"
     }
 }

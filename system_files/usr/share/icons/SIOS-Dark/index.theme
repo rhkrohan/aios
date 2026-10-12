@@ -1,15 +1,8 @@
 [Icon Theme]
 Name=SIOS Dark
-Comment=SIOS line icons for the dock apps and colour folders for the sidebar; everything else is Breeze
+Comment=SIOS: blue folders in the sidebar; everything else is Breeze (apps keep their own icons)
 Inherits=breeze-dark,hicolor
-Directories=scalable/apps,places/22
-
-[scalable/apps]
-Size=48
-MinSize=16
-MaxSize=512
-Type=Scalable
-Context=Applications
+Directories=places/22
 
 # The preview's blue folders in the Files sidebar (small sizes). Breeze draws
 # these as grey outlines below 32px; these are Breeze's own colour folders
