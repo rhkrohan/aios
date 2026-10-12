@@ -34,6 +34,15 @@ if command -v kpackagetool6 > /dev/null; then
     for w in $WIDGETS; do kpackagetool6 --type Plasma/Applet --list --global | grep -q "$w"; done
 fi
 
+### Files (Dolphin) like the preview's Files app
+# Toolbar: back, forward, path, search, sort, grid, list, new folder, details
+# (/usr/share/kxmlgui5/dolphin/dolphinui.rc); defaults in dolphinrc; the
+# sidebar list is written per person at first login (/usr/libexec/sios-files-setup).
+test -s /usr/share/kxmlgui5/dolphin/dolphinui.rc
+python3 -c "import xml.dom.minidom,sys; xml.dom.minidom.parse(sys.argv[1])" /usr/share/kxmlgui5/dolphin/dolphinui.rc
+python3 -m py_compile /usr/libexec/sios-files-setup
+chmod 0755 /usr/libexec/sios-files-setup
+
 ### Windows: title bars like the preview's (Window.tsx)
 # 44px light title bar with the app icon and title on the left, minimize,
 # maximize and close on the right, a hairline under it, no side borders, and

@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+"""Give Files (Dolphin) the preview's sidebar, once per person.
+
+The preview's Files app (build_concept_html/src/components/apps/FilesApp.tsx)
+shows Home, Documents, Downloads, Projects, Pictures, Recent and Trash. KDE
+keeps the sidebar in ~/.local/share/user-places.xbel with the person's real
+home path inside, so it can't be shipped as a fixed file; this runs at login
+(from /etc/xdg/autostart) and writes it. Bookmarks the person added are kept.
+Plugged-in drives still appear (KDE adds them live). Runs once: delete
+~/.local/state/sios/files-setup-v1 to run it again.
+"""
+
+import os
+import re
+import time
+from pathlib import Path
+from xml.sax.saxutils import escape
+
+HOME = Path.home()
+PLACES = HOME / ".local/share/user-places.xbel"
+MARK = HOME / ".local/state/sios/files-setup-v1"
+
+# shown, in this order: (url, title, icon); Trash goes last in the Places group
+SHOWN = [
+    (HOME.as_uri(), "Home", "user-home"),
+    ((HOME / "Documents").as_uri(), "Documents", "folder-documents"),
+    ((HOME / "Downloads").as_uri(), "Downloads", "folder-downloads"),
+    ((HOME / "Projects").as_uri(), "Projects", "folder-development"),
+    ((HOME / "Pictures").as_uri(), "Pictures", "folder-pictures"),
+    ("trash:/", "Trash", "user-trash"),
+    ("recentlyused:/files", "Recent Files", "document-open-recent"),
+]
+# KDE's other defaults: kept in the file but hidden, so KDE doesn't add them back
+HIDDEN = [
+    ((HOME / "Desktop").as_uri(), "Desktop", "user-desktop"),
+    ((HOME / "Music").as_uri(), "Music", "folder-music"),
+    ((HOME / "Videos").as_uri(), "Videos", "folder-videos"),
+    ("remote:/", "Network", "folder-network"),
+    ("recentlyused:/locations", "Recent Locations", "folder-open-recent"),
+]
+GROUPS = {"Places": False, "Remote": True, "Devices": True, "RemovableDevices": False,
+          "Tags": True, "RecentlySaved": False, "SearchFor": True}
+
+
+def bookmark(url, title, icon, n, hidden):
+    stamp = int(time.time())
+    return f"""  <bookmark href="{escape(url)}">
+  <title>{escape(title)}</title>
+  <info>
+   <metadata owner="http://freedesktop.org">
+    <bookmark:icon name="{icon}"/>
+   </metadata>
+   <metadata owner="http://www.kde.org">
+    <ID>{stamp}/{n}</ID>
+    <isSystemItem>true</isSystemItem>{'''
+    <IsHidden>true</IsHidden>''' if hidden else ''}
+   </metadata>
+  </info>
+ </bookmark>
+"""
+
+
+def main():
+    if MARK.exists():
+        return
+    (HOME / "Projects").mkdir(exist_ok=True)
+
+    ours = {u for u, _, _ in SHOWN + HIDDEN}
+    kept = []  # bookmarks the person added themselves
+    if PLACES.exists():
+        old = PLACES.read_text(encoding="utf-8")
+        for block in re.findall(r" <bookmark href=\"[^\"]*\">.*?</bookmark>\n", old, flags=re.S):
+            url = re.search(r'href="([^"]*)"', block).group(1)
+            if url not in ours and "<isSystemItem>true</isSystemItem>" not in block:
+                kept.append(block)
+
+    groups = "".join(f"   <GroupState-{g}-IsHidden>{'true' if h else 'false'}</GroupState-{g}-IsHidden>\n" for g, h in GROUPS.items())
+    body = "".join(bookmark(u, t, i, n, False) for n, (u, t, i) in enumerate(SHOWN))
+    body += "".join(bookmark(u, t, i, n + len(SHOWN), True) for n, (u, t, i) in enumerate(HIDDEN))
+    xbel = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xbel>
+<xbel xmlns:bookmark="http://www.freedesktop.org/standards/desktop-bookmarks" xmlns:kdepriv="http://www.kde.org/kdepriv" xmlns:mime="http://www.freedesktop.org/standards/shared-mime-info">
+ <info>
+  <metadata owner="http://www.kde.org">
+   <kde_places_version>4</kde_places_version>
+{groups}   <withRecentlyUsed>true</withRecentlyUsed>
+   <withBaloo>true</withBaloo>
+  </metadata>
+ </info>
+{body}{''.join(kept)}</xbel>
+"""
+    PLACES.parent.mkdir(parents=True, exist_ok=True)
+    tmp = PLACES.with_suffix(".xbel.sios")
+    tmp.write_text(xbel, encoding="utf-8")
+    os.replace(tmp, PLACES)
+    MARK.parent.mkdir(parents=True, exist_ok=True)
+    MARK.touch()
+
+
+if __name__ == "__main__":
+    main()

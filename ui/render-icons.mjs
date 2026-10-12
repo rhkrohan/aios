@@ -28,9 +28,9 @@ for (const [theme, color] of [["SIOS", "#1d1d1f"], ["SIOS-Dark", "#ececea"]]) {
     `${ROOT}${theme}/index.theme`,
     `[Icon Theme]
 Name=${theme.replace("-", " ")}
-Comment=SIOS line icons for the dock apps; everything else is Breeze
+Comment=SIOS line icons for the dock apps and colour folders for the sidebar; everything else is Breeze
 Inherits=${theme === "SIOS" ? "breeze" : "breeze-dark"},hicolor
-Directories=scalable/apps
+Directories=scalable/apps,places/22
 
 [scalable/apps]
 Size=48
@@ -38,6 +38,16 @@ MinSize=16
 MaxSize=512
 Type=Scalable
 Context=Applications
+
+# The preview's blue folders in the Files sidebar (small sizes). Breeze draws
+# these as grey outlines below 32px; these are Breeze's own colour folders
+# (LGPL-3.0, KDE breeze-icons), copied into places/22.
+[places/22]
+Size=22
+MinSize=16
+MaxSize=24
+Type=Scalable
+Context=Places
 `,
   );
 }

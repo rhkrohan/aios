@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SIOS Files setup
+Comment=Gives Files the SIOS sidebar the first time you log in
+Exec=/usr/libexec/sios-files-setup
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=1

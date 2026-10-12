@@ -1,0 +1,29 @@
+# SIOS defaults for Files (Dolphin), like the preview's Files app. People can
+# change any of it in Files' settings.
+[General]
+GlobalViewProps=true
+ShowStatusBar=FullWidth
+ShowZoomSlider=false
+ShowFullPath=false
+ShowSelectionToggle=false
+RememberOpenedTabs=false
+
+[IconsMode]
+IconSize=64
+PreviewSize=64
+TextWidthIndex=1
+
+[DetailsMode]
+IconSize=22
+PreviewSize=22
+
+[PlacesPanel]
+IconSize=22
+
+[MainWindow]
+MenuBar=Disabled
+ToolBarsMovable=Disabled
+
+# icons only in the toolbar, like the preview
+[MainWindow][Toolbar mainToolBar]
+ToolButtonStyle=IconOnly
