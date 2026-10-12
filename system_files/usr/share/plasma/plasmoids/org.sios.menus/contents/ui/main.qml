@@ -2,7 +2,7 @@
     The words on the left of the top bar, as in the preview's TopBar.tsx:
       Workspaces  opens the overview of open windows and desktops
       Files       opens SIOS Files (Dolphin if it's missing)
-      Apps        opens the app launcher (the SIOS logo next to it)
+      Apps        opens All apps in the Ask bar (sios-ask --apps)
       System      Settings, About, Lock, Sleep, Restart, Shut down, Log out
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -76,7 +76,7 @@ PlasmoidItem {
 
         BarButton { label: "Workspaces"; onActivated: root.sh("qdbus-qt6 org.kde.kglobalaccel /component/kwin org.kde.kglobalaccel.Component.invokeShortcut Overview") }
         BarButton { label: "Files"; onActivated: root.sh("sios-files || dolphin") }
-        BarButton { label: "Apps"; onActivated: root.sh("qdbus-qt6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu") }
+        BarButton { label: "Apps"; onActivated: root.sh("sios-ask --apps || qdbus-qt6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.activateLauncherMenu") }
         BarButton { id: systemButton; label: "System"; onActivated: { systemMenu.visualParent = systemButton; systemMenu.openRelative(); } }
     }
 }

@@ -19,6 +19,8 @@ public:
     QVariantList suggestions() const;
     /** The best matches for what was typed, best first, at most 8. */
     Q_INVOKABLE QVariantList find(const QString &text) const;
+    /** Every app, A to Z, for the All apps grid; filtered by what was typed. */
+    Q_INVOKABLE QVariantList allApps(const QString &filter = {}) const;
     /** Open an app or file, change a setting, or run an action. */
     Q_INVOKABLE void run(const QVariantMap &item);
 

@@ -9,10 +9,7 @@ top.height = 36;
 top.floating = false;
 top.hiding = "none";
 
-const kickoff = top.addWidget("org.kde.plasma.kickoff");
-kickoff.currentConfigGroup = ["General"];
-kickoff.writeConfig("icon", "sios-start");
-kickoff.reloadConfig();
+top.addWidget("org.sios.logo");
 top.addWidget("org.sios.menus");
 top.addWidget("org.kde.plasma.panelspacer");
 top.addWidget("org.sios.wordmark");

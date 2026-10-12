@@ -22,11 +22,19 @@ Window {
     LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityOnDemand
     LayerShell.Window.exclusionZone: -1
 
+    property string mode: startApps ? "apps" : "search"   // search | apps (all apps, A to Z)
+    property var apps: []
     property var results: []
     property int current: 0
     readonly property var rows: input.text.trim() === "" ? search.suggestions : results
 
+    function showApps() {
+        open();
+        mode = "apps";
+        apps = search.allApps("");
+    }
     function open() {
+        mode = "search";
         input.text = "";
         results = [];
         current = 0;
@@ -42,9 +50,13 @@ Window {
         close();
     }
 
-    Connections { target: toggler; function onToggled() { bar.visible ? bar.close() : bar.open(); } }
+    Connections {
+        target: toggler
+        function onToggled() { bar.visible ? bar.close() : bar.open(); }
+        function onAppsRequested() { bar.visible && bar.mode === "apps" ? bar.close() : bar.showApps(); }
+    }
     onActiveChanged: if (!active && visible) close()
-    Component.onCompleted: if (visible) open()
+    Component.onCompleted: if (visible) { if (startApps) showApps(); else open(); }
 
     // a soft shadow, drawn as faint rings so it needs no GPU
     Repeater {
@@ -77,8 +89,53 @@ Window {
             width: parent.width
             spacing: 0
 
+            // ---- all apps, A to Z (the top bar's Apps, or the grid button)
+            ColumnLayout {
+                visible: bar.mode === "apps"
+                Layout.fillWidth: true
+                spacing: 6
+                Text {
+                    Layout.leftMargin: 28
+                    Layout.topMargin: 20
+                    text: "All apps"
+                    color: Theme.fg2
+                    font.family: Theme.ui
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
+                }
+                GridView {
+                    id: grid
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 12
+                    Layout.rightMargin: 12
+                    Layout.preferredHeight: Math.min(3, Math.ceil(count / 6)) * cellHeight
+                    cellWidth: Math.floor(width / 6)
+                    cellHeight: 108
+                    clip: true
+                    model: bar.apps
+                    currentIndex: bar.current
+                    QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: grid.cellWidth - 6
+                        height: grid.cellHeight - 6
+                        radius: 16
+                        color: index === bar.current ? (Theme.dark ? Qt.rgba(125 / 255, 157 / 255, 1, 0.14) : "#eceffd") : (am.containsMouse ? Theme.surface2 : "transparent")
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 8
+                            Image { anchors.horizontalCenter: parent.horizontalCenter; width: 44; height: 44; sourceSize: Qt.size(88, 88); source: "image://icon/theme/" + modelData.icon }
+                            Text { width: grid.cellWidth - 20; horizontalAlignment: Text.AlignHCenter; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; elide: Text.ElideRight }
+                        }
+                        MouseArea { id: am; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { search.run(modelData); bar.close(); } }
+                    }
+                }
+            }
+
             // ---- suggestions or results
             Text {
+                visible: bar.mode === "search"
                 Layout.leftMargin: 28
                 Layout.topMargin: 20
                 Layout.bottomMargin: 8
@@ -89,7 +146,7 @@ Window {
                 font.weight: Font.DemiBold
             }
             Repeater {
-                model: bar.rows
+                model: bar.mode === "search" ? bar.rows : []
                 delegate: Rectangle {
                     id: row
                     required property var modelData
@@ -181,7 +238,6 @@ Window {
                 QQC2.TextField {
                     id: input
                     Layout.fillWidth: true
-                    placeholderText: "Search apps, files and settings…"
                     placeholderTextColor: Theme.fg3
                     color: Theme.fg
                     font.family: Theme.ui
@@ -189,12 +245,33 @@ Window {
                     background: null
                     padding: 0
                     focus: true
-                    onTextChanged: { bar.results = text.trim() ? search.find(text) : []; bar.current = 0; }
+                    placeholderText: bar.mode === "apps" ? "Find an app…" : "Search apps, files and settings…"
+                    onTextChanged: {
+                        if (bar.mode === "apps") bar.apps = search.allApps(text);
+                        else bar.results = text.trim() ? search.find(text) : [];
+                        bar.current = 0;
+                    }
                     Keys.onEscapePressed: bar.close()
-                    Keys.onDownPressed: bar.current = Math.min(bar.rows.length - 1, bar.current + 1)
-                    Keys.onUpPressed: bar.current = Math.max(0, bar.current - 1)
-                    Keys.onReturnPressed: bar.go(bar.current)
-                    Keys.onEnterPressed: bar.go(bar.current)
+                    readonly property int step: bar.mode === "apps" ? 6 : 1
+                    readonly property int count: bar.mode === "apps" ? bar.apps.length : bar.rows.length
+                    Keys.onDownPressed: bar.current = Math.min(count - 1, bar.current + step)
+                    Keys.onUpPressed: bar.current = Math.max(0, bar.current - step)
+                    Keys.onRightPressed: (e) => { if (bar.mode === "apps") bar.current = Math.min(count - 1, bar.current + 1); else e.accepted = false; }
+                    Keys.onLeftPressed: (e) => { if (bar.mode === "apps") bar.current = Math.max(0, bar.current - 1); else e.accepted = false; }
+                    Keys.onReturnPressed: bar.mode === "apps" ? (bar.apps[bar.current] && (search.run(bar.apps[bar.current]), bar.close())) : bar.go(bar.current)
+                    Keys.onEnterPressed: bar.mode === "apps" ? (bar.apps[bar.current] && (search.run(bar.apps[bar.current]), bar.close())) : bar.go(bar.current)
+                }
+                Rectangle {
+                    implicitWidth: 40; implicitHeight: 34; radius: 10
+                    color: bar.mode === "apps" ? Theme.aiSoft : "transparent"
+                    Icon { anchors.centerIn: parent; name: "layout-grid"; size: 20; color: bar.mode === "apps" ? Theme.aiInk : Theme.fg2 }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { bar.mode = bar.mode === "apps" ? "search" : "apps"; bar.apps = search.allApps(input.text); bar.results = input.text.trim() ? search.find(input.text) : []; bar.current = 0; input.forceActiveFocus(); }
+                    }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "All apps"
                 }
                 Rectangle {
                     implicitWidth: 52; implicitHeight: 34; radius: 10

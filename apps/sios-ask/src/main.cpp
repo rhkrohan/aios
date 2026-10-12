@@ -26,8 +26,10 @@ public:
     using QObject::QObject;
 public Q_SLOTS:
     Q_SCRIPTABLE void toggle() { Q_EMIT toggled(); }
+    Q_SCRIPTABLE void showApps() { Q_EMIT appsRequested(); }
 Q_SIGNALS:
     void toggled();
+    void appsRequested();
 };
 
 // the app's line icons in any colour ("image://icon/<name>/<rrggbb>"), and
@@ -71,13 +73,14 @@ int main(int argc, char *argv[])
 
     QCommandLineParser args;
     args.addOption({QStringLiteral("background"), QStringLiteral("Start hidden and wait for the orb or Meta+Space")});
+    args.addOption({QStringLiteral("apps"), QStringLiteral("Show all apps (the top bar's Apps)")});
     args.process(app);
 
     // already running: tell it to show (or hide) and leave
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerService(QStringLiteral("org.sios.Ask"))) {
         QDBusInterface running(QStringLiteral("org.sios.Ask"), QStringLiteral("/Ask"), QStringLiteral("org.sios.Ask"));
-        running.call(QStringLiteral("toggle"));
+        running.call(args.isSet(QStringLiteral("apps")) ? QStringLiteral("showApps") : QStringLiteral("toggle"));
         return 0;
     }
     Toggle toggle;
@@ -89,6 +92,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("search"), &search);
     engine.rootContext()->setContextProperty(QStringLiteral("toggler"), &toggle);
     engine.rootContext()->setContextProperty(QStringLiteral("startHidden"), args.isSet(QStringLiteral("background")));
+    engine.rootContext()->setContextProperty(QStringLiteral("startApps"), args.isSet(QStringLiteral("apps")));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("org.sios.ask", "Main");
     return app.exec();

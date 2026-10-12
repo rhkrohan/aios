@@ -154,6 +154,20 @@ QVariantList Search::find(const QString &text) const
     return out;
 }
 
+QVariantList Search::allApps(const QString &filter) const
+{
+    QList<KService::Ptr> apps;
+    for (const KService::Ptr &s : m_apps)
+        if (filter.trimmed().isEmpty() || score(filter, s->name(), s->genericName() + QLatin1Char(' ') + s->keywords().join(QLatin1Char(' '))) > 0)
+            apps.append(s);
+    std::sort(apps.begin(), apps.end(), [](const KService::Ptr &a, const KService::Ptr &b) { return a->name().compare(b->name(), Qt::CaseInsensitive) < 0; });
+    QVariantList out;
+    for (const KService::Ptr &s : apps)
+        out.append(QVariantMap{{QStringLiteral("kind"), QStringLiteral("app")}, {QStringLiteral("id"), s->storageId()}, {QStringLiteral("title"), s->name()},
+                               {QStringLiteral("icon"), s->icon()}, {QStringLiteral("themed"), true}});
+    return out;
+}
+
 void Search::run(const QVariantMap &item)
 {
     const QString kind = item.value(QStringLiteral("kind")).toString();

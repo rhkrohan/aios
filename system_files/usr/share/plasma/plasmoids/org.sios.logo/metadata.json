@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "org.sios.logo",
+        "Name": "SIOS logo menu",
+        "Description": "The SIOS logo at the top left: buddy, Settings, Sleep, Restart, Shut down, Lock",
+        "Icon": "sios-start",
+        "Authors": [{ "Name": "SIOS" }],
+        "Category": "Miscellaneous",
+        "License": "GPL-2.0-or-later",
+        "Version": "0.1"
+    }
+}
