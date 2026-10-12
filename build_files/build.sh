@@ -1,27 +1,26 @@
 #!/bin/bash
+# Runs inside the image at build time (never on a user's machine).
 
 set -ouex pipefail
 
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
 
-### Install packages
+### SIOS look and layout (docs/plan/15-build-blueprint.md, Stage A)
+# Our fonts (Instrument Sans, Jost, JetBrains Mono; all SIL Open Font License)
+fc-cache -f /usr/share/fonts/sios
 
-# Packages can be installed from any enabled yum repo on the image.
-# RPMfusion repos are available by default in ublue main images
-# List of rpmfusion packages can be found here:
-# https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/43/x86_64/repoview/index.html&protocol=https&redirect=1
-
-# this installs a package from fedora repos
-dnf5 install -y tmux
-
-# Use a COPR Example:
-#
-# dnf5 -y copr enable ublue-os/staging
-# dnf5 -y install package
-# Disable COPRs so they don't end up enabled on the final image:
-# dnf5 -y copr disable ublue-os/staging
-
-#### Example for enabling a System Unit File
-
-systemctl enable podman.socket
+# Fail the build loudly if a theme package or the wordmark widget is broken,
+# instead of shipping a desktop that silently falls back to stock KDE.
+for f in /usr/share/plasma/look-and-feel/org.sios.desktop/metadata.json \
+         /usr/share/plasma/look-and-feel/org.sios.desktop.dark/metadata.json \
+         /usr/share/plasma/plasmoids/org.sios.wordmark/metadata.json \
+         /usr/share/wallpapers/SIOS-Tunnel/metadata.json; do
+    if command -v python3 > /dev/null; then python3 -m json.tool "$f" > /dev/null; else test -s "$f"; fi
+done
+test -f /usr/share/color-schemes/SIOSLight.colors
+test -f /usr/share/color-schemes/SIOSDark.colors
+if command -v kpackagetool6 > /dev/null; then
+    kpackagetool6 --type Plasma/LookAndFeel --list --global | grep -q "org.sios.desktop"
+    kpackagetool6 --type Plasma/Applet --list --global | grep -q "org.sios.wordmark"
+fi

@@ -1,10 +1,15 @@
+# The base: Aurora (x86) for the real image. The arm64 test build passes
+# BASE_IMAGE=quay.io/fedora-ostree-desktops/kinoite:44 (same Fedora and Plasma)
+# so the same recipe can run in a VM on Apple Silicon.
+ARG BASE_IMAGE=ghcr.io/ublue-os/aurora:stable@sha256:94b81908b565b2fa1a7c98836570c16f4c6d3e80f4bb1eadb8d497217433ab1d
+
 # Allow build scripts to be referenced without being copied into the final image
 FROM scratch AS ctx
 COPY build_files /
 COPY system_files /system_files
 
 # Base Image
-FROM ghcr.io/ublue-os/aurora:stable@sha256:94b81908b565b2fa1a7c98836570c16f4c6d3e80f4bb1eadb8d497217433ab1d
+FROM ${BASE_IMAGE}
 ## Other possible base images include:
 # FROM ghcr.io/ublue-os/bazzite:testing
 # FROM ghcr.io/ublue-os/kinoite-main:latest
@@ -38,4 +43,6 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
 
 ### LINTING
 ## Verify final image and contents are correct.
-RUN bootc container lint
+# strict for the real image; the arm64 test build passes LINT=warn
+ARG LINT=strict
+RUN bootc container lint || [ "$LINT" = "warn" ]

@@ -1,0 +1,49 @@
+---
+# An arm64 copy of the image for testing on Apple Silicon (VMware Fusion, UTM).
+# Same recipe, with Fedora Kinoite 44 as the base instead of Aurora (x86 only).
+# Pushed as ghcr.io/<owner>/aios:arm64-test. Not signed, not for real machines.
+# In a Kinoite VM:
+#   sudo rpm-ostree rebase ostree-unverified-registry:ghcr.io/rhkrohan/aios:arm64-test
+name: Build arm64 test image
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/README.md'
+      - 'docs/**'
+      - 'CLAUDE.md'
+      - 'TASKS.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_arm64:
+    name: Build and push arm64 test image
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install podman if missing
+        run: command -v podman || (sudo apt-get update && sudo apt-get install -y podman)
+
+      - name: Build
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/aios:arm64-test"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          sudo podman build \
+            --build-arg BASE_IMAGE=quay.io/fedora-ostree-desktops/kinoite:44 \
+            --build-arg LINT=warn \
+            --tag "${IMAGE}" .
+
+      - name: Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          sudo podman push "${IMAGE}"

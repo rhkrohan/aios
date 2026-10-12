@@ -1,0 +1,24 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "",
+                "Name": "SIOS"
+            }
+        ],
+        "Category": "",
+        "Description": "SIOS, dark: the tunnel, glass panels and calm blue for the assistant",
+        "Id": "org.sios.desktop.dark",
+        "License": "GPL-2.0-or-later",
+        "Name": "SIOS Dark",
+        "ServiceTypes": [
+            "Plasma/LookAndFeel"
+        ],
+        "Version": "0.1",
+        "Website": ""
+    },
+    "X-KDE-ParentApp": "",
+    "X-Plasma-MainScript": "defaults",
+    "X-Plasma-RootContainmentLayout": "org.kde.plasma.desktop-layout.js"
+}

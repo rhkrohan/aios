@@ -1,0 +1,23 @@
+# SIOS defaults (based on Aurora's: get-aurora-dev/common). Users can change any of it.
+[KDE]
+LookAndFeelPackage=org.sios.desktop
+DefaultLightLookAndFeel=org.sios.desktop
+DefaultDarkLookAndFeel=org.sios.desktop.dark
+SingleClick=false
+ColorScheme=SIOSLight
+widgetStyle=Breeze
+
+[General]
+ColorScheme=SIOSLight
+desktopFont=Instrument Sans,10,-1,5,50,0,0,0,0,0
+fixed=JetBrains Mono,10,-1,5,50,0,0,0,0,0
+font=Instrument Sans,10,-1,5,50,0,0,0,0,0
+menuFont=Instrument Sans,10,-1,5,50,0,0,0,0,0
+smallestReadableFont=Instrument Sans,8,-1,5,50,0,0,0,0,0
+toolBarFont=Instrument Sans,9,-1,5,50,0,0,0,0,0
+
+[Icons]
+Theme=breeze
+
+[WM]
+activeFont=Instrument Sans,10,-1,5,63,0,0,0,0,0

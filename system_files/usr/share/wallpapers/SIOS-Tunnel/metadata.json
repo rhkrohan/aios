@@ -1,0 +1,13 @@
+{
+    "KPackageStructure": "Wallpaper/Images",
+    "KPlugin": {
+        "Id": "SIOS-Tunnel",
+        "Name": "SIOS Tunnel",
+        "Authors": [
+            {
+                "Name": "SIOS"
+            }
+        ],
+        "License": "CC-BY-SA-4.0"
+    }
+}
