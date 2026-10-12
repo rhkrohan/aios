@@ -20,6 +20,8 @@ top.addWidget("org.kde.plasma.panelspacer");
 // the buddy floats above windows in its own little window; it takes no room here
 top.addWidget("org.sios.buddy");
 top.addWidget("org.kde.plasma.systemtray");
+// Control Center: Wi-Fi, Bluetooth, Do not disturb, Dark mode, brightness, volume, notifications
+top.addWidget("org.sios.control");
 const clock = top.addWidget("org.kde.plasma.digitalclock");
 clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("showDate", true);

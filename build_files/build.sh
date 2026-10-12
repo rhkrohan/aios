@@ -14,7 +14,7 @@ gtk-update-icon-cache -q -f /usr/share/icons/SIOS-Dark 2>/dev/null || true
 
 # Fail the build loudly if a theme package or one of our widgets is broken,
 # instead of shipping a desktop that silently falls back to stock KDE.
-WIDGETS="org.sios.wordmark org.sios.menus org.sios.dock org.sios.hero org.sios.discs org.sios.today org.sios.buddy"
+WIDGETS="org.sios.wordmark org.sios.menus org.sios.dock org.sios.hero org.sios.discs org.sios.today org.sios.buddy org.sios.control"
 for f in /usr/share/plasma/look-and-feel/org.sios.desktop/metadata.json \
          /usr/share/plasma/look-and-feel/org.sios.desktop.dark/metadata.json \
          /usr/share/wallpapers/SIOS-Dusk/metadata.json \
