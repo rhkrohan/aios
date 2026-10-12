@@ -4,7 +4,7 @@
     Each app's own icon (Files is the SIOS disc), a soft highlight on the focused app,
     a dot under running apps, a tooltip above. It is a real task manager: it
     uses KDE's TasksModel, so clicking starts, focuses or minimizes the app.
-    The orb opens search for now; the Ask bar takes it over in Stage B.
+    The orb opens the Ask bar (apps, files, settings now; the assistant in Stage B).
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
@@ -187,12 +187,12 @@ PlasmoidItem {
                 height: 63
                 lively: orbMouse.containsMouse
             }
-            Tip { show: orbMouse.containsMouse; text: "Search  (Ask SIOS is coming)" }
+            Tip { show: orbMouse.containsMouse; text: "Ask SIOS   Meta+Space" }
             MouseArea {
                 id: orbMouse
                 anchors.fill: parent
                 hoverEnabled: true
-                onClicked: run.connectSource("qdbus-qt6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay")
+                onClicked: run.connectSource("sios-ask || qdbus-qt6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay")
             }
             Accessible.role: Accessible.Button
             Accessible.name: "Search"

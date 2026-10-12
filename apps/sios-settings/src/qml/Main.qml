@@ -17,7 +17,7 @@ QQC2.ApplicationWindow {
     title: "Settings"
     color: Theme.surface
 
-    property string page: "appearance"
+    property string page: startPage || "appearance"
 
     Connections { target: system; function onMessage(text, error) { toast.show(text, false, error); } }
 

@@ -3,5 +3,5 @@
 FROM quay.io/fedora/fedora:44
 RUN dnf5 -y install cmake ninja-build gcc-c++ extra-cmake-modules \
       qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
-      kf6-kio-devel kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel appstream-qt-devel \
+      kf6-kio-devel kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel appstream-qt-devel kf6-baloo-devel kf6-kservice-devel \
     && dnf5 clean all

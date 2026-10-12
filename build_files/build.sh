@@ -64,6 +64,11 @@ test -f /usr/share/applications/org.sios.monitor.desktop
 test -x /usr/bin/sios-settings
 test -f /usr/share/applications/org.sios.settings.desktop
 
+### The Ask bar: the orb and Meta+Space (apps, files, settings now)
+test -x /usr/bin/sios-ask
+test -f /usr/share/kglobalaccel/org.sios.ask.desktop
+test -f /etc/xdg/autostart/org.sios.ask.desktop
+
 ### Files (Dolphin) like the preview's Files app
 # Toolbar: back, forward, path, search, sort, grid, list, new folder, details
 # (/usr/share/kxmlgui5/dolphin/dolphinui.rc); defaults in dolphinrc; the

@@ -3,6 +3,7 @@
 #include "system.h"
 
 #include <QApplication>
+#include <QCommandLineParser>
 #include <QFile>
 #include <QIcon>
 #include <QImage>
@@ -67,11 +68,16 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon::fromTheme(QStringLiteral("sios-settings"), QIcon::fromTheme(QStringLiteral("preferences-system"))));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
+    QCommandLineParser args;
+    args.addOption({QStringLiteral("page"), QStringLiteral("Open on a page: appearance, wifi, updates, about, brain, permissions, connections"), QStringLiteral("page")});
+    args.process(app);
+
     System system;
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
     engine.addImageProvider(QStringLiteral("theme"), new ThemeIconProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("system"), &system);
+    engine.rootContext()->setContextProperty(QStringLiteral("startPage"), args.value(QStringLiteral("page")));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("org.sios.settings", "Main");
     return app.exec();
