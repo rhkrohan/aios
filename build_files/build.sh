@@ -58,6 +58,14 @@ kw breezerc Common ShadowStrength 90
 kw breezerc Common OutlineIntensity OutlineOff
 grep -q "ButtonsOnRight=IAX" "$XDG/kwinrc"
 
+### Apps: the SIOS app style (D27)
+# Kvantum draws every Qt app from an SVG theme, so Files, Settings and the
+# rest get the preview's soft selections and surfaces. Theme made from
+# Kvantum's KvGnome (ui/make-kvantum.py); chosen for everyone in /etc/xdg.
+rpm -q kvantum > /dev/null || dnf5 -y install kvantum
+test -s /usr/share/Kvantum/SIOS/SIOS.svg
+test -s /usr/share/Kvantum/SIOS/SIOS.kvconfig
+
 ### The login screen: SDDM with our theme
 # Fedora 44's own login manager (Plasma Login Manager) can't be themed beyond
 # its wallpaper, so we use SDDM, KDE's long-standing login manager, which

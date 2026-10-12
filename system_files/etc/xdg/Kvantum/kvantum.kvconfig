@@ -1,0 +1,4 @@
+# Every app uses the SIOS style (Kvantum theme in /usr/share/Kvantum/SIOS).
+# A person can still pick another theme in Kvantum Manager.
+[General]
+theme=SIOS
