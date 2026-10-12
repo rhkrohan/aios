@@ -1,0 +1,111 @@
+# The SIOS boot screen (Plymouth script). See sios.plymouth.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+W = Window.GetWidth();
+H = Window.GetHeight();
+
+# the orb: 48 frames, played forward then back so it never jumps
+FRAMES = 48;
+for (i = 0; i < FRAMES; i++) {
+    if (i < 10) name = "orb-0" + i + ".png"; else name = "orb-" + i + ".png";
+    orb_image[i] = Image(name);
+}
+orb = Sprite(orb_image[0]);
+block = orb_image[0].GetHeight() + 70 + 40 + 3 + 30;
+top = Math.Int((H - block) / 2) - 20;
+orb.SetX(Math.Int((W - orb_image[0].GetWidth()) / 2));
+orb.SetY(top);
+
+word_image = Image("wordmark.png");
+word = Sprite(word_image);
+word.SetX(Math.Int((W - word_image.GetWidth()) / 2));
+word.SetY(top + orb_image[0].GetHeight());
+
+track_image = Image("track.png");
+fill_image = Image("fill.png");
+bar_x = Math.Int((W - track_image.GetWidth()) / 2);
+bar_y = top + orb_image[0].GetHeight() + word_image.GetHeight() + 40;
+track = Sprite(track_image);
+track.SetX(bar_x);
+track.SetY(bar_y);
+fill = Sprite();
+fill.SetX(bar_x);
+fill.SetY(bar_y);
+fill.SetZ(2);
+
+caption = Sprite();
+caption_y = bar_y + 16;
+fun show_caption(name) {
+    img = Image("caption-" + name + ".png");
+    caption.SetImage(img);
+    caption.SetX(Math.Int((W - img.GetWidth()) / 2));
+    caption.SetY(caption_y);
+}
+
+mode = Plymouth.GetMode();
+if (mode == "shutdown") show_caption("shutdown");
+else if (mode == "reboot") show_caption("restart");
+else if (mode == "updates" || mode == "system-upgrade") show_caption("update");
+else show_caption("image");
+
+# ---- animation
+tick = 0;
+fun refresh() {
+    tick++;
+    frame = Math.Int(tick / 2) % (FRAMES * 2 - 2);
+    if (frame >= FRAMES) frame = FRAMES * 2 - 2 - frame;
+    orb.SetImage(orb_image[frame]);
+}
+Plymouth.SetRefreshFunction(refresh);
+
+# ---- progress: the bar follows the real boot, the line changes halfway
+shown = 0.04;
+fun progress(duration, p) {
+    if (p > shown) shown = p;
+    w = Math.Int(fill_image.GetWidth() * shown);
+    if (w < 3) w = 3;
+    fill.SetImage(fill_image.Scale(w, fill_image.GetHeight()));
+    if (mode == "boot" && shown > 0.45) show_caption("desktop");
+}
+Plymouth.SetBootProgressFunction(progress);
+progress(0, 0.04);
+
+# ---- an encrypted disk asks for its password here
+prompt = Sprite();
+dots = Sprite();
+fun password(text, bullets) {
+    caption.SetOpacity(0);
+    label = Image.Text(text, 1, 1, 1, 0.75);
+    prompt.SetImage(label);
+    prompt.SetX(Math.Int((W - label.GetWidth()) / 2));
+    prompt.SetY(caption_y);
+    stars = "";
+    for (i = 0; i < bullets; i++) stars = stars + "• ";
+    if (bullets == 0) stars = " ";
+    d = Image.Text(stars, 1, 1, 1, 1);
+    dots.SetImage(d);
+    dots.SetX(Math.Int((W - d.GetWidth()) / 2));
+    dots.SetY(caption_y + 26);
+    prompt.SetOpacity(1);
+    dots.SetOpacity(1);
+}
+Plymouth.SetDisplayPasswordFunction(password);
+
+fun normal() {
+    prompt.SetOpacity(0);
+    dots.SetOpacity(0);
+    caption.SetOpacity(1);
+}
+Plymouth.SetDisplayNormalFunction(normal);
+
+# messages from the system (rare) appear under the bar
+message = Sprite();
+fun show_message(text) {
+    m = Image.Text(text, 1, 1, 1, 0.5);
+    message.SetImage(m);
+    message.SetX(Math.Int((W - m.GetWidth()) / 2));
+    message.SetY(caption_y + 54);
+}
+Plymouth.SetMessageFunction(show_message);

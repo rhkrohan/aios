@@ -1,66 +1,12 @@
-# The SIOS boot screen: black, with the SIOS mark and name in the middle and a
-# small spinner under it, like the preview's boot screen. Built on Fedora's
-# "two-step" plugin (the same as the spinner and bgrt themes); the spinner
-# images are copied from the spinner theme at image build time.
+# The SIOS boot screen, like the preview's (build_concept_html/src/components/
+# shell/Power.tsx BootScreen): black, the string orb at work, SIOS, a light
+# blue to violet bar that follows the real boot progress, and a short line
+# under it. Pictures drawn from the preview's code by ui/render-plymouth.mjs.
 [Plymouth Theme]
 Name=SIOS
 Description=SIOS boot screen
-ModuleName=two-step
+ModuleName=script
 
-[two-step]
+[script]
 ImageDir=/usr/share/plymouth/themes/sios
-DialogHorizontalAlignment=.5
-DialogVerticalAlignment=.382
-TitleHorizontalAlignment=.5
-TitleVerticalAlignment=.382
-HorizontalAlignment=.5
-VerticalAlignment=.72
-WatermarkHorizontalAlignment=.5
-WatermarkVerticalAlignment=.45
-Transition=none
-TransitionDuration=0.0
-BackgroundStartColor=0x000000
-BackgroundEndColor=0x000000
-ProgressBarBackgroundColor=0x303030
-ProgressBarForegroundColor=0xffffff
-MessageBelowAnimation=true
-
-[boot-up]
-UseEndAnimation=false
-UseFirmwareBackground=false
-
-[shutdown]
-UseEndAnimation=false
-UseFirmwareBackground=false
-
-[reboot]
-UseEndAnimation=false
-UseFirmwareBackground=false
-
-[updates]
-SuppressMessages=true
-ProgressBarShowPercentComplete=true
-UseProgressBar=true
-Title=Installing updates...
-SubTitle=Do not turn off your computer
-
-[system-upgrade]
-SuppressMessages=true
-ProgressBarShowPercentComplete=true
-UseProgressBar=true
-Title=Upgrading SIOS...
-SubTitle=Do not turn off your computer
-
-[firmware-upgrade]
-SuppressMessages=true
-ProgressBarShowPercentComplete=true
-UseProgressBar=true
-Title=Upgrading firmware...
-SubTitle=Do not turn off your computer
-
-[system-reset]
-SuppressMessages=true
-ProgressBarShowPercentComplete=true
-UseProgressBar=true
-Title=Resetting SIOS...
-SubTitle=Do not turn off your computer
+ScriptFile=/usr/share/plymouth/themes/sios/sios.script

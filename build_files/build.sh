@@ -160,12 +160,12 @@ sed -i \
 grep -q '^VARIANT_ID=' /usr/lib/os-release || echo 'VARIANT_ID=sios' >> /usr/lib/os-release
 grep -q '^LOGO=' /usr/lib/os-release || echo 'LOGO=sios-logo' >> /usr/lib/os-release
 
-### The boot screen: the SIOS mark and name instead of the Fedora logo
-# Our theme reuses the spinner theme's animation frames; only the logo is ours.
-for f in /usr/share/plymouth/themes/spinner/{animation,throbber}-*.png \
-         /usr/share/plymouth/themes/spinner/{bullet,capslock,entry,keyboard,keymap-render,lock}.png; do
-    [ -f "$f" ] && cp -n "$f" /usr/share/plymouth/themes/sios/
-done
+### The boot screen: the preview's (the string orb, SIOS, a progress bar)
+# A Plymouth script theme (/usr/share/plymouth/themes/sios); its pictures are
+# drawn from the preview's code by ui/render-plymouth.mjs.
+test -s /usr/share/plymouth/themes/sios/sios.script
+test -s /usr/share/plymouth/themes/sios/orb-47.png
+rpm -q plymouth-plugin-script > /dev/null || dnf5 -y install plymouth-plugin-script
 plymouth-set-default-theme sios
 # The boot screen runs before the disk is mounted, from the initramfs, so
 # rebuild it with our theme inside. Same command Universal Blue images use.
@@ -174,4 +174,5 @@ export DRACUT_NO_XATTR=1
 dracut --no-hostonly --kver "$KVER" --reproducible --zstd -v --add ostree -f "/usr/lib/modules/$KVER/initramfs.img"
 chmod 0600 "/usr/lib/modules/$KVER/initramfs.img"
 lsinitrd "/usr/lib/modules/$KVER/initramfs.img" > /tmp/initramfs-files.txt
-grep -q "plymouth/themes/sios/watermark.png" /tmp/initramfs-files.txt
+grep -q "plymouth/themes/sios/orb-47.png" /tmp/initramfs-files.txt
+grep -q "plymouth/script.so" /tmp/initramfs-files.txt

@@ -1,75 +1,69 @@
 /*
-    SIOS splash: the desktop's dusk photo, the wordmark and the tagline, fading in.
-    Same type as the preview's boot screen (Jost ExtraLight, wide tracking).
+    SIOS splash, after you log in, while the desktop loads: the same screen as
+    the boot (and the preview's BootScreen in Power.tsx): black, the string
+    orb at work, SIOS, a light blue to violet bar that follows the desktop
+    starting up, and "Getting your desktop ready".
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
 import QtQuick
-import org.kde.kirigami as Kirigami
 
 Rectangle {
     id: root
-    color: "#1a1f2a"
+    color: "#000000"
 
-    property int stage
+    property int stage   // set by KSplash, 1 to 6 as the desktop starts
 
-    onStageChanged: {
-        if (stage == 2) {
-            intro.running = true;
-        }
-    }
+    Column {
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: -20
+        spacing: 0
 
-    Image {
-        anchors.fill: parent
-        asynchronous: true
-        fillMode: Image.PreserveAspectCrop
-        source: "file:///usr/share/wallpapers/SIOS-Dusk/contents/images/2880x1920.jpg"
-        sourceSize.width: 1920
-        sourceSize.height: 1080
-    }
-
-    Item {
-        id: content
-        anchors.fill: parent
-        opacity: 0
-
-        Column {
+        Orb {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * 0.16
-            spacing: Kirigami.Units.gridUnit
-
-            Text {
-                id: wordmark
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "SIOS"
-                color: "#ffffff"
-                font.family: "Jost"
-                font.weight: Font.ExtraLight
-                font.pixelSize: Math.max(56, Math.min(104, Math.round(root.width * 0.072)))
-                font.letterSpacing: Math.max(56, Math.min(104, Math.round(root.width * 0.072))) * 0.5
-                leftPadding: Math.max(56, Math.min(104, Math.round(root.width * 0.072))) * 0.5
-                Accessible.name: "SIOS"
-                Accessible.role: Accessible.StaticText
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "A MORE HUMAN OPERATING SYSTEM"
-                color: Qt.rgba(1, 1, 1, 0.85)
-                font.family: "Jost"
-                font.pixelSize: 13
-                font.letterSpacing: 13 * 0.62
-                leftPadding: 13 * 0.62
+            width: 170
+            height: 170
+            strands: 24
+            lively: true
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            topPadding: 32
+            text: "SIOS"
+            color: "white"
+            font.family: "Jost"
+            font.weight: Font.ExtraLight
+            font.pixelSize: 44
+            font.letterSpacing: 22
+            leftPadding: 22
+        }
+        Item { width: 1; height: 40 }
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 224
+            height: 3
+            radius: 1.5
+            color: Qt.rgba(1, 1, 1, 0.10)
+            Rectangle {
+                height: parent.height
+                radius: 1.5
+                width: parent.width * Math.max(0.5, Math.min(1, 0.5 + root.stage / 12))
+                Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: "#7fd0ff" }
+                    GradientStop { position: 0.5; color: "#7d9dff" }
+                    GradientStop { position: 1; color: "#9b7bff" }
+                }
             }
         }
-    }
-
-    OpacityAnimator {
-        id: intro
-        running: false
-        target: content
-        from: 0
-        to: 1
-        duration: Kirigami.Units.veryLongDuration * 2
-        easing.type: Easing.InOutQuad
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            topPadding: 16
+            text: "Getting your desktop ready"
+            color: Qt.rgba(1, 1, 1, 0.45)
+            font.family: "Instrument Sans"
+            font.pixelSize: 13
+        }
     }
 }
