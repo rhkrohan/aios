@@ -32,7 +32,7 @@ PlasmoidItem {
     ]
     readonly property var rightApps: [
         ["org.sios.store.desktop", "io.github.kolunmi.Bazaar.desktop", "org.kde.discover.desktop"],
-        ["org.kde.plasma-systemmonitor.desktop"],
+        ["org.sios.monitor.desktop", "org.kde.plasma-systemmonitor.desktop"],
         ["systemsettings.desktop"]
     ]
 

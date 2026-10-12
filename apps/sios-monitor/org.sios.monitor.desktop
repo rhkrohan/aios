@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Monitor
+GenericName=System Monitor
+Comment=How your computer is doing, and what the assistant is working on
+Exec=sios-monitor
+Icon=sios-monitor
+Terminal=false
+Categories=Qt;KDE;System;Monitor;
+StartupWMClass=sios-monitor
+Keywords=activity;cpu;memory;processes;performance;task manager;

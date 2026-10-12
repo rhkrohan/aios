@@ -49,6 +49,8 @@ export function discColor({ word = true, core = word ? "word" : "dot", small = f
     ? `<text x="51" y="53.8" text-anchor="middle" font-family="Jost" font-weight="400" font-size="10" letter-spacing="2.1" fill="#26314a">SIOS</text>`
     : core === "files"
       ? `<path d="M41 44.5a2.5 2.5 0 0 1 2.5-2.5h4.2l2.3 2.6h6.5a2.5 2.5 0 0 1 2.5 2.5v8.4a2.5 2.5 0 0 1-2.5 2.5H43.5a2.5 2.5 0 0 1-2.5-2.5z" fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round"/>`
+      : core === "monitor"
+        ? `<path d="M40 50.5h4.5l3-7 5 14 3-7H60" fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round" stroke-linecap="round"/>`
       : core === "store"
         ? `<g fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round" stroke-linecap="round"><path d="M42 45h16l-1.4 12.2a2 2 0 0 1-2 1.8H45.4a2 2 0 0 1-2-1.8z"/><path d="M46 45v-1.5a4 4 0 0 1 8 0V45"/></g>`
         : `<circle cx="50" cy="50" r="${small ? 6 : 5}" fill="#4f7bf7"/>`;
@@ -116,9 +118,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   write("scalable/places/start-here.svg", discColor());
   write("scalable/apps/sios-files.svg", discColor({ core: "files" }));
   write("scalable/apps/sios-store.svg", discColor({ core: "store" }));
+  write("scalable/apps/sios-monitor.svg", discColor({ core: "monitor" }));
   // small sizes: fewer rings so they stay crisp in a title bar or menu
   for (const px of [16, 22, 24, 32]) {
     write(`${px}x${px}/apps/sios-files.svg`, discColor({ core: "files", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
+    write(`${px}x${px}/apps/sios-monitor.svg`, discColor({ core: "monitor", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
     write(`${px}x${px}/apps/sios-store.svg`, discColor({ core: "store", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
     write(`${px}x${px}/apps/sios-logo.svg`, discColor({ core: "dot", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
   }
