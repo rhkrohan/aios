@@ -32,25 +32,44 @@ function ring(colorOf, gap = 0.16) {
   }).join("");
 }
 
-/** The colour disc, on a light glass body, with "SIOS" in the core (or a plain core). */
-export function discColor({ word = true } = {}) {
+/** The disc as a glass puck, like the desktop's folder discs: blue glass,
+ *  white rings, a white core, a darker edge for depth. core: "word" (SIOS),
+ *  "files" (a folder mark) or "dot" (the assistant's blue light). small: fewer
+ *  rings, for 16 to 24 px. */
+export function discColor({ word = true, core = word ? "word" : "dot", small = false } = {}) {
+  const ringW = small ? 12 : 8;
+  // three even segments, like a Tron identity disc
+  const third = TAU / 3, gap = small ? 0.5 : 0.36;
+  const segs = [0, 1, 2].map((i) => {
+    const a0 = i * third - third / 2 + gap / 2, a1 = i * third + third / 2 - gap / 2;
+    return `<path d="${arc(38, a0, a1)}" fill="none" stroke="#ffffff" stroke-width="${ringW}" stroke-linecap="round"/>`;
+  }).join("");
+  const coreR = small ? 14 : core === "word" ? 21.5 : 17;
+  const mark = core === "word"
+    ? `<text x="51" y="53.8" text-anchor="middle" font-family="Jost" font-weight="400" font-size="10" letter-spacing="2.1" fill="#26314a">SIOS</text>`
+    : core === "files"
+      ? `<path d="M41 44.5a2.5 2.5 0 0 1 2.5-2.5h4.2l2.3 2.6h6.5a2.5 2.5 0 0 1 2.5 2.5v8.4a2.5 2.5 0 0 1-2.5 2.5H43.5a2.5 2.5 0 0 1-2.5-2.5z" fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round"/>`
+      : `<circle cx="50" cy="50" r="${small ? 6 : 5}" fill="#4f7bf7"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
-<radialGradient id="body" cx="50%" cy="38%" r="65%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9edf3"/></radialGradient>
-<radialGradient id="core" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef1f6"/></radialGradient>
-<radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#4f7bf7" stop-opacity=".9"/><stop offset="1" stop-color="#4f7bf7" stop-opacity="0"/></radialGradient>
+<radialGradient id="glass" cx="50%" cy="28%" r="78%"><stop offset="0" stop-color="#cfdaf6"/><stop offset=".5" stop-color="#8fa5e0"/><stop offset="1" stop-color="#5a70b8"/></radialGradient>
+<linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".45"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+<radialGradient id="core" cx="50%" cy="38%" r="65%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e8edf6"/></radialGradient>
 </defs>
-<circle cx="50" cy="51.5" r="48" fill="#14181e" opacity=".12"/>
-<circle cx="50" cy="50" r="48" fill="url(#body)" stroke="#d9dee5" stroke-width="1"/>
-<circle cx="50" cy="50" r="41" fill="none" stroke="#e4e8ee" stroke-width="7"/>
-${ring((s) => s.color)}
-<circle cx="50" cy="50" r="33.5" fill="none" stroke="#d9dee5" stroke-width=".8"/>
-<circle cx="50" cy="50" r="29.5" fill="none" stroke="#e4e8ee" stroke-width="2.4"/>
-<path d="${arc(29.5, -0.9, 0.9)}" fill="none" stroke="#e0a03a" stroke-width="2.4" stroke-linecap="round"/>
-<circle cx="50" cy="50" r="23" fill="url(#core)" stroke="#d9dee5" stroke-width="1"/>
-${word
-    ? `<text x="51" y="53.6" text-anchor="middle" font-family="Jost" font-weight="300" font-size="10.5" letter-spacing="2.2" fill="#1d1d1f">SIOS</text>`
-    : `<circle cx="50" cy="50" r="11" fill="url(#glow)" opacity=".55"/><circle cx="50" cy="50" r="4.6" fill="#4f7bf7"/>`}
+<ellipse cx="50" cy="${small ? 54 : 55}" rx="44" ry="42" fill="#1c2438" opacity=".22"/>
+<circle cx="50" cy="${small ? 51.5 : 52.5}" r="46" fill="#3f5394"/>
+<circle cx="50" cy="49" r="46" fill="url(#glass)"/>
+<ellipse cx="50" cy="28" rx="34" ry="19" fill="url(#sheen)"/>
+<circle cx="50" cy="49" r="45.3" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.4"/>
+<g transform="translate(0 -1)">
+<circle cx="50" cy="50" r="38" fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="${ringW}"/>
+${segs}
+${small ? "" : `<circle cx="50" cy="50" r="30.5" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width=".8"/>
+<circle cx="50" cy="50" r="26.5" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="2.2"/>`}
+<circle cx="50" cy="52" r="${coreR + 1}" fill="#1c2438" opacity=".25"/>
+<circle cx="50" cy="50" r="${coreR}" fill="url(#core)"/>
+${mark}
+</g>
 </svg>
 `;
 }
@@ -93,7 +112,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   write("scalable/apps/sios-logo.svg", discColor());
   write("scalable/apps/distributor-logo.svg", discColor());
   write("scalable/places/start-here.svg", discColor());
-  write("scalable/apps/sios-files.svg", discColor({ word: false }));
+  write("scalable/apps/sios-files.svg", discColor({ core: "files" }));
+  // small sizes: fewer rings so they stay crisp in a title bar or menu
+  for (const px of [16, 22, 24, 32]) {
+    write(`${px}x${px}/apps/sios-files.svg`, discColor({ core: "files", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
+    write(`${px}x${px}/apps/sios-logo.svg`, discColor({ core: "dot", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
+  }
   write("scalable/apps/sios-start.svg", discStart());
   write("symbolic/apps/sios-logo-symbolic.svg", discSymbolic());
   write("symbolic/apps/distributor-logo-symbolic.svg", discSymbolic());

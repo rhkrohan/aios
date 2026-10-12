@@ -1,16 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
-<radialGradient id="body" cx="50%" cy="38%" r="65%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9edf3"/></radialGradient>
-<radialGradient id="core" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef1f6"/></radialGradient>
-<radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#4f7bf7" stop-opacity=".9"/><stop offset="1" stop-color="#4f7bf7" stop-opacity="0"/></radialGradient>
+<radialGradient id="glass" cx="50%" cy="28%" r="78%"><stop offset="0" stop-color="#cfdaf6"/><stop offset=".5" stop-color="#8fa5e0"/><stop offset="1" stop-color="#5a70b8"/></radialGradient>
+<linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".45"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+<radialGradient id="core" cx="50%" cy="38%" r="65%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e8edf6"/></radialGradient>
 </defs>
-<circle cx="50" cy="51.5" r="48" fill="#14181e" opacity=".12"/>
-<circle cx="50" cy="50" r="48" fill="url(#body)" stroke="#d9dee5" stroke-width="1"/>
-<circle cx="50" cy="50" r="41" fill="none" stroke="#e4e8ee" stroke-width="7"/>
-<path d="M53.28,9.13 A41,41 0 0 1 80.37,77.55" fill="none" stroke="#4f7bf7" stroke-width="7" stroke-linecap="round"/><path d="M75.59,82.04 A41,41 0 0 1 24.41,82.04" fill="none" stroke="#7b62c4" stroke-width="7" stroke-linecap="round"/><path d="M19.63,77.55 A41,41 0 0 1 11.63,35.56" fill="none" stroke="#2e8d5c" stroke-width="7" stroke-linecap="round"/><path d="M14.42,29.63 A41,41 0 0 1 46.72,9.13" fill="none" stroke="#dc7637" stroke-width="7" stroke-linecap="round"/>
-<circle cx="50" cy="50" r="33.5" fill="none" stroke="#d9dee5" stroke-width=".8"/>
-<circle cx="50" cy="50" r="29.5" fill="none" stroke="#e4e8ee" stroke-width="2.4"/>
-<path d="M26.89,31.66 A29.5,29.5 0 0 1 73.11,31.66" fill="none" stroke="#e0a03a" stroke-width="2.4" stroke-linecap="round"/>
-<circle cx="50" cy="50" r="23" fill="url(#core)" stroke="#d9dee5" stroke-width="1"/>
-<circle cx="50" cy="50" r="11" fill="url(#glow)" opacity=".55"/><circle cx="50" cy="50" r="4.6" fill="#4f7bf7"/>
+<ellipse cx="50" cy="55" rx="44" ry="42" fill="#1c2438" opacity=".22"/>
+<circle cx="50" cy="52.5" r="46" fill="#3f5394"/>
+<circle cx="50" cy="49" r="46" fill="url(#glass)"/>
+<ellipse cx="50" cy="28" rx="34" ry="19" fill="url(#sheen)"/>
+<circle cx="50" cy="49" r="45.3" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.4"/>
+<g transform="translate(0 -1)">
+<circle cx="50" cy="50" r="38" fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="8"/>
+<path d="M21.02,25.42 A38,38 0 0 1 78.98,25.42" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/><path d="M85.78,37.20 A38,38 0 0 1 56.80,87.39" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/><path d="M43.20,87.39 A38,38 0 0 1 14.22,37.20" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+<circle cx="50" cy="50" r="30.5" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width=".8"/>
+<circle cx="50" cy="50" r="26.5" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="2.2"/>
+<circle cx="50" cy="52" r="18" fill="#1c2438" opacity=".25"/>
+<circle cx="50" cy="50" r="17" fill="url(#core)"/>
+<path d="M41 44.5a2.5 2.5 0 0 1 2.5-2.5h4.2l2.3 2.6h6.5a2.5 2.5 0 0 1 2.5 2.5v8.4a2.5 2.5 0 0 1-2.5 2.5H43.5a2.5 2.5 0 0 1-2.5-2.5z" fill="none" stroke="#26314a" stroke-width="2.4" stroke-linejoin="round"/>
+</g>
 </svg>
