@@ -49,7 +49,9 @@ export function discColor({ word = true, core = word ? "word" : "dot", small = f
     ? `<text x="51" y="53.8" text-anchor="middle" font-family="Jost" font-weight="400" font-size="10" letter-spacing="2.1" fill="#26314a">SIOS</text>`
     : core === "files"
       ? `<path d="M41 44.5a2.5 2.5 0 0 1 2.5-2.5h4.2l2.3 2.6h6.5a2.5 2.5 0 0 1 2.5 2.5v8.4a2.5 2.5 0 0 1-2.5 2.5H43.5a2.5 2.5 0 0 1-2.5-2.5z" fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round"/>`
-      : `<circle cx="50" cy="50" r="${small ? 6 : 5}" fill="#4f7bf7"/>`;
+      : core === "store"
+        ? `<g fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round" stroke-linecap="round"><path d="M42 45h16l-1.4 12.2a2 2 0 0 1-2 1.8H45.4a2 2 0 0 1-2-1.8z"/><path d="M46 45v-1.5a4 4 0 0 1 8 0V45"/></g>`
+        : `<circle cx="50" cy="50" r="${small ? 6 : 5}" fill="#4f7bf7"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
 <radialGradient id="glass" cx="50%" cy="28%" r="78%"><stop offset="0" stop-color="#cfdaf6"/><stop offset=".5" stop-color="#8fa5e0"/><stop offset="1" stop-color="#5a70b8"/></radialGradient>
@@ -113,9 +115,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   write("scalable/apps/distributor-logo.svg", discColor());
   write("scalable/places/start-here.svg", discColor());
   write("scalable/apps/sios-files.svg", discColor({ core: "files" }));
+  write("scalable/apps/sios-store.svg", discColor({ core: "store" }));
   // small sizes: fewer rings so they stay crisp in a title bar or menu
   for (const px of [16, 22, 24, 32]) {
     write(`${px}x${px}/apps/sios-files.svg`, discColor({ core: "files", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
+    write(`${px}x${px}/apps/sios-store.svg`, discColor({ core: "store", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
     write(`${px}x${px}/apps/sios-logo.svg`, discColor({ core: "dot", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
   }
   write("scalable/apps/sios-start.svg", discStart());

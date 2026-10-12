@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Store
+GenericName=App Store
+Comment=Get apps, and see what each one can reach before you install it
+Exec=sios-store
+Icon=sios-store
+Terminal=false
+Categories=Qt;KDE;System;PackageManager;
+StartupWMClass=sios-store
+Keywords=apps;install;flathub;flatpak;software;store;

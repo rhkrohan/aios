@@ -31,7 +31,7 @@ PlasmoidItem {
         ["org.mozilla.Thunderbird.desktop", "thunderbird.desktop", "org.kde.kmail2.desktop"]
     ]
     readonly property var rightApps: [
-        ["io.github.kolunmi.Bazaar.desktop", "org.kde.discover.desktop"],
+        ["org.sios.store.desktop", "io.github.kolunmi.Bazaar.desktop", "org.kde.discover.desktop"],
         ["org.kde.plasma-systemmonitor.desktop"],
         ["systemsettings.desktop"]
     ]

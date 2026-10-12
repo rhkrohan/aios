@@ -9,7 +9,7 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/aurora:stable@sha256:94b81908b565b2fa1a7c9883657
 FROM ${BASE_IMAGE} AS apps
 RUN dnf5 -y install cmake ninja-build gcc-c++ extra-cmake-modules \
       qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
-      kf6-kio-devel kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel
+      kf6-kio-devel kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel appstream-qt-devel
 COPY apps /apps
 RUN for app in /apps/sios-*/; do \
       cmake -S "$app" -B "/build/$(basename "$app")" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -Wno-dev && \

@@ -50,6 +50,12 @@ sed -i 's/^\[Default Applications\]$/[Default Applications]\ninode\/directory=or
 # KDE reads its own defaults list first
 kwriteconfig6 --file "/usr/share/kde-settings/kde-profile/default/xdg/kde-mimeapps.list" --group "Default Applications" --key "inode/directory" "org.sios.files.desktop;org.kde.dolphin.desktop;"
 
+### SIOS Store: the preview's Store over Flatpak and Flathub (D9, D29)
+test -x /usr/bin/sios-store
+test -f /usr/share/applications/org.sios.store.desktop
+# Flathub as a system app source (Aurora has it already; Kinoite doesn't)
+test -s /etc/flatpak/remotes.d/flathub.flatpakrepo
+
 ### Files (Dolphin) like the preview's Files app
 # Toolbar: back, forward, path, search, sort, grid, list, new folder, details
 # (/usr/share/kxmlgui5/dolphin/dolphinui.rc); defaults in dolphinrc; the
