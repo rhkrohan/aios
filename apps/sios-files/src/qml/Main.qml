@@ -103,26 +103,26 @@ QQC2.ApplicationWindow {
     }
     function backgroundMenu() { backgroundMenuPopup.popup(); }
 
-    QQC2.Menu {
+    Menu {
         id: itemMenuPopup
-        QQC2.MenuItem { text: "Open"; onTriggered: app.activate(app.menuItem) }
-        QQC2.MenuItem { text: "Open with…"; enabled: !!app.menuItem && !app.menuItem.isDir; onTriggered: fileOps.openWith(app.menuItem.location) }
-        QQC2.MenuItem { text: "Quick look"; onTriggered: look.item = app.menuItem }
-        QQC2.MenuSeparator {}
-        QQC2.MenuItem { text: "Rename"; enabled: app.selected.length === 1 && !folder.isTrash; onTriggered: app.renaming = app.menuItem.location }
-        QQC2.MenuItem { text: "Copy"; onTriggered: fileOps.toClipboard(app.selected, false) }
-        QQC2.MenuItem { text: "Cut"; enabled: !folder.isTrash; onTriggered: fileOps.toClipboard(app.selected, true) }
-        QQC2.MenuSeparator {}
-        QQC2.MenuItem { text: "Show details"; onTriggered: toolbar.inspector = true }
-        QQC2.MenuItem { text: "Move to Trash"; enabled: !folder.isTrash; onTriggered: app.trashSelected() }
+        MenuItem { text: "Open"; hint: "Enter"; onTriggered: app.activate(app.menuItem) }
+        MenuItem { text: "Open with…"; enabled: !!app.menuItem && !app.menuItem.isDir; onTriggered: fileOps.openWith(app.menuItem.location) }
+        MenuItem { text: "Quick look"; hint: "Space"; onTriggered: look.item = app.menuItem }
+        MenuSeparator {}
+        MenuItem { text: "Rename"; hint: "F2"; enabled: app.selected.length === 1 && !folder.isTrash; onTriggered: app.renaming = app.menuItem.location }
+        MenuItem { text: "Copy"; hint: "Ctrl+C"; onTriggered: fileOps.toClipboard(app.selected, false) }
+        MenuItem { text: "Cut"; hint: "Ctrl+X"; enabled: !folder.isTrash; onTriggered: fileOps.toClipboard(app.selected, true) }
+        MenuSeparator {}
+        MenuItem { text: "Show details"; onTriggered: toolbar.inspector = true }
+        MenuItem { text: "Move to Trash"; hint: "Delete"; danger: true; enabled: !folder.isTrash; onTriggered: app.trashSelected() }
     }
-    QQC2.Menu {
+    Menu {
         id: backgroundMenuPopup
-        QQC2.MenuItem { text: "New folder"; enabled: folder.location.startsWith("file:"); onTriggered: app.newFolder() }
-        QQC2.MenuItem { text: "Paste"; enabled: fileOps.clipboardHasFiles() && folder.location.startsWith("file:"); onTriggered: fileOps.paste(folder.location) }
-        QQC2.MenuSeparator {}
-        QQC2.MenuItem { text: "Select all"; onTriggered: app.selected = folder.flatItems().map(i => i.location) }
-        QQC2.MenuItem { text: "Empty Trash"; visible: folder.isTrash; enabled: folder.count > 0; onTriggered: fileOps.emptyTrash() }
+        MenuItem { text: "New folder"; hint: "Ctrl+Shift+N"; enabled: folder.location.startsWith("file:"); onTriggered: app.newFolder() }
+        MenuItem { text: "Paste"; hint: "Ctrl+V"; enabled: fileOps.clipboardHasFiles() && folder.location.startsWith("file:"); onTriggered: fileOps.paste(folder.location) }
+        MenuSeparator {}
+        MenuItem { text: "Select all"; hint: "Ctrl+A"; onTriggered: app.selected = folder.flatItems().map(i => i.location) }
+        MenuItem { text: "Empty Trash"; danger: true; visible: folder.isTrash; enabled: folder.count > 0; onTriggered: fileOps.emptyTrash() }
     }
 
     Connections {

@@ -61,6 +61,9 @@ for name, v in VARIANTS.items():
     # selected rows in lists and sidebars: the preview's soft blue tint, not a solid bar
     svg = re.sub(r'<(rect|path)[^>]*id="itemview-(toggled|pressed)(-[a-z]+)?"[^>]*>',
                  lambda m: m.group(0).replace(v["blue"], v["soft"]), svg)
+    # menus: the hovered row is the same soft tint (the preview's menus), not a solid bar
+    svg = re.sub(r'<(rect|path)[^>]*id="menuitem-pressed(-[a-z]+)?"[^>]*>',
+                 lambda m: m.group(0).replace(v["blue"], v["soft"]), svg)
     # everything else that was GNOME blue becomes the SIOS assistant blue
     for a, b in v["svg"].items():
         svg = re.sub(a, b, svg, flags=re.I)
@@ -84,6 +87,11 @@ for name, v in VARIANTS.items():
             block = re.sub(rf"^{re.escape(k)}=.*$", f"{k}={val}", block, flags=re.M)
         return block
     cfg = re.sub(r"^\[ItemView\][\s\S]*?(?=^\[)", itemview, cfg, flags=re.M)
+
+    # menus: blue text on the soft hover tint
+    def menuitem(m):
+        return re.sub(r"^text\.focus\.color=.*$", f"text.focus.color={v['ink']}", m.group(0), flags=re.M)
+    cfg = re.sub(r"^\[MenuItem\][\s\S]*?(?=^\[)", menuitem, cfg, flags=re.M)
     # other plain black or white text in the theme follows our ink colour
     cfg = re.sub(r"=black$" if name == "SIOS" else r"=white$", "=" + v["text"], cfg, flags=re.M)
     open(os.path.join(out, name + ".kvconfig"), "w").write(cfg)

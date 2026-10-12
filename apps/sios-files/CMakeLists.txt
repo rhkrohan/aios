@@ -48,6 +48,9 @@ qt_add_qml_module(sios-files
         src/qml/QuickLook.qml
         src/qml/Toast.qml
         src/qml/Icon.qml
+        src/qml/Menu.qml
+        src/qml/MenuItem.qml
+        src/qml/MenuSeparator.qml
     RESOURCES
         src/icons/arrow-left.svg src/icons/arrow-right.svg src/icons/chevron-right.svg
         src/icons/search.svg src/icons/arrow-up-down.svg src/icons/layout-grid.svg src/icons/list.svg

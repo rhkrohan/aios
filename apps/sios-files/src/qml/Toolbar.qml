@@ -123,14 +123,16 @@ Rectangle {
             tip: "Sort"
             Layout.leftMargin: 4
             onClicked: sortMenu.open()
-            QQC2.Menu {
+            Menu {
                 id: sortMenu
+                implicitWidth: 200
                 y: parent.height + 4
                 Repeater {
                     model: [["name", "Name"], ["date", "Date changed"], ["kind", "Kind"], ["size", "Size"]]
-                    QQC2.MenuItem {
+                    MenuItem {
                         required property var modelData
-                        text: (bar.folder.sortBy === modelData[0] ? "✓  " : "     ") + modelData[1]
+                        text: modelData[1]
+                        hint: bar.folder.sortBy === modelData[0] ? "✓" : ""
                         onTriggered: bar.folder.sortBy = modelData[0]
                     }
                 }

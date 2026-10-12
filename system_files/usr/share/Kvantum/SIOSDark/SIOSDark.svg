@@ -152,8 +152,8 @@
 </g>
 <path style="fill:url(#linearGradient5687);fill-rule:evenodd;stroke:url(#linearGradient5114)" id="slidercursor-normal" d="m 121.2119,609 c -3.04582,2.5 -6.42348,8.49989 -12.1429,8.49989 -5.71937,0 -8.57274,-4 -8.56888,-8.49989 0.003,-4.50058 2.84951,-8.5 8.56888,-8.5 5.71939,0 9.09705,6 12.1429,8.5 z "/>
 <circle cx="80" cy="835" style="fill:#4f7bf7;fill-rule:evenodd" r="5" id="dial-handle"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-topleft" d="m 194,675 0,4 -4,0 0,-4 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-left" d="m 190,680 h 4 v 8 h -4 z"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-topleft" d="m 194,675 0,4 -4,0 0,-4 z"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-left" d="m 190,680 h 4 v 8 h -4 z"/>
 <path style="fill:#1b1b1b;fill-rule:evenodd" id="common-normal-left" d="m 105,866 v 30 h 1 v -30 z"/>
 <use width="450" height="1230" xlink:href="#arrow-up-normal" id="arrow-down-normal" transform="matrix(1,0,0,-1,-0.2982249,377.6081)"/>
 <use width="450" height="1230" xlink:href="#arrow-up-focused" id="arrow-down-focused" transform="matrix(1,0,0,-1,-0.1929779,377.60799)"/>
@@ -161,12 +161,12 @@
 <use width="450" height="1230" xlink:href="#arrow-up-normal" id="arrow-left-normal" transform="rotate(-90,184.90485,65.203147)"/>
 <use width="450" height="1230" xlink:href="#arrow-up-focused" id="arrow-right-focused" transform="rotate(90,247.49425,303.7075)"/>
 <use width="450" height="1230" xlink:href="#arrow-up-focused" id="arrow-left-focused" transform="rotate(-90,273.60229,66.400467)"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-topright" d="m 208,679 -4,0 0,-4 4,0 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-top" d="m 675,-203 h 4 v 8 h -4 z" transform="matrix(0,1,-1,0,0,0)"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-bottomright" d="m 204,693 0,-4 4,0 0,4 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-right" d="m -208,-688 h 4 v 8 h -4 z" transform="scale(-1,-1)"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-bottomleft" d="m 190,689 4,0 0,4 -4,0 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed-bottom" d="m -693,195 h 4 v 8 h -4 z" transform="matrix(0,-1,1,0,0,0)"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-topright" d="m 208,679 -4,0 0,-4 4,0 z"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-top" d="m 675,-203 h 4 v 8 h -4 z" transform="matrix(0,1,-1,0,0,0)"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-bottomright" d="m 204,693 0,-4 4,0 0,4 z"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-right" d="m -208,-688 h 4 v 8 h -4 z" transform="scale(-1,-1)"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-bottomleft" d="m 190,689 4,0 0,4 -4,0 z"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed-bottom" d="m -693,195 h 4 v 8 h -4 z" transform="matrix(0,-1,1,0,0,0)"/>
 <path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-topleft" d="m 214,675 0,4 -4,0 0,-4 z"/>
 <path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-left" d="m 210,680 h 4 v 8 h -4 z"/>
 <path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-topright" d="m 228,679 -4,0 0,-4 4,0 z"/>
@@ -233,7 +233,7 @@
 <path style="fill:#1b1b1b" id="dock-normal-bottom" d="m 167,909 v -5 h 30 v 5 z"/>
 <path style="fill:#1b1b1b" id="dock-normal-bottomleft" d="m 160,904 h 5 v 5 h -5 z"/>
 <path style="opacity:.27;fill:#fff" id="toolbar-handle" d="m 410,144 a 5,5 0 0 1 -10,0 5,5 0 1 1 10,0 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-pressed" d="m 195,680 h 8 v 8 h -8 z"/>
+<path style="fill:#26305a;fill-rule:evenodd" id="menuitem-pressed" d="m 195,680 h 8 v 8 h -8 z"/>
 <path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled" d="m 215,680 h 8 v 8 h -8 z"/>
 <path style="fill:#24272b" id="dock-focused" d="m 222,872 h 30 v 30 h -30 z"/>
 <g id="radio-checked-focused">
