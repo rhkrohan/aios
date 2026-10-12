@@ -42,19 +42,25 @@ dock.alignment = "center";
 dock.addWidget("org.sios.dock");
 
 // ---- the desktop: folder discs on the left, SIOS in the middle, today on the right
+// The folder desktop remembers widget positions per screen size, so save them
+// for the common sizes too: otherwise a new size (a resolution change, a
+// docked laptop, a VM window) keeps the old pixel positions.
+const SIZES = [[1280, 720], [1280, 800], [1366, 768], [1440, 900], [1470, 956], [1512, 982], [1536, 864], [1600, 900],
+    [1680, 1050], [1728, 1080], [1728, 1117], [1920, 1080], [1920, 1200], [2048, 1152], [2560, 1080], [2560, 1440],
+    [2560, 1600], [3440, 1440], [3840, 2160]];
+// the desktop snaps widgets to a 16px grid, so place them on it
+const snap = (v) => Math.round(v / 16) * 16;
 for (const desktop of desktops()) {
     const g = screenGeometry(desktop.screen);
-    // the desktop snaps widgets to a 16px grid, so place them on it
-    const snap = (v) => Math.round(v / 16) * 16;
-    const place = [
-        [desktop.addWidget("org.sios.hero"), snap(g.width / 2 - 448), snap(g.height * 0.16), 896, 224],
-        [desktop.addWidget("org.sios.discs"), 0, 48, 128, 576],
-        [desktop.addWidget("org.sios.today"), snap(g.width - 336), 48, 320, 608],
-    ];
-    const geometry = place.map(([w, x, y, width, height]) => `Applet-${w.id}:${x},${y},${width},${height},0;`).join("");
-    // the folder desktop keeps positions per screen size, plus one for any other size
+    const hero = desktop.addWidget("org.sios.hero");
+    const discs = desktop.addWidget("org.sios.discs");
+    const today = desktop.addWidget("org.sios.today");
+    const layout = (w, h) =>
+        `Applet-${hero.id}:${snap(w / 2 - 448)},${snap(h * 0.16)},896,224,0;` +
+        `Applet-${discs.id}:0,48,128,576,0;` +
+        `Applet-${today.id}:${snap(w - 336)},48,320,608,0;`;
     desktop.currentConfigGroup = [];
-    desktop.writeConfig(`ItemGeometries-${g.width}x${g.height}`, geometry);
-    desktop.writeConfig("ItemGeometriesHorizontal", geometry);
+    for (const [w, h] of SIZES.concat([[g.width, g.height]])) desktop.writeConfig(`ItemGeometries-${w}x${h}`, layout(w, h));
+    desktop.writeConfig("ItemGeometriesHorizontal", layout(g.width, g.height));
     desktop.reloadConfig();
 }
