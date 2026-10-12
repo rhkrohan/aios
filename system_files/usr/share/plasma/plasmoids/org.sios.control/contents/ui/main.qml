@@ -3,7 +3,10 @@
     icon in the top bar that opens one panel with
       - tiles: Wi-Fi, Bluetooth, Do not disturb, Dark mode
       - sliders: brightness and volume
+      - the clipboard: what you copied lately; click one to copy it again
+        (KDE's clipboard manager runs here, so the tray doesn't need its own)
       - recent notifications, with "Clear all"
+    On laptops the top-bar icon also shows the battery level.
     Everything is real: NetworkManager for Wi-Fi, bluetoothctl, KDE's
     notification settings, the SIOS light/dark looks, KDE's ScreenBrightness
     service and PipeWire (wpctl) for volume.
@@ -18,6 +21,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.networkmanagement as PlasmaNM
 import org.kde.notificationmanager as NotificationManager
+import org.kde.plasma.private.clipboard as Clipboard
 import org.kde.kirigami as Kirigami
 
 PlasmoidItem {
@@ -41,14 +45,31 @@ PlasmoidItem {
     toolTipSubText: "Wi-Fi, Bluetooth, Do not disturb, Dark mode, brightness and volume"
 
     compactRepresentation: MouseArea {
-        Layout.minimumWidth: 28
-        Layout.preferredWidth: 28
+        Layout.minimumWidth: compactRow.implicitWidth + 12
+        Layout.preferredWidth: compactRow.implicitWidth + 12
         onClicked: root.expanded = !root.expanded
-        Kirigami.Icon {
+        RowLayout {
+            id: compactRow
             anchors.centerIn: parent
-            width: 16
-            height: 16
-            source: root.icon("sliders" + root.ink)
+            spacing: 6
+            Text {
+                visible: root.batteryPercent >= 0
+                text: root.batteryPercent + "%"
+                color: Kirigami.Theme.textColor
+                font.family: root.ui
+                font.pixelSize: 13
+            }
+            Kirigami.Icon {
+                visible: root.batteryPercent >= 0
+                implicitWidth: 18
+                implicitHeight: 18
+                source: root.icon("battery" + root.ink)
+            }
+            Kirigami.Icon {
+                implicitWidth: 16
+                implicitHeight: 16
+                source: root.icon("sliders" + root.ink)
+            }
         }
         Accessible.role: Accessible.Button
         Accessible.name: "Control Center"
@@ -62,6 +83,7 @@ PlasmoidItem {
             const out = String(data.stdout).trim();
             if (source === root.readBt) root.btOn = out === "yes";
             else if (source === root.readVol) { const m = out.match(/([0-9.]+)/); if (m) root.volume = Math.round(parseFloat(m[1]) * 100); root.muted = out.indexOf("MUTED") >= 0; }
+            else if (source === root.readBattery) { const b = parseInt(out); root.batteryPercent = isNaN(b) ? -1 : b; }
             else if (source === root.readBright) { const v = parseInt(out); if (!isNaN(v)) root.brightness = Math.round(v / 100); }
             disconnectSource(source);
         }
@@ -70,6 +92,9 @@ PlasmoidItem {
 
     readonly property string readBt: "bluetoothctl show 2>/dev/null | awk '/Powered:/ {print $2; exit}'"
     readonly property string readVol: "wpctl get-volume @DEFAULT_AUDIO_SINK@"
+    readonly property string readBattery: "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1"
+    property int batteryPercent: -1
+    Timer { interval: 60000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.run(root.readBattery) }
     readonly property string readBright: "qdbus-qt6 org.kde.ScreenBrightness /org/kde/ScreenBrightness/display0 org.freedesktop.DBus.Properties.Get org.kde.ScreenBrightness.Display Brightness"
     function refresh() { run(readBt); run(readVol); run(readBright); }
     onExpandedChanged: if (root.expanded) refresh()
@@ -90,6 +115,9 @@ PlasmoidItem {
 
     readonly property bool darkLook: dark
     function setDark(on) { run("plasma-apply-lookandfeel -a " + (on ? "org.sios.desktop.dark" : "org.sios.desktop")); }
+
+    // KDE's clipboard manager lives here instead of in the tray
+    Clipboard.HistoryModel { id: clip }
 
     NotificationManager.Notifications {
         id: history
@@ -223,6 +251,55 @@ PlasmoidItem {
                     iconName: "volume"; label: "Volume"; value: root.volume
                     onMoved: (v) => { root.volume = v; root.run("wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (v / 100).toFixed(2) + " && wpctl set-mute @DEFAULT_AUDIO_SINK@ 0"); }
                 }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
+            Text { text: "Clipboard"; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+            Item { Layout.fillWidth: true }
+            Text {
+                visible: clip.count > 0
+                text: "Clear"
+                color: root.fg2
+                font.family: root.ui
+                font.pixelSize: 12
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: clip.clearHistory() }
+            }
+        }
+        Text {
+            visible: clip.count === 0
+            Layout.leftMargin: 4
+            text: "Things you copy show up here."
+            color: root.fg3
+            font.family: root.ui
+            font.pixelSize: 12
+        }
+        Repeater {
+            model: clip
+            delegate: Rectangle {
+                required property var model
+                required property int index
+                visible: index < 4
+                Layout.fillWidth: true
+                implicitHeight: visible ? 34 : 0
+                radius: 10
+                color: index === 0 ? root.surface : (cm.containsMouse ? root.surface3 : root.surface2)
+                border.width: 1
+                border.color: root.line
+                Text {
+                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 12 }
+                    text: String(model.display || "").replace(/\s+/g, " ").trim()
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                    color: root.fg
+                    font.family: root.ui
+                    font.pixelSize: 12
+                }
+                MouseArea { id: cm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: clip.moveToTop(model.uuid) }
             }
         }
 

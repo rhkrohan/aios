@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Wayland to X11 Video Bridge
+Exec=xwaylandvideobridge
+# SIOS: off by default, because it keeps an icon in the tray. Older X11-only
+# apps (some versions of Discord or Zoom) need it to share your screen; start
+# it from Apps when you need that.
+Hidden=true
