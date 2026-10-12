@@ -5,3 +5,6 @@ _build-*/**
 *_chunkah_*
 *_rpm-ostree_*
 .DS_Store
+
+# SIOS app builds
+apps/*/.bin

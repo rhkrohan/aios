@@ -26,7 +26,7 @@ PlasmoidItem {
 
     // the pinned apps, left and right of the orb; the first that's installed wins
     readonly property var leftApps: [
-        ["org.kde.dolphin.desktop"],
+        ["org.sios.files.desktop", "org.kde.dolphin.desktop"],
         ["org.mozilla.firefox.desktop", "firefox.desktop", "org.chromium.Chromium.desktop"],
         ["org.mozilla.Thunderbird.desktop", "thunderbird.desktop", "org.kde.kmail2.desktop"]
     ]

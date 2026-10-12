@@ -5,6 +5,8 @@ set -ouex pipefail
 
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
+# The SIOS native apps, built in the Containerfile's "apps" stage
+cp -avf "/ctx/apps_out"/. /
 
 ### SIOS look and layout (docs/plan/15-build-blueprint.md, Stage A)
 # Our fonts (Instrument Sans, Jost, JetBrains Mono; all SIL Open Font License)
@@ -35,6 +37,18 @@ if command -v kpackagetool6 > /dev/null; then
     kpackagetool6 --type Plasma/LookAndFeel --list --global | grep -q "org.sios.desktop"
     for w in $WIDGETS; do kpackagetool6 --type Plasma/Applet --list --global | grep -q "$w"; done
 fi
+
+### SIOS Files: the preview's Files app, the default for folders (D29)
+test -x /usr/bin/sios-files
+test -f /usr/share/applications/org.sios.files.desktop
+# folders open in SIOS Files everywhere (desktop discs, "open folder" in apps);
+# Dolphin stays installed for anyone who wants it
+mkdir -p /usr/share/applications
+grep -q "^\[Default Applications\]" /usr/share/applications/mimeapps.list 2>/dev/null || printf '[Default Applications]\n' >> /usr/share/applications/mimeapps.list
+sed -i '/^inode\/directory=/d' /usr/share/applications/mimeapps.list
+sed -i 's/^\[Default Applications\]$/[Default Applications]\ninode\/directory=org.sios.files.desktop;org.kde.dolphin.desktop;/' /usr/share/applications/mimeapps.list
+# KDE reads its own defaults list first
+kwriteconfig6 --file "/usr/share/kde-settings/kde-profile/default/xdg/kde-mimeapps.list" --group "Default Applications" --key "inode/directory" "org.sios.files.desktop;org.kde.dolphin.desktop;"
 
 ### Files (Dolphin) like the preview's Files app
 # Toolbar: back, forward, path, search, sort, grid, list, new folder, details

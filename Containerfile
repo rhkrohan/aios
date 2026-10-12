@@ -3,10 +3,25 @@
 # so the same recipe can run in a VM on Apple Silicon.
 ARG BASE_IMAGE=ghcr.io/ublue-os/aurora:stable@sha256:94b81908b565b2fa1a7c98836570c16f4c6d3e80f4bb1eadb8d497217433ab1d
 
+# The SIOS native apps (apps/*), compiled on the same base as the image so
+# their Qt and KDE libraries match exactly. Only the built files are copied
+# into the image; the compilers stay in this stage.
+FROM ${BASE_IMAGE} AS apps
+RUN dnf5 -y install cmake ninja-build gcc-c++ extra-cmake-modules \
+      qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
+      kf6-kio-devel kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel
+COPY apps /apps
+RUN for app in /apps/sios-*/; do \
+      cmake -S "$app" -B "/build/$(basename "$app")" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -Wno-dev && \
+      cmake --build "/build/$(basename "$app")" && \
+      DESTDIR=/out cmake --install "/build/$(basename "$app")" || exit 1; \
+    done
+
 # Allow build scripts to be referenced without being copied into the final image
 FROM scratch AS ctx
 COPY build_files /
 COPY system_files /system_files
+COPY --from=apps /out /apps_out
 
 # Base Image
 FROM ${BASE_IMAGE}

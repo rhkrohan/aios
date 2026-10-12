@@ -1,0 +1,7 @@
+# Build environment for the SIOS native apps (apps/*), matching the image's
+# Fedora 44. Used for local test builds and as the build stage in the image.
+FROM quay.io/fedora/fedora:44
+RUN dnf5 -y install cmake ninja-build gcc-c++ extra-cmake-modules \
+      qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
+      kf6-kio-devel kf6-kcoreaddons-devel kf6-ki18n-devel kf6-kconfig-devel \
+    && dnf5 clean all
