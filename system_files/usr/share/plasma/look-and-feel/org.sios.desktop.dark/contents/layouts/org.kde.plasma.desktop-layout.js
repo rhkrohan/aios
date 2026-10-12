@@ -17,6 +17,8 @@ top.addWidget("org.sios.menus");
 top.addWidget("org.kde.plasma.panelspacer");
 top.addWidget("org.sios.wordmark");
 top.addWidget("org.kde.plasma.panelspacer");
+// the buddy floats above windows in its own little window; it takes no room here
+top.addWidget("org.sios.buddy");
 top.addWidget("org.kde.plasma.systemtray");
 const clock = top.addWidget("org.kde.plasma.digitalclock");
 clock.currentConfigGroup = ["Appearance"];

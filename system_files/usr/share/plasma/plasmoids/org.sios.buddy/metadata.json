@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "org.sios.buddy",
+        "Name": "SIOS buddy",
+        "Description": "The SIOS pet: the assistant's orb with a face, floating above your windows",
+        "Icon": "sios-logo",
+        "Authors": [{ "Name": "SIOS" }],
+        "Category": "Miscellaneous",
+        "License": "GPL-2.0-or-later",
+        "Version": "0.1"
+    }
+}
