@@ -29,6 +29,8 @@ done
 test -f /usr/share/color-schemes/SIOSLight.colors
 test -f /usr/share/color-schemes/SIOSDark.colors
 test -f /usr/share/icons/SIOS/index.theme
+# the SIOS Plasma style (popups, notifications, dock): ui/make-plasma-style.py
+for f in dialogs/background widgets/panel-background widgets/tooltip; do gzip -t "/usr/share/plasma/desktoptheme/sios/$f.svgz"; done
 if command -v kpackagetool6 > /dev/null; then
     kpackagetool6 --type Plasma/LookAndFeel --list --global | grep -q "org.sios.desktop"
     for w in $WIDGETS; do kpackagetool6 --type Plasma/Applet --list --global | grep -q "$w"; done

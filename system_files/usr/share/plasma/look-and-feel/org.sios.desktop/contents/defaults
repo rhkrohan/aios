@@ -8,7 +8,7 @@ ColorScheme=SIOSLight
 Theme=SIOS
 
 [plasmarc][Theme]
-name=default
+name=sios
 
 [kcminputrc][Mouse]
 cursorTheme=breeze_cursors

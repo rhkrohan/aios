@@ -1,0 +1,17 @@
+{
+    "KPackageStructure": "Plasma/Theme",
+    "KPlugin": {
+        "Id": "sios",
+        "Name": "SIOS",
+        "Description": "SIOS glass: rounded popups, notifications and dock like the preview; the rest is Breeze",
+        "Authors": [
+            {
+                "Name": "SIOS"
+            }
+        ],
+        "License": "GPL-2.0-or-later",
+        "Version": "0.1",
+        "EnabledByDefault": true
+    },
+    "X-Plasma-API": "5.0"
+}
