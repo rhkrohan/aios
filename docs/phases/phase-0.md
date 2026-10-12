@@ -13,7 +13,7 @@ Setup
 - [ ] Choose test laptop
 Build
 - [x] First unchanged build; confirm image on ghcr.io
-- [ ] Visible change: wallpaper + [OS NAME] placeholder branding
+- [ ] Visible change: wallpaper + [OS NAME] placeholder branding (SIOS look built in `system_files/` 2026-10-12; tick after it's seen on a VM)
 - [ ] Stub systemd user unit for brain-d that only logs "brain-d started"
 - [x] Build ISO with bootc-image-builder
 - [ ] Set up dev / beta / stable tags (installer `disk_config/iso.toml` currently points at `:latest`)

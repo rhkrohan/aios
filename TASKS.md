@@ -4,7 +4,7 @@
 - [ ] **Install ISO in VirtualBox on the Windows PC; confirm desktop loads** - Phase 0 gate
 - [ ] **Set up test VM on an x86_64 Linux host (virt-manager or GNOME Boxes), or UTM emulation on the Mac as fallback** - Phase 0, Aurora is amd64 only
 - [ ] **Stub brain-d systemd user unit that logs "brain-d started"** - Phase 0
-- [ ] **Visible change: wallpaper + [OS NAME] placeholder** - Phase 0
+- [ ] **Visible change: wallpaper + [OS NAME] placeholder** - Phase 0 (built 2026-10-12, see `ui/README.md`; needs a VM check)
 
 ## Waiting On
 

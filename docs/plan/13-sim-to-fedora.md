@@ -9,6 +9,7 @@ The digital version (the preview in `build_concept_html`, plus `capd` and `brain
 | Piece | Digital version (now) | On SIOS (Fedora atomic, bootc) | Decision |
 | --- | --- | --- | --- |
 | Shell: desktop, Files, approval sheet, launcher | Next.js page | KDE Plasma plus SIOS shell components (QML) | D2 |
+| Shell look and layout (Stage A) | Design tokens, top bar, dock, tunnel wallpaper, Instrument Sans / Jost | Built in `system_files/`: SIOS look-and-feel (light and dark), color schemes from the tokens, top bar + floating dock layout, wordmark widget, tunnel wallpaper, fonts, splash, lock and login wallpaper, About. Not yet booted. | D2 |
 | Trusted approval prompt | Approval sheet; only the page's server may answer capd as owner | A polkit-style agent in the shell, the only process allowed to grant passes and answer approvals | D4 |
 | brain-d: briefing, planner, plan check, routines, MCP door | Rust process, socket `~/.sios/brain.sock` | Rust systemd user service, D-Bus `org.sios.Brain1`, socket in `$XDG_RUNTIME_DIR/sios` | D3, D12 |
 | Broker: capabilities, checks, audit, undo | `capd`, Rust process, socket `~/.sios/capd.sock`, owner proven by `owner.secret` | `sios-broker`, Rust systemd system service, socket in `/run/sios`, caller identity from `SO_PEERCRED` instead of a secret file | D4, D20 |
