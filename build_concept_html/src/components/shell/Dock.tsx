@@ -23,6 +23,7 @@ const RIGHT: { id: AppId; name: string; icon: LucideIcon }[] = [
 const BASE = 44; // resting slot size
 const PEAK = 66; // size right under the pointer
 const REACH = 130; // how far the magnification spreads, in px
+const ORB = 1.5; // the Ask orb, relative to an app icon
 
 /** A slim bar. Icons grow as the pointer passes over them, like macOS. */
 export function Dock() {
@@ -59,7 +60,7 @@ export function Dock() {
       <div
         onMouseMove={(e) => mouseX.set(e.clientX)}
         onMouseLeave={() => mouseX.set(Infinity)}
-        className="glass flex items-end gap-1 h-[58px] px-2 pb-[7px] rounded-[22px] bg-glass-strong backdrop-blur-3xl backdrop-saturate-150 border border-glass-line shadow-[0_1px_0_rgba(255,255,255,.6)_inset,0_18px_40px_-16px_rgba(10,20,40,.45)]"
+        className="glass flex items-center gap-1 h-[76px] px-2.5 rounded-[24px] bg-glass-strong backdrop-blur-3xl backdrop-saturate-150 border border-glass-line shadow-[0_1px_0_rgba(255,255,255,.6)_inset,0_18px_40px_-16px_rgba(10,20,40,.45)]"
       >
         {LEFT.map(item)}
         <span className="w-px h-6 self-center bg-fg/10 mx-1" />
@@ -141,7 +142,9 @@ function AskButton({ mouseX }: { mouseX: MotionValue<number> }) {
   const brain = useOS(selectBrainState);
   const busy = brain === "working" || brain === "waiting";
   const ref = useRef<HTMLButtonElement>(null);
-  const { size, scale } = useMagnify(mouseX, ref);
+  const { size: base, scale } = useMagnify(mouseX, ref);
+  // the orb is half again the size of the app icons
+  const size = useTransform(base, (s) => s * ORB);
   const [hover, setHover] = useState(false);
   const [dropping, setDropping] = useState(false);
   const setAskFiles = useOS((s) => s.setAskFiles);
@@ -189,7 +192,7 @@ function AskButton({ mouseX }: { mouseX: MotionValue<number> }) {
     >
       <Tooltip show={hover || dropping} label={label} />
       <motion.span style={{ scale }} className="grid place-items-center">
-        <StringOrb size={30} busy={busy} strands={16} />
+        <StringOrb size={45} busy={busy} strands={16} />
       </motion.span>
     </motion.button>
   );

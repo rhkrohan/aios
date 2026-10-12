@@ -63,6 +63,7 @@ private:
     QVariantMap brief(const AppStream::Component &c) const;
     QString remoteFor(const QString &id) const;
     void runFlatpak(const QString &id, const QString &action, const QStringList &args);
+    static QString plainError(const QString &output);
 
     AppStream::Pool *m_pool;
     QHash<QString, int> m_index;              // id -> position in m_apps

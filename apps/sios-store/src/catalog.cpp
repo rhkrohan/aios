@@ -389,6 +389,31 @@ void Catalog::loadPermissions(const QString &id)
         p->start(QStringLiteral("flatpak"), {QStringLiteral("remote-info"), QStringLiteral("--show-metadata"), remoteFor(id), id});
 }
 
+// flatpak's last error line, in words a person can act on
+QString Catalog::plainError(const QString &output)
+{
+    QString line;
+    const QStringList lines = output.split(QRegularExpression(QStringLiteral("[\r\n]")), Qt::SkipEmptyParts);
+    for (auto it = lines.crbegin(); it != lines.crend(); ++it) {
+        if (it->contains(QLatin1String("error"), Qt::CaseInsensitive)) {
+            line = it->trimmed();
+            break;
+        }
+    }
+    if (line.isEmpty() && !lines.isEmpty())
+        line = lines.last().trimmed();
+    line.remove(QRegularExpression(QStringLiteral("^error:\\s*"), QRegularExpression::CaseInsensitiveOption));
+    if (line.contains(QLatin1String("not allowed for user")) || line.contains(QLatin1String("Not authorized")))
+        return QStringLiteral("This needs an administrator's password, and the request was turned down.");
+    if (line.contains(QLatin1String("Could not resolve")) || line.contains(QLatin1String("Couldn't resolve")) || line.contains(QLatin1String("Network")))
+        return QStringLiteral("Couldn't reach Flathub. Check the internet connection and try again.");
+    if (line.contains(QLatin1String("No remote refs found")) || line.contains(QLatin1String("Nothing matches")))
+        return QStringLiteral("Flathub doesn't offer this app for this kind of computer.");
+    if (line.contains(QLatin1String("already installed")))
+        return QStringLiteral("It's already installed.");
+    return line;
+}
+
 void Catalog::runFlatpak(const QString &id, const QString &action, const QStringList &args)
 {
     if (m_busy.contains(id))
@@ -397,9 +422,13 @@ void Catalog::runFlatpak(const QString &id, const QString &action, const QString
     Q_EMIT busyChanged();
     auto *p = new QProcess(this);
     p->setProcessChannelMode(QProcess::MergedChannels);
-    connect(p, &QProcess::readyRead, this, [this, p, id, action] {
-        // flatpak draws a progress bar ending in "NN%"
+    auto *log = new QString;
+    connect(p, &QProcess::readyRead, this, [this, p, id, action, log] {
+        // flatpak draws a progress bar ending in "NN%"; keep the text for errors too
         const QString out = QString::fromUtf8(p->readAll());
+        log->append(out);
+        if (log->size() > 20000)
+            log->remove(0, log->size() - 20000);
         const auto all = QRegularExpression(QStringLiteral("(\\d{1,3})%")).globalMatch(out);
         int last = -1;
         auto it = all;
@@ -410,8 +439,10 @@ void Catalog::runFlatpak(const QString &id, const QString &action, const QString
             Q_EMIT busyChanged();
         }
     });
-    connect(p, &QProcess::finished, this, [this, p, id, action](int code) {
-        const QString tail = QString::fromUtf8(p->readAll()).trimmed().section(QLatin1Char('\n'), -1);
+    connect(p, &QProcess::finished, this, [this, p, id, action, log](int code) {
+        log->append(QString::fromUtf8(p->readAll()));
+        const QString tail = plainError(*log);
+        delete log;
         p->deleteLater();
         m_busy.remove(id);
         Q_EMIT busyChanged();
@@ -423,26 +454,27 @@ void Catalog::runFlatpak(const QString &id, const QString &action, const QString
 
 void Catalog::install(const QString &id)
 {
-    // install where the source is set up: for everyone if the system has it, else just for this person
+    // apps install just for this person: no administrator password, like a
+    // phone's or a Mac's app store. The personal Flathub source is set up the
+    // first time (it reads the same catalog as the system one).
     const QString remote = remoteFor(id);
-    QProcess check;
-    check.start(QStringLiteral("flatpak"), {QStringLiteral("remotes"), QStringLiteral("--system"), QStringLiteral("--columns=name")});
-    check.waitForFinished(3000);
-    const bool system = QString::fromUtf8(check.readAllStandardOutput()).split(QLatin1Char('\n')).contains(remote);
-    runFlatpak(id, QStringLiteral("install"),
-               {QStringLiteral("install"), system ? QStringLiteral("--system") : QStringLiteral("--user"), QStringLiteral("-y"), QStringLiteral("--noninteractive"), remote, id});
+    QProcess add;
+    add.start(QStringLiteral("flatpak"), {QStringLiteral("remote-add"), QStringLiteral("--user"), QStringLiteral("--if-not-exists"), remote,
+                                          QStringLiteral("https://dl.flathub.org/repo/flathub.flatpakrepo")});
+    add.waitForFinished(20000);
+    runFlatpak(id, QStringLiteral("install"), {QStringLiteral("install"), QStringLiteral("--user"), QStringLiteral("-y"), remote, id});
 }
 
 void Catalog::remove(const QString &id)
 {
     const QString where = m_installed.value(id).value(QStringLiteral("installation")).toString() == QLatin1String("user") ? QStringLiteral("--user") : QStringLiteral("--system");
-    runFlatpak(id, QStringLiteral("remove"), {QStringLiteral("uninstall"), where, QStringLiteral("-y"), QStringLiteral("--noninteractive"), id});
+    runFlatpak(id, QStringLiteral("remove"), {QStringLiteral("uninstall"), where, QStringLiteral("-y"), id});
 }
 
 void Catalog::update(const QString &id)
 {
     const QString where = m_installed.value(id).value(QStringLiteral("installation")).toString() == QLatin1String("user") ? QStringLiteral("--user") : QStringLiteral("--system");
-    runFlatpak(id, QStringLiteral("update"), {QStringLiteral("update"), where, QStringLiteral("-y"), QStringLiteral("--noninteractive"), id});
+    runFlatpak(id, QStringLiteral("update"), {QStringLiteral("update"), where, QStringLiteral("-y"), id});
 }
 
 void Catalog::updateAll()

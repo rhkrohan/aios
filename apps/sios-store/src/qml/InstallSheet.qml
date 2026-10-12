@@ -130,7 +130,7 @@ Rectangle {
                 visible: sheet.step === "failed"
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
-                text: "That didn't install. " + (sheet.error || "Check the internet connection and try again.")
+                text: "That didn't install. " + (sheet.error || "Flatpak didn't say why.")
                 color: Theme.danger
                 font.family: Theme.ui
                 font.pixelSize: 13

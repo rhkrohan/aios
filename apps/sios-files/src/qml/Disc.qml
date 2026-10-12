@@ -63,7 +63,7 @@ Item {
             for (const seg of segs) {
                 const span = seg.n / total * TAU;
                 c.globalAlpha = disc.open ? 1 : 0.92;
-                c.strokeStyle = seg.kind === "folder" ? "#ffffff" : (Theme.kindColor[seg.kind] || "#6b7480");
+                c.strokeStyle = "#ffffff"; // always white, like the desktop discs
                 c.beginPath();
                 if (span >= TAU - 1e-3) c.arc(50, 50, 40, 0, TAU); else arc(40, start + gap / 2, start + span - gap / 2);
                 c.stroke();

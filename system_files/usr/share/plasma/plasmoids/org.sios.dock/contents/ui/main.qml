@@ -171,11 +171,11 @@ PlasmoidItem {
         Item {
             id: orbSlot
             Layout.alignment: Qt.AlignVCenter
-            implicitWidth: 58
-            implicitHeight: 58
+            implicitWidth: 84
+            implicitHeight: 84
             Rectangle {
                 anchors.fill: parent
-                anchors.margins: 2
+                anchors.margins: 3
                 radius: width / 2
                 color: root.dark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.7)
                 border.width: 1
@@ -183,8 +183,8 @@ PlasmoidItem {
             }
             Orb {
                 anchors.centerIn: parent
-                width: 42
-                height: 42
+                width: 63
+                height: 63
                 lively: orbMouse.containsMouse
             }
             Tip { show: orbMouse.containsMouse; text: "Search  (Ask SIOS is coming)" }
