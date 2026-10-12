@@ -23,6 +23,7 @@ import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
+import org.kde.kirigami as Kirigami
 
 PlasmoidItem {
     id: root
@@ -35,6 +36,8 @@ PlasmoidItem {
     }
 
     readonly property int size: 76
+    // reduced motion (KDE animation speed set to Instant): no bouncing, blinking or floating z's
+    readonly property bool still: Kirigami.Units.longDuration === 0
     readonly property int box: 112          // the window around it, room for the strands and the bounce
     property string mood: "idle"            // idle | happy | sleeping
     property string bubble: ""
@@ -133,7 +136,7 @@ PlasmoidItem {
 
                 // breathing and bouncing on its toes (idle), slow breaths (asleep), a hop (happy)
                 SequentialAnimation {
-                    running: root.mood === "idle" && pet.visible
+                    running: root.mood === "idle" && pet.visible && !root.still
                     loops: Animation.Infinite
                     ParallelAnimation {
                         NumberAnimation { target: body; property: "bob"; to: -6; duration: 600; easing.type: Easing.InOutSine }
@@ -151,7 +154,7 @@ PlasmoidItem {
                     }
                 }
                 SequentialAnimation {
-                    running: root.mood === "sleeping" && pet.visible
+                    running: root.mood === "sleeping" && pet.visible && !root.still
                     loops: Animation.Infinite
                     ParallelAnimation {
                         NumberAnimation { target: body; property: "bob"; to: 2; duration: 1600; easing.type: Easing.InOutSine }
@@ -222,7 +225,7 @@ PlasmoidItem {
                                 transform: Scale { origin.y: eyeWhite.height / 2; yScale: eyeWhite.blink }
                                 SequentialAnimation on blink {
                                     loops: Animation.Infinite
-                                    running: pet.visible
+                                    running: pet.visible && !root.still
                                     PauseAnimation { duration: 3900 }
                                     NumberAnimation { to: 0.1; duration: 80 }
                                     NumberAnimation { to: 1; duration: 90 }
@@ -327,7 +330,7 @@ PlasmoidItem {
 
                 // z z z
                 Repeater {
-                    model: root.mood === "sleeping" ? 3 : 0
+                    model: root.mood === "sleeping" && !root.still ? 3 : 0
                     Text {
                         id: z
                         text: "z"

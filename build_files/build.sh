@@ -74,6 +74,7 @@ grep -q "ButtonsOnRight=IAX" "$XDG/kwinrc"
 rpm -q kvantum > /dev/null || dnf5 -y install kvantum
 test -s /usr/share/Kvantum/SIOS/SIOS.svg
 test -s /usr/share/Kvantum/SIOS/SIOS.kvconfig
+test -s /usr/share/Kvantum/SIOSDark/SIOSDark.svg
 
 ### Make sure our defaults win
 # KDE reads /etc/xdg before the kde-profile defaults folder, so if the base

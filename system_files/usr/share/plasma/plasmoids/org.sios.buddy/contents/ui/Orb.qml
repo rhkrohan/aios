@@ -8,12 +8,17 @@
 */
 
 import QtQuick
+import org.kde.kirigami as Kirigami
 
 Canvas {
     id: orb
     property int strands: 16
     property bool lively: false
+    Component.onCompleted: requestPaint()
     property real t: 0
+    // KDE's animation speed set to Instant means reduced motion: draw one still frame
+    readonly property bool still: Kirigami.Units.longDuration === 0
+    onStillChanged: requestPaint()
     property real live: lively ? 1 : 0
     Behavior on live { NumberAnimation { duration: 400 } }
 
@@ -32,7 +37,7 @@ Canvas {
     Timer {
         interval: 50
         repeat: true
-        running: orb.visible
+        running: orb.visible && !orb.still
         onTriggered: { orb.t += 0.05 * (0.35 + orb.live * 0.75); orb.requestPaint(); }
     }
 

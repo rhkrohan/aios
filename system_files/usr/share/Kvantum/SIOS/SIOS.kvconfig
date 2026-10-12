@@ -1,6 +1,6 @@
 [%General]
 author=SIOS (from KvGnome by Tsu Jan)
-comment=SIOS: light surfaces, soft blue selection, the assistant blue for focus
+comment=SIOS: soft blue selection, the assistant blue for focus
 x11drag=all
 alt_mnemonic=true
 left_tabs=false
