@@ -10,7 +10,7 @@ Rectangle {
     property int selectedCount: 0
     signal openItem(var item)
 
-    implicitWidth: 268
+    implicitWidth: 300
     color: Theme.surface2
     Rectangle { width: 1; height: parent.height; color: Theme.line }
 
@@ -40,7 +40,7 @@ Rectangle {
     ColumnLayout {
         visible: !!panel.item
         anchors.fill: parent
-        anchors.margins: 20
+        anchors.margins: 24
         spacing: 14
 
         Item {

@@ -28,15 +28,15 @@ QQC2.ApplicationWindow {
         property string key
         property string kcm: ""
         Layout.fillWidth: true
-        implicitHeight: 36
+        implicitHeight: 40
         radius: 10
         readonly property bool on: win.page === key
         color: on ? Theme.aiSoft : (m.containsMouse ? Theme.surface3 : "transparent")
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 10
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 12
             Icon { name: nav.icon; size: 16; color: nav.on ? Theme.aiInk : Theme.fg2 }
             Text { Layout.fillWidth: true; text: nav.label; color: nav.on ? Theme.aiInk : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: nav.on ? Font.Medium : Font.Normal }
             Icon { visible: nav.kcm !== ""; name: "external-link"; size: 13; color: Theme.fg3 }
@@ -45,17 +45,17 @@ QQC2.ApplicationWindow {
         Accessible.role: Accessible.Button
         Accessible.name: label
     }
-    component Header: Text { color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.leftMargin: 10; Layout.topMargin: 14; Layout.bottomMargin: 2 }
+    component Header: Text { color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.leftMargin: 12; Layout.topMargin: 18; Layout.bottomMargin: 4 }
 
     component Card: Rectangle {
         default property alias content: inner.data
         Layout.fillWidth: true
-        implicitHeight: inner.implicitHeight + 32
+        implicitHeight: inner.implicitHeight + 48
         radius: 16
         color: Theme.surface
         border.width: 1
         border.color: Theme.line
-        ColumnLayout { id: inner; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 } spacing: 10 }
+        ColumnLayout { id: inner; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 } spacing: 14 }
     }
     component Toggle: Rectangle {
         id: tg
@@ -85,8 +85,8 @@ QQC2.ApplicationWindow {
         border.width: 1
         border.color: Qt.rgba(Theme.ai.r, Theme.ai.g, Theme.ai.b, 0.25)
         RowLayout {
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 14 }
-            spacing: 10
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 18 }
+            spacing: 12
             Icon { name: "sparkles"; size: 16; color: Theme.aiInk }
             Text { id: soonText; Layout.fillWidth: true; text: parent.parent.text; wrapMode: Text.WordWrap; color: Theme.aiInk; font.family: Theme.ui; font.pixelSize: 13 }
         }
@@ -104,7 +104,7 @@ QQC2.ApplicationWindow {
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
             QQC2.ScrollView {
                 anchors.fill: parent
-                anchors.margins: 10
+                anchors.margins: 12
                 ColumnLayout {
                     width: 212
                     spacing: 2
@@ -145,16 +145,16 @@ QQC2.ApplicationWindow {
 
             ColumnLayout {
                 id: pages
-                x: Math.max(32, (body.width - 620) / 2)
-                y: 28
-                width: Math.min(620, body.width - 64)
-                spacing: 12
+                x: Math.max(40, (body.width - 680) / 2)
+                y: 40
+                width: Math.min(680, body.width - 80)
+                spacing: 18
 
                 // Brain (Stage B)
                 ColumnLayout {
                     visible: win.page === "brain"
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 18
                     PageTitle { title: "Brain"; sub: "Where SIOS thinks, and what it may share." }
                     Soon { text: "These settings arrive with the assistant, which runs on this computer in the next stage." }
                     Repeater {
@@ -180,7 +180,7 @@ QQC2.ApplicationWindow {
                 ColumnLayout {
                     visible: win.page === "permissions"
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 18
                     PageTitle { title: "Permissions"; sub: "What the assistant and connected apps may do without asking." }
                     Soon { text: "Every action the assistant takes passes the permission broker. Your standing rules and what you've allowed for a session show here once it runs." }
                 }
@@ -189,7 +189,7 @@ QQC2.ApplicationWindow {
                 ColumnLayout {
                     visible: win.page === "connections"
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 18
                     PageTitle { title: "Connected AI apps"; sub: "Other AIs that can use this computer through SIOS." }
                     Soon { text: "Apps like Claude Desktop connect through SIOS's door (MCP) and get only the roles you give them. They show here once the assistant runs." }
                 }
@@ -259,7 +259,7 @@ QQC2.ApplicationWindow {
                 ColumnLayout {
                     visible: win.page === "wifi"
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 18
                     PageTitle { title: "Wi-Fi"; sub: system.wired ? "Connected by cable (" + system.wired + ")" : "Networks around you." }
                     Card {
                         RowLayout {
@@ -334,7 +334,7 @@ QQC2.ApplicationWindow {
                 ColumnLayout {
                     visible: win.page === "updates"
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 18
                     PageTitle { title: "Updates"; sub: "SIOS updates as a whole, and you can always go back." }
                     Card {
                         RowLayout {

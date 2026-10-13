@@ -13,7 +13,7 @@ Rectangle {
     property real max: 100
     property real fraction: -1     // a bar instead of a line, for "how full"
     property color tone: Theme.ai
-    implicitHeight: 150
+    implicitHeight: 168
     radius: 16
     color: Theme.surface
     border.width: 1
@@ -21,8 +21,8 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 4
+        anchors.margins: 22
+        spacing: 6
         RowLayout {
             spacing: 8
             Icon { name: card.icon; size: 15; color: Theme.fg2 }

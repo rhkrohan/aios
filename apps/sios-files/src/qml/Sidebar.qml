@@ -11,7 +11,7 @@ Rectangle {
     signal dropped(var locations, string toFolder, bool copy)
 
     color: Theme.surface2
-    implicitWidth: 208
+    implicitWidth: 236
 
     Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
 
@@ -19,8 +19,8 @@ Rectangle {
     function at(sub) { return home + "/" + sub; }
 
     component Header: Text {
-        Layout.leftMargin: 18
-        Layout.topMargin: 14
+        Layout.leftMargin: 24
+        Layout.topMargin: 20
         Layout.bottomMargin: 4
         color: Theme.fg3
         font.family: Theme.ui
@@ -39,9 +39,9 @@ Rectangle {
         property string note: ""
         readonly property bool current: side.location === target
         Layout.fillWidth: true
-        Layout.leftMargin: 8
-        Layout.rightMargin: 8
-        implicitHeight: 34
+        Layout.leftMargin: 12
+        Layout.rightMargin: 12
+        implicitHeight: 40
         radius: 10
         color: current ? Theme.surface : (hover.containsMouse && enabledView ? Theme.surface3 : (drop.containsDrag ? Theme.accentSoft : "transparent"))
         border.width: current ? 1 : 0
@@ -50,12 +50,12 @@ Rectangle {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 10
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 12
             Rectangle {
-                implicitWidth: 22
-                implicitHeight: 22
+                implicitWidth: 26
+                implicitHeight: 26
                 radius: 6
                 color: Qt.rgba(place.tint.r, place.tint.g, place.tint.b, Theme.dark ? 0.2 : 0.12)
                 Icon { anchors.centerIn: parent; name: place.icon; size: 14; color: place.tint }
@@ -104,8 +104,8 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.bottomMargin: 12
-        spacing: 2
+        anchors.bottomMargin: 18
+        spacing: 4
 
         Header { text: "Places" }
         Place { label: "Home"; icon: "house"; target: side.home }
@@ -128,8 +128,8 @@ Rectangle {
         // how full the disk is
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 18
-            Layout.rightMargin: 18
+            Layout.leftMargin: 24
+            Layout.rightMargin: 24
             Layout.topMargin: 10
             spacing: 6
             Rectangle {

@@ -46,13 +46,13 @@ QQC2.ApplicationWindow {
         // tabs
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 56
+            implicitHeight: 64
             color: Theme.surface2
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
+                anchors.leftMargin: 24
+                anchors.rightMargin: 24
                 spacing: 6
                 Tab { icon: "gauge"; label: "Overview"; key: "overview" }
                 Tab { icon: "sparkles"; label: "Goals"; key: "goals" }
@@ -74,16 +74,16 @@ QQC2.ApplicationWindow {
 
             ColumnLayout {
                 id: col
-                x: 20
-                y: 20
-                width: overview.width - 40
-                spacing: 16
+                x: 28
+                y: 28
+                width: overview.width - 56
+                spacing: 20
 
                 GridLayout {
                     Layout.fillWidth: true
                     columns: overview.width > 980 ? (sampler.battery.percent !== undefined ? 5 : 4) : 2
-                    columnSpacing: 12
-                    rowSpacing: 12
+                    columnSpacing: 16
+                    rowSpacing: 16
                     StatCard {
                         Layout.fillWidth: true
                         icon: "cpu"; label: "Processor"
@@ -131,14 +131,14 @@ QQC2.ApplicationWindow {
                 // the apps using the most
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: apps.implicitHeight + 24
+                    implicitHeight: apps.implicitHeight + 36
                     radius: 16
                     color: Theme.surface
                     border.width: 1
                     border.color: Theme.line
                     ColumnLayout {
                         id: apps
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
@@ -156,15 +156,15 @@ QQC2.ApplicationWindow {
                                 id: row
                                 required property var modelData
                                 Layout.fillWidth: true
-                                implicitHeight: 44
+                                implicitHeight: 50
                                 radius: 10
                                 color: rm.containsMouse ? Theme.surface2 : "transparent"
                                 MouseArea { id: rm; anchors.fill: parent; hoverEnabled: true }
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
-                                    spacing: 12
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 14
                                     Rectangle {
                                         implicitWidth: 28; implicitHeight: 28; radius: 8
                                         color: Theme.accentSoft
@@ -224,22 +224,22 @@ QQC2.ApplicationWindow {
             spacing: 0
             GridLayout {
                 Layout.fillWidth: true
-                Layout.margins: 20
+                Layout.margins: 28
                 columns: 5
-                columnSpacing: 12
+                columnSpacing: 16
                 Repeater {
                     model: [["activity", "Running"], ["hourglass", "Waiting for you"], ["circle-check", "Done today"], ["clock", "Average time"], ["ban", "Actions blocked"]]
                     delegate: Rectangle {
                         required property var modelData
                         Layout.fillWidth: true
-                        implicitHeight: 76
+                        implicitHeight: 84
                         radius: 16
                         color: Theme.surface
                         border.width: 1
                         border.color: Theme.line
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
+                            anchors.margins: 18
                             spacing: 2
                             RowLayout {
                                 spacing: 8

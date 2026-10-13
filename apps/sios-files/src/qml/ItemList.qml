@@ -22,14 +22,15 @@ Flickable {
 
     Column {
         id: column
-        x: 12
-        width: list.width - 24
+        x: 20
+        y: 8
+        width: list.width - 40
 
         // column headings
         RowLayout {
             width: parent.width
-            height: 34
-            spacing: 12
+            height: 40
+            spacing: 14
             component Head: Text { color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
             Item { Layout.preferredWidth: 28 }
             Head { text: "Name"; Layout.fillWidth: true }
@@ -61,7 +62,7 @@ Flickable {
                         readonly property var item: modelData
                         readonly property bool selected: list.app.isSelected(item.location)
                         width: column.width
-                        height: 38
+                        height: 46
                         radius: 8
                         color: selected ? Theme.accentSoft : (m.containsMouse || drop.containsDrag ? Theme.surface2 : "transparent")
 
@@ -72,8 +73,8 @@ Flickable {
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
                             spacing: 12
                             Item {
                                 Layout.preferredWidth: 28

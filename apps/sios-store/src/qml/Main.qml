@@ -48,7 +48,7 @@ QQC2.ApplicationWindow {
         property bool on: false
         signal clicked()
         Layout.fillWidth: true
-        implicitHeight: 38
+        implicitHeight: 40
         radius: 11
         color: on ? Theme.surface : (m.containsMouse ? Theme.surface3 : "transparent")
         border.width: on ? 1 : 0
@@ -85,8 +85,8 @@ QQC2.ApplicationWindow {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 12
-                spacing: 2
+                anchors.margins: 14
+                spacing: 4
 
                 // search the store
                 Rectangle {
@@ -123,7 +123,7 @@ QQC2.ApplicationWindow {
                 NavItem { icon: "package-check"; label: "Installed"; count: catalog.installed.length ? String(catalog.installed.length) : ""; on: win.page === "installed" && !win.detail; onClicked: win.go("installed") }
                 NavItem { icon: "refresh-cw"; label: "Updates"; count: catalog.updates.length ? String(catalog.updates.length) : ""; badge: true; on: win.page === "updates" && !win.detail; onClicked: win.go("updates") }
 
-                Text { text: "Categories"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.topMargin: 16; Layout.leftMargin: 12; Layout.bottomMargin: 4 }
+                Text { text: "Categories"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.topMargin: 20; Layout.leftMargin: 12; Layout.bottomMargin: 6 }
                 Repeater {
                     model: catalog.categories
                     delegate: NavItem {
@@ -161,9 +161,9 @@ QQC2.ApplicationWindow {
 
                 ColumnLayout {
                     id: browseCol
-                    x: 24
-                    y: 24
-                    width: browse.width - 48
+                    x: 32
+                    y: 32
+                    width: browse.width - 64
                     spacing: 18
 
                     // featured, like the preview's dark hero card
@@ -244,9 +244,9 @@ QQC2.ApplicationWindow {
 
                 ColumnLayout {
                     id: mineCol
-                    x: 24
-                    y: 24
-                    width: mine.width - 48
+                    x: 32
+                    y: 32
+                    width: mine.width - 64
                     spacing: 10
                     RowLayout {
                         Layout.fillWidth: true

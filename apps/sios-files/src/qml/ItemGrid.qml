@@ -25,17 +25,17 @@ Flickable {
 
     Column {
         id: column
-        x: 16
-        y: 12
-        width: grid.width - 32
-        spacing: 8
+        x: 28
+        y: 20
+        width: grid.width - 56
+        spacing: 18
 
         Repeater {
             model: grid.folder.groups
             delegate: Column {
                 required property var modelData
                 width: column.width
-                spacing: 6
+                spacing: 10
                 Text {
                     text: modelData.title
                     color: Theme.fg2
@@ -47,7 +47,7 @@ Flickable {
                 }
                 Flow {
                     width: parent.width
-                    spacing: 4
+                    spacing: 10
                     Repeater {
                         model: modelData.items
                         delegate: Tile { required property var modelData; item: modelData }
@@ -62,9 +62,9 @@ Flickable {
         property var item
         readonly property bool selected: grid.app.isSelected(item.location)
         readonly property bool renaming: grid.app.renaming === item.location
-        width: 124
-        height: 128
-        radius: 12
+        width: 140
+        height: 152
+        radius: 14
         color: selected ? Theme.accentSoft : (hover.containsMouse || drop.containsDrag ? Theme.surface2 : "transparent")
         border.width: selected || drop.containsDrag ? 1 : 0
         border.color: Theme.accentLine
@@ -76,14 +76,14 @@ Flickable {
 
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 10
-            spacing: 6
+            y: 14
+            spacing: 8
             Item {
-                width: 64
-                height: 64
+                width: 72
+                height: 72
                 anchors.horizontalCenter: parent.horizontalCenter
-                Disc { visible: tile.item.isDir; anchors.centerIn: parent; size: 60; name: tile.item.name; stats: tile.item.stats || ({ total: 0, segments: [] }); open: hover.containsMouse || tile.selected }
-                FileIcon { visible: !tile.item.isDir; anchors.centerIn: parent; size: 64; kind: tile.item.kind; ext: tile.item.ext; location: tile.item.location }
+                Disc { visible: tile.item.isDir; anchors.centerIn: parent; size: 68; name: tile.item.name; stats: tile.item.stats || ({ total: 0, segments: [] }); open: hover.containsMouse || tile.selected }
+                FileIcon { visible: !tile.item.isDir; anchors.centerIn: parent; size: 68; kind: tile.item.kind; ext: tile.item.ext; location: tile.item.location }
                 // came from the web: a small amber mark, like the preview's trust badge
                 Rectangle {
                     visible: !!tile.item.origin
@@ -99,7 +99,7 @@ Flickable {
             }
             Text {
                 visible: !tile.renaming
-                width: 112
+                width: 124
                 horizontalAlignment: Text.AlignHCenter
                 text: tile.item.name
                 color: tile.selected ? Theme.aiInk : Theme.fg
@@ -112,7 +112,7 @@ Flickable {
             }
             QQC2.TextField {
                 visible: tile.renaming
-                width: 116
+                width: 128
                 horizontalAlignment: Text.AlignHCenter
                 text: tile.item.name
                 font.family: Theme.ui
@@ -126,7 +126,7 @@ Flickable {
                 onActiveFocusChanged: if (!activeFocus && tile.renaming) grid.app.finishRename(tile.item.location, text)
             }
             Text {
-                width: 112
+                width: 124
                 horizontalAlignment: Text.AlignHCenter
                 text: tile.item.isDir ? ((tile.item.stats ? tile.item.stats.total : 0) + ((tile.item.stats && tile.item.stats.total === 1) ? " item" : " items")) : tile.item.sizeText
                 color: Theme.fg3

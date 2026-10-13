@@ -13,7 +13,7 @@ Rectangle {
     signal newFolder()
     signal emptyTrash()
 
-    implicitHeight: 52
+    implicitHeight: 60
     color: Theme.surface
 
     component ToolButton: Rectangle {
@@ -23,8 +23,8 @@ Rectangle {
         property bool on: false
         property bool active: true
         signal clicked()
-        implicitWidth: 32
-        implicitHeight: 32
+        implicitWidth: 36
+        implicitHeight: 36
         radius: 8
         color: on ? Theme.surface3 : (m.containsMouse && active ? Theme.surface2 : "transparent")
         opacity: active ? 1 : 0.35
@@ -36,9 +36,9 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        spacing: 4
+        anchors.leftMargin: 18
+        anchors.rightMargin: 18
+        spacing: 6
 
         ToolButton { icon: "arrow-left"; tip: "Back"; active: bar.folder.canGoBack; onClicked: bar.folder.back() }
         ToolButton { icon: "arrow-right"; tip: "Forward"; active: bar.folder.canGoForward; onClicked: bar.folder.forward() }
@@ -84,8 +84,8 @@ Rectangle {
 
         // search this folder
         Rectangle {
-            implicitWidth: 190
-            implicitHeight: 32
+            implicitWidth: 230
+            implicitHeight: 36
             radius: 10
             color: Theme.surface3
             border.width: search.activeFocus ? 1 : 0
@@ -141,8 +141,8 @@ Rectangle {
 
         // grid or list
         Rectangle {
-            implicitWidth: 68
-            implicitHeight: 32
+            implicitWidth: 76
+            implicitHeight: 36
             radius: 9
             color: Theme.surface2
             border.width: 1
@@ -150,8 +150,8 @@ Rectangle {
             Row {
                 anchors.centerIn: parent
                 spacing: 2
-                ToolButton { icon: "layout-grid"; tip: "Grid"; on: bar.view === "grid"; implicitWidth: 30; implicitHeight: 26; onClicked: bar.view = "grid" }
-                ToolButton { icon: "list"; tip: "List"; on: bar.view === "list"; implicitWidth: 30; implicitHeight: 26; onClicked: bar.view = "list" }
+                ToolButton { icon: "layout-grid"; tip: "Grid"; on: bar.view === "grid"; implicitWidth: 34; implicitHeight: 30; onClicked: bar.view = "grid" }
+                ToolButton { icon: "list"; tip: "List"; on: bar.view === "list"; implicitWidth: 34; implicitHeight: 30; onClicked: bar.view = "list" }
             }
         }
 

@@ -228,13 +228,13 @@ QQC2.ApplicationWindow {
             // status line
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 34
+                implicitHeight: 38
                 color: Theme.surface
                 Rectangle { width: parent.width; height: 1; color: Theme.line }
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
+                    anchors.leftMargin: 24
+                    anchors.rightMargin: 24
                     Text {
                         text: app.selected.length > 1 ? app.selected.length + " selected" : folder.count + (folder.count === 1 ? " item" : " items")
                         color: Theme.fg2
