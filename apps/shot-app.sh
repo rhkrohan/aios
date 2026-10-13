@@ -15,7 +15,7 @@ docker run --rm --platform linux/arm64 -v "$HERE/$APP":/src -v "sios-$APP-build"
   -v "$(cd "$(dirname "$OUT")" && pwd)":/out sios-appsshot bash -c "
     cmake -S /src -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release -Wno-dev >/dev/null && cmake --build /build >/dev/null
     cp /usr/share/icons/hicolor/scalable/apps-sios/* /usr/share/icons/hicolor/scalable/apps/ 2>/dev/null; fc-cache -f >/dev/null
-    mkdir -p /root/Documents /root/Pictures /root/Downloads /root/Projects; touch /root/Documents/Notes.txt /root/Documents/Budget.ods
+    mkdir -p /root/Documents /root/Pictures /root/Downloads /root/Projects; touch /root/Documents/Notes.txt /root/Documents/Budget.ods /root/Documents/Report.pdf /root/Documents/Plan.docx /root/Downloads/a.zip /root/Downloads/b.png /root/Downloads/c.pdf; mkdir -p /root/Projects/app
     Xvfb :1 -screen 0 1440x900x24 >/dev/null 2>&1 & sleep 1
     export DISPLAY=:1 QT_QPA_PLATFORM=xcb XDG_RUNTIME_DIR=/tmp/rt LIBGL_ALWAYS_SOFTWARE=1 QT_QUICK_BACKEND=software; mkdir -p -m 700 /tmp/rt
     dbus-run-session -- bash -c '/build/$APP $* > /tmp/log 2>&1 & sleep 6; import -window root /out/$(basename "$OUT")'
