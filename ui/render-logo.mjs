@@ -118,6 +118,42 @@ ${ring(() => "#ffffff", 0.42).replaceAll('stroke-width="7"', 'stroke-width="10"'
 `;
 }
 
+/** The Files app icon: the preview's folder disc as a jewel. Deep indigo
+ *  glass so the coloured "what's inside" ring reads at title-bar size, a
+ *  fine rim and top sheen, and a white core with a blue folder. small: no
+ *  inner ring and a thicker ring, for 16 to 24 px. */
+export function filesIcon({ small = false } = {}) {
+  const segsDef = [["#5b86ff", 0.36], ["#9a7bff", 0.24], ["#3fbf86", 0.2], ["#ff9a52", 0.2]];
+  const ringR = small ? 36 : 37.5, ringW = small ? 12 : 9, gap = small ? 0.36 : 0.26;
+  let start = 0;
+  const segs = segsDef.map(([c, share]) => {
+    const span = share * TAU;
+    const d = arc(ringR, start + gap / 2, start + span - gap / 2);
+    start += span;
+    return `<path d="${d}" fill="none" stroke="${c}" stroke-width="${ringW}" stroke-linecap="round"/>`;
+  }).join("");
+  const coreR = small ? 19 : 19.5;
+  const folder = `<path d="M38.5 44a3 3 0 0 1 3-3h5.2l2.8 3.1h9a3 3 0 0 1 3 3V56a3 3 0 0 1-3 3h-17a3 3 0 0 1-3-3z" fill="#3d6bf0"/><path d="M38.5 48.2h23V56a3 3 0 0 1-3 3h-17a3 3 0 0 1-3-3z" fill="#5b86ff"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+<defs>
+<radialGradient id="fb" cx="50%" cy="30%" r="75%"><stop offset="0" stop-color="#3a4f92"/><stop offset=".6" stop-color="#22305f"/><stop offset="1" stop-color="#151d3c"/></radialGradient>
+<linearGradient id="fs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+<radialGradient id="fc" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e6ecf8"/></radialGradient>
+</defs>
+<circle cx="50" cy="52" r="46" fill="#0b1026" opacity=".35"/>
+<circle cx="50" cy="50" r="46" fill="url(#fb)"/>
+<ellipse cx="50" cy="27" rx="33" ry="17" fill="url(#fs)"/>
+<circle cx="50" cy="50" r="45.4" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.2"/>
+<circle cx="50" cy="50" r="${ringR}" fill="none" stroke="#ffffff" stroke-opacity=".1" stroke-width="${ringW}"/>
+${segs}
+${small ? "" : `<circle cx="50" cy="50" r="29" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.6"/>`}
+<circle cx="50" cy="51.5" r="${coreR + 1}" fill="#0b1026" opacity=".35"/>
+<circle cx="50" cy="50" r="${coreR}" fill="url(#fc)"/>
+${folder}
+</svg>
+`;
+}
+
 function write(rel, svg) {
   const path = root + rel;
   mkdirSync(path.slice(0, path.lastIndexOf("/")), { recursive: true });
@@ -128,10 +164,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   write("scalable/apps/sios-logo.svg", discColor());
   write("scalable/apps/distributor-logo.svg", discColor());
   write("scalable/places/start-here.svg", discColor());
-  write("scalable/apps/sios-files.svg", discColor({ core: "files" }));
+  write("scalable/apps/sios-files.svg", filesIcon());
   // small sizes: fewer rings so they stay crisp in a title bar or menu
   for (const px of [16, 22, 24, 32]) {
-    write(`${px}x${px}/apps/sios-files.svg`, discColor({ core: "files", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
+    write(`${px}x${px}/apps/sios-files.svg`, filesIcon({ small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
     write(`${px}x${px}/apps/sios-logo.svg`, discColor({ core: "dot", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
   }
   write("scalable/apps/sios-start.svg", discStart());
