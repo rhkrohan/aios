@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(menu-probe CXX)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+add_executable(menu-probe main.cpp)
+target_link_libraries(menu-probe Qt6::Widgets)
