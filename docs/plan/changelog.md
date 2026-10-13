@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-12: D30 accepted (owner rejected the Kvantum menus, "this is the wrong strategy"): apps use Breeze in the SIOS colours for real rounded menus; D27 replaced.
 - 2026-10-12: D29 accepted (owner chose "Build SIOS Files"): our own apps are native Qt (C++ and QML, KIO for files), built in an image stage; SIOS Files first and default for folders.
 - 2026-10-12: 08-ux.md: full list of what's left on Fedora (desktop look, Stage B AI surfaces, Stage C apps, preview-only parts), from an inventory of every preview screen.
 - 2026-10-12: D27 (Kvantum app style with a SIOS theme; relaxes "stock KDE only" for app styling, not window effects) and D28 (SDDM login with a SIOS theme) accepted by the owner.
