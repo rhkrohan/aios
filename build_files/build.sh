@@ -104,10 +104,11 @@ kw breezerc Common OutlineIntensity OutlineOff
 kw kwinrc ModifierOnlyShortcuts Meta "org.sios.Ask,/Ask,org.sios.Ask,showApps"
 grep -q "ButtonsOnRight=IAX" "$XDG/kwinrc"
 
-### Apps: the SIOS app style (D27)
-# Kvantum draws every Qt app from an SVG theme, so Files, Settings and the
-# rest get the preview's soft selections and surfaces. Theme made from
-# Kvantum's KvGnome (ui/make-kvantum.py); chosen for everyone in /etc/xdg.
+### Apps: the SIOS app style (D30, replacing D27)
+# Apps use KDE's Breeze style in the SIOS colours (look-and-feel defaults and
+# kdeglobals): it draws real rounded menus with the window manager's shadows,
+# which Kvantum couldn't do in the desktop shell. Kvantum and the SIOS
+# Kvantum themes stay installed for anyone who picks them.
 rpm -q kvantum > /dev/null || dnf5 -y install kvantum
 test -s /usr/share/Kvantum/SIOS/SIOS.svg
 test -s /usr/share/Kvantum/SIOS/SIOS.kvconfig

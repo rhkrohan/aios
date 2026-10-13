@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.20)
+project(vm-click CXX)
+find_package(Qt6 REQUIRED COMPONENTS Gui)
+find_package(KWayland REQUIRED)
+add_executable(vm-click main.cpp)
+target_link_libraries(vm-click Qt6::Gui Plasma::KWaylandClient)
