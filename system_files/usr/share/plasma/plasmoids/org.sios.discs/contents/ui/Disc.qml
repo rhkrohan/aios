@@ -113,11 +113,11 @@ Item {
                 // the preview's FolderDisc, layer by layer (FolderDisc.tsx, tone
                 // "glass"). Its frosted blur needs a GPU, so the glass here is a
                 // light wash over the wallpaper plus the same soft drop shadow.
-                const sh = ctx.createRadialGradient(50, 63, 28, 50, 63, 54);
+                const sh = ctx.createRadialGradient(50, 56, 34, 50, 56, 44);
                 sh.addColorStop(0, "rgba(10,20,40,0.5)");
                 sh.addColorStop(1, "rgba(10,20,40,0)");
                 ctx.fillStyle = sh;
-                ctx.beginPath(); ctx.arc(50, 63, 54, 0, TAU); ctx.fill();
+                ctx.beginPath(); ctx.arc(50, 56, 44, 0, TAU); ctx.fill();
 
                 // body: clear glass lit from the top
                 const body = ctx.createRadialGradient(50, 38, 0, 50, 38, 65);
