@@ -114,13 +114,12 @@ for name, c in THEMES.items():
     svg = svg.replace(tag, new, 1)
     y = top + 10
     group = ('<g id="sios-menus">'
-             # plasmashell's menus take Kvantum's other path, which draws these
-             # frame pieces at the full margin (card + shadow); same look either way
-             + shadowed(250, y, R, SHADOW, c["bg"], c["line"], c["shadow"], prefix="menu-normal", hints=False)
-             + f'<rect id="menu-normal" x="10" y="{y}" width="12" height="12" fill="{c["bg"]}"/>'
+             # no soft shadow: plasmashell squeezes the shadow pieces onto the card,
+             # leaving dark squares at the corners; a plain rounded card works everywhere
+             + nine("menu-normal", 250, y, R, c["bg"], c["line"])
              + nine("menuitem-pressed", 60, y, ITEM_R, c["hover"])
              + nine("menuitem-toggled", 100, y, ITEM_R, c["hover"])
-             + shadowed(150, y, R, SHADOW, c["bg"], c["line"], c["shadow"])
+             + shadowed(150, y, R, SHADOW, c["bg"], c["line"], c["shadow"])  # unused while shadowless
              + "</g><!-- /sios-menus -->")
     svg = svg.replace("</svg>", group + "\n</svg>")
     open(svg_path, "w").write(svg)
@@ -141,6 +140,6 @@ for name, c in THEMES.items():
     section("Menu", {f"frame.{e}": R for e in ("top", "bottom", "left", "right")})
     section("MenuItem", {**{f"frame.{e}": ITEM_R for e in ("top", "bottom", "left", "right")},
                          "text.margin.top": 0, "text.margin.bottom": 0, "text.margin.left": 6, "text.margin.right": 10})
-    section("%General", {"menu_shadow_depth": SHADOW, "composite": "true", "spread_menuitems": "false", "menu_separator_height": 9})
+    section("%General", {"menu_shadow_depth": 0, "shadowless_popup": "true", "composite": "true", "spread_menuitems": "false", "menu_separator_height": 9})
     open(cfg_path, "w").write(cfg)
     print("menus:", name)
