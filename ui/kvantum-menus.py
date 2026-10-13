@@ -19,18 +19,19 @@ THEMES = {
 SHADOW = 10  # px of soft shadow around a menu
 
 
-def shadowed(x0, y0, r, sh, bg, line, alpha):
+def shadowed(x0, y0, r, sh, bg, line, alpha, prefix="menu-shadow", hints=True):
     """With compositing, Kvantum draws a menu's edge from its "menu-shadow"
     pieces (not the frame), so each piece holds the soft shadow and the card's
     rounded edge: the outer sh px fade out, the inner r px are the card."""
     m = sh + r  # piece size; Kvantum stretches the edges, corners stay 1:1
     out, h = [], 0.5
-    defs = (f'<linearGradient id="sios-sh-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="{alpha}"/></linearGradient>'
-            f'<linearGradient id="sios-sh-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="{alpha}"/></linearGradient>')
+    k = prefix  # keeps gradient ids unique per set
+    defs = (f'<linearGradient id="{k}-grad-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="{alpha}"/></linearGradient>'
+            f'<linearGradient id="{k}-grad-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="{alpha}"/></linearGradient>')
     out.append(f"<defs>{defs}</defs>")
 
     def piece(name, x, y, w, hgt, body):
-        out.append(f'<g id="menu-shadow-{name}"><rect x="{x}" y="{y}" width="{w}" height="{hgt}" fill="#000" fill-opacity="0"/>{body}</g>')
+        out.append(f'<g id="{prefix}-{name}"><rect x="{x}" y="{y}" width="{w}" height="{hgt}" fill="#000" fill-opacity="0"/>{body}</g>')
 
     # corners: a radial fade around the card's rounded corner
     for name, (cx, cy, sx, sy) in {"topleft": (1, 1, -1, -1), "topright": (0, 1, 1, -1),
@@ -38,7 +39,7 @@ def shadowed(x0, y0, r, sh, bg, line, alpha):
         x = x0 + (0 if name.endswith("left") else 2 * m)
         y = y0 + (0 if name.startswith("top") else 2 * m)
         ox, oy = x + (m if cx else 0), y + (m if cy else 0)  # the card corner's circle centre
-        gid = f"sios-sh-{name}"
+        gid = f"{k}-grad-{name}"
         grad = (f'<radialGradient id="{gid}" gradientUnits="userSpaceOnUse" cx="{ox}" cy="{oy}" r="{m}">'
                 f'<stop offset="0" stop-color="#000" stop-opacity="{alpha}"/><stop offset="{r/m:.3f}" stop-color="#000" stop-opacity="{alpha}"/>'
                 f'<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>')
@@ -49,16 +50,16 @@ def shadowed(x0, y0, r, sh, bg, line, alpha):
         piece(name, x, y, m, m, f'<defs>{grad}</defs><rect x="{x}" y="{y}" width="{m}" height="{m}" fill="url(#{gid})"/>'
                                  f'<path d="{disc}" fill="{bg}"/><path d="{arc}" fill="none" stroke="{line}" stroke-width="1"/>')
     # edges: a straight fade, then the card with its hairline
-    piece("top", x0 + m, y0, m, m, f'<rect x="{x0+m}" y="{y0}" width="{m}" height="{sh}" fill="url(#sios-sh-v)"/>'
+    piece("top", x0 + m, y0, m, m, f'<rect x="{x0+m}" y="{y0}" width="{m}" height="{sh}" fill="url(#{k}-grad-v)"/>'
           f'<rect x="{x0+m}" y="{y0+sh}" width="{m}" height="{r}" fill="{bg}"/><path d="M{x0+m},{y0+sh+h} h{m}" stroke="{line}"/>')
-    piece("bottom", x0 + m, y0 + 2 * m, m, m, f'<rect x="{x0+m}" y="{y0+2*m+r}" width="{m}" height="{sh}" fill="url(#sios-sh-v)" transform="rotate(180 {x0+1.5*m} {y0+2*m+r+sh/2})"/>'
+    piece("bottom", x0 + m, y0 + 2 * m, m, m, f'<rect x="{x0+m}" y="{y0+2*m+r}" width="{m}" height="{sh}" fill="url(#{k}-grad-v)" transform="rotate(180 {x0+1.5*m} {y0+2*m+r+sh/2})"/>'
           f'<rect x="{x0+m}" y="{y0+2*m}" width="{m}" height="{r}" fill="{bg}"/><path d="M{x0+m},{y0+2*m+r-h} h{m}" stroke="{line}"/>')
-    piece("left", x0, y0 + m, m, m, f'<rect x="{x0}" y="{y0+m}" width="{sh}" height="{m}" fill="url(#sios-sh-h)"/>'
+    piece("left", x0, y0 + m, m, m, f'<rect x="{x0}" y="{y0+m}" width="{sh}" height="{m}" fill="url(#{k}-grad-h)"/>'
           f'<rect x="{x0+sh}" y="{y0+m}" width="{r}" height="{m}" fill="{bg}"/><path d="M{x0+sh+h},{y0+m} v{m}" stroke="{line}"/>')
-    piece("right", x0 + 2 * m, y0 + m, m, m, f'<rect x="{x0+2*m+r}" y="{y0+m}" width="{sh}" height="{m}" fill="url(#sios-sh-h)" transform="rotate(180 {x0+2*m+r+sh/2} {y0+1.5*m})"/>'
+    piece("right", x0 + 2 * m, y0 + m, m, m, f'<rect x="{x0+2*m+r}" y="{y0+m}" width="{sh}" height="{m}" fill="url(#{k}-grad-h)" transform="rotate(180 {x0+2*m+r+sh/2} {y0+1.5*m})"/>'
           f'<rect x="{x0+2*m}" y="{y0+m}" width="{r}" height="{m}" fill="{bg}"/><path d="M{x0+2*m+r-h},{y0+m} v{m}" stroke="{line}"/>')
     # hints: how much of each piece is shadow (Kvantum offsets the menu by it)
-    for i, d in enumerate(("left", "top", "right", "bottom")):
+    for i, d in enumerate(("left", "top", "right", "bottom") if hints else ()):
         w, hgt = (sh, 1) if d in ("left", "right") else (1, sh)
         out.append(f'<rect id="menu-shadow-hint-{d}" x="{x0 + 3 * m + 4 + i * 12}" y="{y0}" width="{w}" height="{hgt}" fill="#000" fill-opacity="0"/>')
     return "".join(out)
@@ -113,7 +114,10 @@ for name, c in THEMES.items():
     svg = svg.replace(tag, new, 1)
     y = top + 10
     group = ('<g id="sios-menus">'
-             + nine("menu-normal", 10, y, R, c["bg"], c["line"])
+             # plasmashell's menus take Kvantum's other path, which draws these
+             # frame pieces at the full margin (card + shadow); same look either way
+             + shadowed(250, y, R, SHADOW, c["bg"], c["line"], c["shadow"], prefix="menu-normal", hints=False)
+             + f'<rect id="menu-normal" x="10" y="{y}" width="12" height="12" fill="{c["bg"]}"/>'
              + nine("menuitem-pressed", 60, y, ITEM_R, c["hover"])
              + nine("menuitem-toggled", 100, y, ITEM_R, c["hover"])
              + shadowed(150, y, R, SHADOW, c["bg"], c["line"], c["shadow"])
