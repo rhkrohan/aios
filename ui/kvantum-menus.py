@@ -67,32 +67,43 @@ R, ITEM_R = 12, 7  # menu corner, item corner (px; the pieces are 1:1)
 
 
 def nine(prefix, x0, y0, r, bg, line=None):
-    """The nine pieces of a rounded rectangle with corner r, as SVG groups."""
-    s = r  # each corner piece is r x r; edges and middle are r x r too and get stretched
-    out = []
+    """The nine pieces of a rounded rectangle with corner r, each one single
+    SVG shape (Kvantum mis-places edges built from groups). The hairline is a
+    hard stop in the fill: a linear gradient on the edges, a radial one on the
+    corners, so no strokes spill past the piece."""
+    s, out, defs = r, [], []
+    edge = line or bg
+    k = 1 / r  # the hairline's share of a piece
 
-    def piece(name, x, y, body):
-        out.append(f'<g id="{prefix}{name}"><rect x="{x}" y="{y}" width="{s}" height="{s}" fill="#000" fill-opacity="0"/>{body}</g>')
+    def grad_lin(gid, x1, y1, x2, y2):
+        defs.append(f'<linearGradient id="{gid}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}">'
+                    f'<stop offset="0" stop-color="{edge}"/><stop offset="{k:.4f}" stop-color="{edge}"/>'
+                    f'<stop offset="{k:.4f}" stop-color="{bg}"/><stop offset="1" stop-color="{bg}"/></linearGradient>')
 
-    h = 0.5  # half the hairline
-    corners = {  # name: (x, y, path of the quarter disc, path of its border arc)
-        "-topleft": (x0, y0, f"M{x0+s},{y0} A{r},{r} 0 0 0 {x0},{y0+s} L{x0+s},{y0+s} Z", f"M{x0+s},{y0+h} A{r-h},{r-h} 0 0 0 {x0+h},{y0+s}"),
-        "-topright": (x0 + 2 * s, y0, f"M{x0+2*s},{y0} A{r},{r} 0 0 1 {x0+3*s},{y0+s} L{x0+2*s},{y0+s} Z", f"M{x0+2*s},{y0+h} A{r-h},{r-h} 0 0 1 {x0+3*s-h},{y0+s}"),
-        "-bottomleft": (x0, y0 + 2 * s, f"M{x0},{y0+2*s} A{r},{r} 0 0 0 {x0+s},{y0+3*s} L{x0+s},{y0+2*s} Z", f"M{x0+h},{y0+2*s} A{r-h},{r-h} 0 0 0 {x0+s},{y0+3*s-h}"),
-        "-bottomright": (x0 + 2 * s, y0 + 2 * s, f"M{x0+3*s},{y0+2*s} A{r},{r} 0 0 1 {x0+2*s},{y0+3*s} L{x0+2*s},{y0+2*s} Z", f"M{x0+3*s-h},{y0+2*s} A{r-h},{r-h} 0 0 1 {x0+2*s},{y0+3*s-h}"),
-    }
-    for name, (x, y, fill, arc) in corners.items():
-        border = f'<path d="{arc}" fill="none" stroke="{line}" stroke-width="1"/>' if line else ""
-        piece(name, x, y, f'<path d="{fill}" fill="{bg}"/>{border}')
-    edges = {  # name: (x, y, where the hairline runs)
-        "-top": (x0 + s, y0, (0, h, s, h)), "-bottom": (x0 + s, y0 + 2 * s, (0, s - h, s, s - h)),
-        "-left": (x0, y0 + s, (h, 0, h, s)), "-right": (x0 + 2 * s, y0 + s, (s - h, 0, s - h, s)),
-    }
-    for name, (x, y, (ax, ay, bx, by)) in edges.items():
-        border = f'<path d="M{x+ax},{y+ay} L{x+bx},{y+by}" stroke="{line}" stroke-width="1"/>' if line else ""
-        piece(name, x, y, f'<rect x="{x}" y="{y}" width="{s}" height="{s}" fill="{bg}"/>{border}')
-    piece("", x0 + s, y0 + s, f'<rect x="{x0+s}" y="{y0+s}" width="{s}" height="{s}" fill="{bg}"/>')
-    return "".join(out)
+    # corners: a quarter disc filled from its circle's centre outwards (bg, then the hairline)
+    for name, (cx, cy, px, py, sweep) in {
+        "-topleft": (x0 + s, y0 + s, x0, y0, 1), "-topright": (x0 + 2 * s, y0 + s, x0 + 2 * s, y0, 0),
+        "-bottomleft": (x0 + s, y0 + 2 * s, x0, y0 + 2 * s, 0), "-bottomright": (x0 + 2 * s, y0 + 2 * s, x0 + 2 * s, y0 + 2 * s, 1),
+    }.items():
+        gid = f"{prefix}{name}-fill"
+        defs.append(f'<radialGradient id="{gid}" gradientUnits="userSpaceOnUse" cx="{cx}" cy="{cy}" r="{r}">'
+                    f'<stop offset="0" stop-color="{bg}"/><stop offset="{1-k:.4f}" stop-color="{bg}"/>'
+                    f'<stop offset="{1-k:.4f}" stop-color="{edge}"/><stop offset="1" stop-color="{edge}"/></radialGradient>')
+        ax, ay = (px, cy) if px != cx else (cx, py)  # where the arc starts
+        bx, by = (cx, py if py != cy else cy) if px != cx else (px, cy)
+        # quarter disc: from the point on the outer x edge, around to the outer y edge, back to the centre
+        sx = x0 if "left" in name else x0 + 3 * s
+        sy = y0 if "top" in name else y0 + 3 * s
+        d = f"M{sx},{cy} A{r},{r} 0 0 {sweep} {cx},{sy} L{cx},{cy} Z"
+        out.append(f'<path id="{prefix}{name}" d="{d}" fill="url(#{gid})"/>')
+    # edges: the hairline on the outer side
+    for name, (x, y, g) in {"-top": (x0 + s, y0, (0, 0, 0, 1)), "-bottom": (x0 + s, y0 + 2 * s, (0, 1, 0, 0)),
+                            "-left": (x0, y0 + s, (0, 0, 1, 0)), "-right": (x0 + 2 * s, y0 + s, (1, 0, 0, 0))}.items():
+        gid = f"{prefix}{name}-fill"
+        grad_lin(gid, *g)
+        out.append(f'<rect id="{prefix}{name}" x="{x}" y="{y}" width="{s}" height="{s}" fill="url(#{gid})"/>')
+    out.append(f'<rect id="{prefix}" x="{x0+s}" y="{y0+s}" width="{s}" height="{s}" fill="{bg}"/>')
+    return f'<defs>{"".join(defs)}</defs>' + "".join(out)
 
 
 for name, c in THEMES.items():
@@ -137,7 +148,7 @@ for name, c in THEMES.items():
                 block = block.replace(f"[{title}]\n", f"[{title}]\n{k}={v}\n", 1)
         cfg = cfg[:m.start()] + block + cfg[m.end():]
 
-    section("Menu", {f"frame.{e}": R for e in ("top", "bottom", "left", "right")})
+    section("Menu", {**{f"frame.{e}": R for e in ("top", "bottom", "left", "right")}, "frame.expansion": 0})
     section("MenuItem", {**{f"frame.{e}": ITEM_R for e in ("top", "bottom", "left", "right")},
                          "text.margin.top": 0, "text.margin.bottom": 0, "text.margin.left": 6, "text.margin.right": 10})
     section("%General", {"menu_shadow_depth": 0, "shadowless_popup": "true", "composite": "true", "spread_menuitems": "false", "menu_separator_height": 9})

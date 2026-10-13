@@ -5,7 +5,7 @@ DefaultLightLookAndFeel=org.sios.desktop
 DefaultDarkLookAndFeel=org.sios.desktop.dark
 SingleClick=false
 ColorScheme=SIOSLight
-widgetStyle=Breeze
+widgetStyle=kvantum
 
 [General]
 ColorScheme=SIOSLight

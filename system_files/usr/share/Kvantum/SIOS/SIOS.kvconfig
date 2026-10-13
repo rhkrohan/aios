@@ -490,6 +490,7 @@ frame.element=btn
 frame.expandedElement=button
 
 [Menu]
+frame.expansion=0
 inherits=PanelButtonCommand
 frame.top=12
 frame.bottom=12
