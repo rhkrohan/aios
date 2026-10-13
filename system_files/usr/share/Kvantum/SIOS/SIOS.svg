@@ -125,9 +125,9 @@
 <path d="m 222.9062,667.5938 -.5,.0625 .3125,2.9688 .5,-.0312 -.3125,-3 z  m 4.1875,0 -.3125,3 .5,.0312 .3125,-2.9688 -.5,-.0625 z  m -8.8125,.9375 -.4688,.1562 .9375,2.8438 .4688,-.1562 z  m 13.4375,0 -.9375,2.8438 .4688,.1562 .9375,-2.8438 z  m -21.5938,4.5938 -.375,.3125 2.0312,2.25 .3438,-.3438 -2,-2.2188 z  m 29.75,0 -2,2.2188 .3438,.3438 2.0312,-2.25 -.375,-.3125 z  m -32.9375,3.4375 -.2812,.4062 2.4062,1.7812 .3125,-.4062 z  m 36.125,0 -2.4375,1.7812 .3125,.4062 2.4062,-1.7812 z  m -38.5,4.0625 -.2188,.4375 2.75,1.25 .1875,-.4688 -2.7188,-1.2188 z  m 40.875,0 -2.7188,1.2188 .1875,.4688 2.75,-1.25 -.2188,-.4375 z  m -42.4062,4.4375 -.0937,.5 2.9375,.625 .0937,-.5 z  m 43.9375,0 -2.9375,.625 .0937,.5 2.9375,-.625 z  m -41.0938,8.75 -2.9375,.625 .0937,.5 2.9375,-.625 z  m 38.25,0 -.0937,.5 2.9375,.625 .0937,-.5 z  m -37.0312,3.875 -2.75,1.25 .2188,.4375 2.7188,-1.2188 -.1875,-.4688 z  m 35.8125,0 -.1875,.4688 2.7188,1.2188 .2188,-.4375 -2.75,-1.25 z  m -33.8438,3.5625 -2.4062,1.7812 .2812,.4062 2.4375,-1.7812 z  m 31.875,0 -.3125,.4062 2.4375,1.7812 .2812,-.4062 z  m -29.1562,3.0625 -2.0312,2.25 .375,.3125 2,-2.2188 -.3438,-.3438 z  m 26.4375,0 -.3438,.3438 2,2.2188 .375,-.3125 -2.0312,-2.25 z "/>
 </g>
 </g>
-<path style="fill:#fff;fill-rule:evenodd" id="menu-normal" d="m 117,662 48,0 0,48 -48,0 z"/>
-<path style="fill:#dadada;fill-rule:evenodd" id="menu-normal-left" d="m 111.9989,662 5,0 0,48 -5,0"/>
-<path style="fill:#dadada;fill-rule:evenodd" id="menu-normal-topleft" d="m 116.9989,657 -4.9989,0 -.001,5 5,0 z "/>
+
+
+
 <g id="arrow-up-normal" transform="translate(12,-423.49287)">
 <rect width="24" x="-607.49298" y="8" height="24" style="opacity:0;fill:#fff" transform="rotate(-90)"/>
 <path style="fill:#505050" d="m 8.5,600.4928 11.5,-11.9999 11.5,12.0001 Z "/>
@@ -156,8 +156,8 @@
 </g>
 <path style="fill:url(#linearGradient5687);fill-rule:evenodd;stroke:url(#linearGradient5114)" id="slidercursor-normal" d="m 121.2119,609 c -3.04582,2.5 -6.42348,8.49989 -12.1429,8.49989 -5.71937,0 -8.57274,-4 -8.56888,-8.49989 0.003,-4.50058 2.84951,-8.5 8.56888,-8.5 5.71939,0 9.09705,6 12.1429,8.5 z "/>
 <circle cx="80" cy="835" style="fill:#2f56d0;fill-rule:evenodd" r="5" id="dial-handle"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-topleft" d="m 194,675 0,4 -4,0 0,-4 z"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-left" d="m 190,680 h 4 v 8 h -4 z"/>
+
+
 <path style="fill:#cfcac5;fill-rule:evenodd" id="common-normal-left" d="m 105,866 v 30 h 1 v -30 z"/>
 <use width="450" height="1230" xlink:href="#arrow-up-normal" id="arrow-down-normal" transform="matrix(1,0,0,-1,-0.2982249,377.6081)"/>
 <use width="450" height="1230" xlink:href="#arrow-up-focused" id="arrow-down-focused" transform="matrix(1,0,0,-1,-0.1929779,377.60799)"/>
@@ -165,20 +165,20 @@
 <use width="450" height="1230" xlink:href="#arrow-up-normal" id="arrow-left-normal" transform="rotate(-90,184.90485,65.203147)"/>
 <use width="450" height="1230" xlink:href="#arrow-up-focused" id="arrow-right-focused" transform="rotate(90,247.49425,303.7075)"/>
 <use width="450" height="1230" xlink:href="#arrow-up-focused" id="arrow-left-focused" transform="rotate(-90,273.60229,66.400467)"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-topright" d="m 208,679 -4,0 0,-4 4,0 z"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-top" d="m 675,-203 h 4 v 8 h -4 z" transform="matrix(0,1,-1,0,0,0)"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-bottomright" d="m 204,693 0,-4 4,0 0,4 z"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-right" d="m -208,-688 h 4 v 8 h -4 z" transform="scale(-1,-1)"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-bottomleft" d="m 190,689 4,0 0,4 -4,0 z"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed-bottom" d="m -693,195 h 4 v 8 h -4 z" transform="matrix(0,-1,1,0,0,0)"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-topleft" d="m 214,675 0,4 -4,0 0,-4 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-left" d="m 210,680 h 4 v 8 h -4 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-topright" d="m 228,679 -4,0 0,-4 4,0 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-top" d="m 675,-223 h 4 v 8 h -4 z" transform="matrix(0,1,-1,0,0,0)"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-bottomright" d="m 224,693 0,-4 4,0 0,4 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-right" d="m -228,-688 h 4 v 8 h -4 z" transform="scale(-1,-1)"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-bottomleft" d="m 210,689 4,0 0,4 -4,0 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled-bottom" d="m -693,215 h 4 v 8 h -4 z" transform="matrix(0,-1,1,0,0,0)"/>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <use width="450" height="1230" xlink:href="#group-normal-left" id="group-normal-top" transform="rotate(90,404,753)"/>
 <use width="450" height="1230" xlink:href="#group-normal-topleft" id="group-normal-topright" transform="rotate(90,404,753)"/>
 <use width="450" height="1230" xlink:href="#group-normal-left" id="group-normal-right" transform="rotate(180,404,753)"/>
@@ -186,12 +186,12 @@
 <use width="450" height="1230" xlink:href="#group-normal-left" id="group-normal-bottom" transform="rotate(-90,404,753)"/>
 <use width="450" height="1230" xlink:href="#group-normal-topleft" id="group-normal-bottomleft" transform="rotate(-90,404,753)"/>
 <ellipse cx="263" cy="608" rx="7.5" ry="7.5" style="fill:#fafafa;stroke:#8c8c8c;color:#000" id="radio-focused"/>
-<path style="fill:#e4e4e4;fill-rule:evenodd" id="menu-normal-top" d="m 165,657 0,5 -48,0 0,-5 z"/>
-<path style="fill:#dadada;fill-rule:evenodd" id="menu-normal-topright" d="m 169.999,662 0,-4.9989 -5,-.001 0,5 z "/>
-<path style="fill:#d0d0d0;fill-rule:evenodd" id="menu-normal-right" d="m 169.9988,662 -5,0 0,48 5,0 z"/>
-<path style="fill:#c6c6c6;fill-rule:evenodd" id="menu-normal-bottomright" d="m 164.9988,715 4.9989,0 .001,-5 -5,0 z "/>
-<path style="fill:#bcbcbc;fill-rule:evenodd" id="menu-normal-bottom" d="m 117,715 0,-5 48,0 0,5 z"/>
-<path style="fill:#cbcbcb;fill-rule:evenodd" id="menu-normal-bottomleft" d="m 112,710 0,4.9989 5,0 0,-5 z"/>
+
+
+
+
+
+
 <path style="fill:#cfcac5;fill-rule:evenodd" id="common-normal-top" d="m 136,865 h -30 v 1 h 30 z"/>
 <path style="fill:#cfcac5;fill-rule:evenodd" id="common-normal-right" d="m 137,866 v 30 h -1 v -30 z "/>
 <path style="fill:#cfcac5;fill-rule:evenodd" id="common-normal-bottom" d="m 106,897 h 30 v -1 h -30 z"/>
@@ -237,8 +237,8 @@
 <path style="fill:#cfcac5" id="dock-normal-bottom" d="m 167,909 v -5 h 30 v 5 z"/>
 <path style="fill:#cfcac5" id="dock-normal-bottomleft" d="m 160,904 h 5 v 5 h -5 z"/>
 <path style="opacity:.3" id="toolbar-handle" d="m 410,144 a 5,5 0 0 1 -10,0 5,5 0 1 1 10,0 z"/>
-<path style="fill:#e6ecfe;fill-rule:evenodd" id="menuitem-pressed" d="m 195,680 h 8 v 8 h -8 z"/>
-<path style="fill:#4f7bf7;fill-rule:evenodd" id="menuitem-toggled" d="m 215,680 h 8 v 8 h -8 z"/>
+
+
 <path style="fill:#f7f7f5" id="dock-focused" d="m 222,872 h 30 v 30 h -30 z"/>
 <g id="radio-checked-focused">
 <use width="100%" height="100%" xlink:href="#radio-focused" transform="translate(40,0)"/>
@@ -1355,4 +1355,6 @@
 <use width="100%" height="100%" xlink:href="#button-focused-inactive-left" id="button-focused-inactive-bottom" transform="rotate(-90,-146.25,28.75)"/>
 <use width="100%" height="100%" xlink:href="#button-focused-inactive-topleft" id="button-focused-inactive-bottomleft" transform="rotate(-90,-146.25,28.75)"/>
 <use width="100%" height="100%" xlink:href="#button-focused-inactive-topleft" id="button-focused-inactive-bottomright" transform="rotate(-180,-146.25,28.75)"/>
+
+<g id="sios-menus"><g id="menu-normal-topleft"><rect x="4000" y="4000" width="12" height="12" fill="#000" fill-opacity="0"/><path d="M4012,4000 A12,12 0 0 0 4000,4012 L4012,4012 Z" fill="#ffffff"/><path d="M4012,4000.5 A11.5,11.5 0 0 0 4000.5,4012" fill="none" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-topright"><rect x="4024" y="4000" width="12" height="12" fill="#000" fill-opacity="0"/><path d="M4024,4000 A12,12 0 0 1 4036,4012 L4024,4012 Z" fill="#ffffff"/><path d="M4024,4000.5 A11.5,11.5 0 0 1 4035.5,4012" fill="none" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-bottomleft"><rect x="4000" y="4024" width="12" height="12" fill="#000" fill-opacity="0"/><path d="M4000,4024 A12,12 0 0 0 4012,4036 L4012,4024 Z" fill="#ffffff"/><path d="M4000.5,4024 A11.5,11.5 0 0 0 4012,4035.5" fill="none" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-bottomright"><rect x="4024" y="4024" width="12" height="12" fill="#000" fill-opacity="0"/><path d="M4036,4024 A12,12 0 0 1 4024,4036 L4024,4024 Z" fill="#ffffff"/><path d="M4035.5,4024 A11.5,11.5 0 0 1 4024,4035.5" fill="none" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-top"><rect x="4012" y="4000" width="12" height="12" fill="#000" fill-opacity="0"/><rect x="4012" y="4000" width="12" height="12" fill="#ffffff"/><path d="M4012,4000.5 L4024,4000.5" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-bottom"><rect x="4012" y="4024" width="12" height="12" fill="#000" fill-opacity="0"/><rect x="4012" y="4024" width="12" height="12" fill="#ffffff"/><path d="M4012,4035.5 L4024,4035.5" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-left"><rect x="4000" y="4012" width="12" height="12" fill="#000" fill-opacity="0"/><rect x="4000" y="4012" width="12" height="12" fill="#ffffff"/><path d="M4000.5,4012 L4000.5,4024" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal-right"><rect x="4024" y="4012" width="12" height="12" fill="#000" fill-opacity="0"/><rect x="4024" y="4012" width="12" height="12" fill="#ffffff"/><path d="M4035.5,4012 L4035.5,4024" stroke="#e2e2dd" stroke-width="1"/></g><g id="menu-normal"><rect x="4012" y="4012" width="12" height="12" fill="#000" fill-opacity="0"/><rect x="4012" y="4012" width="12" height="12" fill="#ffffff"/></g><g id="menuitem-pressed-topleft"><rect x="4100" y="4000" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4108,4000 A8,8 0 0 0 4100,4008 L4108,4008 Z" fill="#eceffd"/></g><g id="menuitem-pressed-topright"><rect x="4116" y="4000" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4116,4000 A8,8 0 0 1 4124,4008 L4116,4008 Z" fill="#eceffd"/></g><g id="menuitem-pressed-bottomleft"><rect x="4100" y="4016" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4100,4016 A8,8 0 0 0 4108,4024 L4108,4016 Z" fill="#eceffd"/></g><g id="menuitem-pressed-bottomright"><rect x="4116" y="4016" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4124,4016 A8,8 0 0 1 4116,4024 L4116,4016 Z" fill="#eceffd"/></g><g id="menuitem-pressed-top"><rect x="4108" y="4000" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4108" y="4000" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-pressed-bottom"><rect x="4108" y="4016" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4108" y="4016" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-pressed-left"><rect x="4100" y="4008" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4100" y="4008" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-pressed-right"><rect x="4116" y="4008" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4116" y="4008" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-pressed"><rect x="4108" y="4008" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4108" y="4008" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-toggled-topleft"><rect x="4200" y="4000" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4208,4000 A8,8 0 0 0 4200,4008 L4208,4008 Z" fill="#eceffd"/></g><g id="menuitem-toggled-topright"><rect x="4216" y="4000" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4216,4000 A8,8 0 0 1 4224,4008 L4216,4008 Z" fill="#eceffd"/></g><g id="menuitem-toggled-bottomleft"><rect x="4200" y="4016" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4200,4016 A8,8 0 0 0 4208,4024 L4208,4016 Z" fill="#eceffd"/></g><g id="menuitem-toggled-bottomright"><rect x="4216" y="4016" width="8" height="8" fill="#000" fill-opacity="0"/><path d="M4224,4016 A8,8 0 0 1 4216,4024 L4216,4016 Z" fill="#eceffd"/></g><g id="menuitem-toggled-top"><rect x="4208" y="4000" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4208" y="4000" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-toggled-bottom"><rect x="4208" y="4016" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4208" y="4016" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-toggled-left"><rect x="4200" y="4008" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4200" y="4008" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-toggled-right"><rect x="4216" y="4008" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4216" y="4008" width="8" height="8" fill="#eceffd"/></g><g id="menuitem-toggled"><rect x="4208" y="4008" width="8" height="8" fill="#000" fill-opacity="0"/><rect x="4208" y="4008" width="8" height="8" fill="#eceffd"/></g></g><!-- /sios-menus -->
 </svg>

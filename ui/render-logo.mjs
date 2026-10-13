@@ -40,9 +40,6 @@ function ring(colorOf, gap = 0.16) {
 const GLASS = {
   word: ["#cfdaf6", "#8fa5e0", "#5a70b8", "#3f5394", "#26314a"],
   files: ["#cfdaf6", "#8fa5e0", "#5a70b8", "#3f5394", "#26314a"],
-  store: ["#c9efe6", "#6cc4b0", "#2f8a7c", "#236b60", "#1d4d46"],
-  monitor: ["#fde0c8", "#f2a46e", "#c9673a", "#9a4a26", "#6b3318"],
-  settings: ["#e3e6ec", "#a3aab8", "#626a7c", "#474e5e", "#2a2f3a"],
 };
 
 export function discColor({ word = true, core = word ? "word" : "dot", small = false } = {}) {
@@ -132,15 +129,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   write("scalable/apps/distributor-logo.svg", discColor());
   write("scalable/places/start-here.svg", discColor());
   write("scalable/apps/sios-files.svg", discColor({ core: "files" }));
-  write("scalable/apps/sios-store.svg", discColor({ core: "store" }));
-  write("scalable/apps/sios-monitor.svg", discColor({ core: "monitor" }));
-  write("scalable/apps/sios-settings.svg", discColor({ core: "settings" }));
   // small sizes: fewer rings so they stay crisp in a title bar or menu
   for (const px of [16, 22, 24, 32]) {
     write(`${px}x${px}/apps/sios-files.svg`, discColor({ core: "files", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
-    write(`${px}x${px}/apps/sios-monitor.svg`, discColor({ core: "monitor", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
-    write(`${px}x${px}/apps/sios-settings.svg`, discColor({ core: "settings", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
-    write(`${px}x${px}/apps/sios-store.svg`, discColor({ core: "store", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
     write(`${px}x${px}/apps/sios-logo.svg`, discColor({ core: "dot", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
   }
   write("scalable/apps/sios-start.svg", discStart());

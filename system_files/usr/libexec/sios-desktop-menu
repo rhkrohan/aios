@@ -1,0 +1,20 @@
+#!/bin/bash
+# Trim the desktop's right-click menu to the SIOS set, once per user: the
+# folder's own items (New, Paste, ...), then Lock screen, Desktop and
+# Wallpaper, Display. Runs just before plasmashell starts (see
+# plasma-plasmashell.service.d/10-sios.conf), because plasmashell saves its
+# own copy of this setting on exit and would overwrite a change made while
+# it runs. The "sios" key marks it done, so later changes by the user stay.
+set -u
+FILE=plasma-org.kde.plasma.desktop-appletsrc
+G=(--file "$FILE" --group ActionPlugins --group 0)
+[ "$(kreadconfig6 "${G[@]}" --group "RightButton;NoModifier" --key sios)" = "1" ] && exit 0
+kwriteconfig6 "${G[@]}" --key "RightButton;NoModifier" org.kde.contextmenu
+for k in _context _lock_screen configure _display_settings; do
+    kwriteconfig6 "${G[@]}" --group "RightButton;NoModifier" --key "$k" true
+done
+for k in _sep1 "configure shortcuts" _open_terminal _run_command "add widgets" "_add panel" \
+         "manage activities" remove "desktop edit mode" "edit mode" _logout _wallpaper; do
+    kwriteconfig6 "${G[@]}" --group "RightButton;NoModifier" --key "$k" false
+done
+kwriteconfig6 "${G[@]}" --group "RightButton;NoModifier" --key sios 1

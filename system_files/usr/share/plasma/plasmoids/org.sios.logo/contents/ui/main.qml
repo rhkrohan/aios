@@ -50,7 +50,7 @@ PlasmoidItem {
         placement: PlasmaExtras.Menu.BottomPosedLeftAlignedPopup
         PlasmaExtras.MenuItem { text: root.buddyShown ? "Hide buddy" : "Show buddy"; icon: root.buddyShown ? "view-hidden" : "view-visible"; onClicked: root.setBuddy(!root.buddyShown) }
         PlasmaExtras.MenuItem { text: "Security Center (with the assistant)"; icon: "security-high"; enabled: false }
-        PlasmaExtras.MenuItem { text: "Settings"; icon: "sios-settings"; onClicked: root.sh("sios-settings || systemsettings") }
+        PlasmaExtras.MenuItem { text: "Settings"; icon: "preferences-system"; onClicked: root.sh("sios-settings || systemsettings") }
         PlasmaExtras.MenuItem { separator: true }
         PlasmaExtras.MenuItem { text: "Sleep"; icon: "system-suspend"; onClicked: session.suspend() }
         PlasmaExtras.MenuItem { text: "Restart…"; icon: "system-reboot"; onClicked: session.requestReboot() }
