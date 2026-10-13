@@ -204,7 +204,7 @@ Window {
                 Icon { name: "cpu"; size: 16; color: Theme.ok }
                 Text {
                     Layout.fillWidth: true
-                    text: "Finds apps, files and settings. Asking SIOS arrives with the assistant."
+                    text: bar.mode === "apps" ? "Every app on this computer, A to Z." : "Finds apps, files and settings. Asking SIOS arrives with the assistant."
                     color: Theme.fg2
                     font.family: Theme.ui
                     font.pixelSize: 13

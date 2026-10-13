@@ -5,7 +5,9 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFile>
+#include <QDir>
 #include <QIcon>
+#include <QSettings>
 #include <QImage>
 #include <QPainter>
 #include <QQmlApplicationEngine>
@@ -58,9 +60,27 @@ public:
     }
 };
 
+// Started outside the desktop session (autostart races, ssh), Qt can miss the
+// KDE icon theme and fall back to bare hicolor, leaving most apps blank. Read
+// the theme the desktop uses ourselves.
+static void useDesktopIconTheme()
+{
+    if (!QIcon::themeName().isEmpty() && QIcon::themeName() != QLatin1String("hicolor"))
+        return;
+    QString theme;
+    for (const QString &file : {QDir::homePath() + QStringLiteral("/.config/kdeglobals"), QStringLiteral("/etc/xdg/kdeglobals")}) {
+        theme = QSettings(file, QSettings::IniFormat).value(QStringLiteral("Icons/Theme")).toString();
+        if (!theme.isEmpty())
+            break;
+    }
+    QIcon::setThemeName(theme.isEmpty() ? QStringLiteral("breeze") : theme);
+    QIcon::setFallbackThemeName(QStringLiteral("breeze"));
+}
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
+    useDesktopIconTheme();
     app.setApplicationName(QStringLiteral("sios-settings"));
     app.setApplicationDisplayName(QStringLiteral("Settings"));
     app.setOrganizationDomain(QStringLiteral("sios.org"));
