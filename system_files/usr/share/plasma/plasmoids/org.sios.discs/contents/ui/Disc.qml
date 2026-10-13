@@ -110,66 +110,75 @@ Item {
 
                 const arc = (r, a0, a1) => ctx.arc(50, 50, r, a0 - Math.PI / 2, a1 - Math.PI / 2, false);
 
-                // a glass puck, like the preview's desktop discs: a soft shadow,
-                // a darker edge underneath for depth, blue-grey glass lit from the
-                // top, and a bright rim (drawn, not blurred, so no GPU is needed)
-                const sh = ctx.createRadialGradient(50, 60, 26, 50, 60, 52);
-                sh.addColorStop(0, "rgba(10,20,40,0.45)");
+                // the preview's FolderDisc, layer by layer (FolderDisc.tsx, tone
+                // "glass"). Its frosted blur needs a GPU, so the glass here is a
+                // light wash over the wallpaper plus the same soft drop shadow.
+                const sh = ctx.createRadialGradient(50, 63, 28, 50, 63, 54);
+                sh.addColorStop(0, "rgba(10,20,40,0.5)");
                 sh.addColorStop(1, "rgba(10,20,40,0)");
                 ctx.fillStyle = sh;
-                ctx.beginPath(); ctx.arc(50, 60, 52, 0, TAU); ctx.fill();
-                ctx.fillStyle = "rgba(52,66,104,0.92)";
-                ctx.beginPath(); ctx.arc(50, 54.5, 47, 0, TAU); ctx.fill();
-                const g = ctx.createRadialGradient(50, 30, 4, 50, 50, 54);
-                g.addColorStop(0, "rgba(176,190,224,0.95)");
-                g.addColorStop(0.55, "rgba(124,140,186,0.92)");
-                g.addColorStop(1, "rgba(92,108,156,0.92)");
-                ctx.fillStyle = g;
-                ctx.beginPath(); ctx.arc(50, 50, 47, 0, TAU); ctx.fill();
-                const sheen = ctx.createLinearGradient(0, 6, 0, 46);
-                sheen.addColorStop(0, "rgba(255,255,255,0.35)");
-                sheen.addColorStop(1, "rgba(255,255,255,0)");
-                ctx.fillStyle = sheen;
-                ctx.beginPath(); ctx.ellipse(16, 8, 68, 40); ctx.fill();
-                ctx.lineWidth = 1.4;
-                ctx.strokeStyle = "rgba(255,255,255,0.8)";
-                ctx.beginPath(); ctx.arc(50, 50, 46.3, 0, TAU); ctx.stroke();
+                ctx.beginPath(); ctx.arc(50, 63, 54, 0, TAU); ctx.fill();
 
-                // outer ring: what's inside
+                // body: clear glass lit from the top
+                const body = ctx.createRadialGradient(50, 38, 0, 50, 38, 65);
+                body.addColorStop(0, "rgba(236,242,255,0.52)");
+                body.addColorStop(1, "rgba(214,224,246,0.30)");
+                ctx.fillStyle = body;
+                ctx.beginPath(); ctx.arc(50, 50, 48, 0, TAU); ctx.fill();
+                // rim: white, with a faint dark line just under it
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "rgba(10,20,40,0.18)";
+                ctx.beginPath(); ctx.arc(50, 51, 48, 0, TAU); ctx.stroke();
+                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = "rgba(255,255,255,0.7)";
+                ctx.beginPath(); ctx.arc(50, 50, 48, 0, TAU); ctx.stroke();
+
+                // outer ring: what's inside, one colour per kind (folders white)
                 ctx.save();
                 ctx.translate(50, 50); ctx.scale(grow, grow); ctx.translate(-50, -50);
-                ctx.lineWidth = 7;
-                ctx.strokeStyle = "rgba(255,255,255,0.35)";
-                ctx.beginPath(); ctx.arc(50, 50, 40, 0, TAU); ctx.stroke();
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.beginPath(); ctx.arc(50, 50, 41, 0, TAU); ctx.stroke();
                 const segs = disc.segments;
                 const gap = segs.length > 1 ? 0.07 : 0;
-                let start = 0;
                 ctx.lineCap = segs.length > 1 ? "round" : "butt";
-                for (const s of segs) {
-                    const span = s.n / Math.max(1, disc.total) * TAU;
-                    ctx.globalAlpha = disc.hovered ? 1 : 0.88;
-                    ctx.strokeStyle = "#ffffff"; // always white, like the preview's desktop discs
-                    ctx.beginPath();
-                    if (span >= TAU - 1e-3) ctx.arc(50, 50, 40, 0, TAU);
-                    else arc(40, start + gap / 2, start + span - gap / 2);
-                    ctx.stroke();
-                    start += span;
+                for (const pass of disc.hovered ? ["glow", "ring"] : ["ring"]) {
+                    let start = 0;
+                    for (const sg of segs) {
+                        const span = sg.n / Math.max(1, disc.total) * TAU;
+                        ctx.strokeStyle = disc.colors[sg.kind];
+                        // hovered: a soft halo under each segment (the preview's glow)
+                        ctx.lineWidth = pass === "glow" ? 11 : 6;
+                        ctx.globalAlpha = pass === "glow" ? 0.22 : (disc.hovered ? 1 : 0.88);
+                        ctx.beginPath();
+                        if (span >= TAU - 1e-3) ctx.arc(50, 50, 41, 0, TAU);
+                        else arc(41, start + gap / 2, start + span - gap / 2);
+                        ctx.stroke();
+                        start += span;
+                    }
                 }
                 ctx.globalAlpha = 1;
                 ctx.restore();
 
-                // groove and inner ring
-                ctx.lineWidth = 0.8;
-                ctx.strokeStyle = "rgba(255,255,255,0.6)";
-                ctx.beginPath(); ctx.arc(50, 50, 33, 0, TAU); ctx.stroke();
-                ctx.lineWidth = 2.6;
-                ctx.strokeStyle = "rgba(255,255,255,0.55)";
-                ctx.beginPath(); ctx.arc(50, 50, 28, 0, TAU); ctx.stroke();
+                // groove, then the inner ring
+                ctx.lineWidth = 0.6;
+                ctx.strokeStyle = "rgba(255,255,255,0.5)";
+                ctx.beginPath(); ctx.arc(50, 50, 34.5, 0, TAU); ctx.stroke();
+                ctx.save();
+                const shrink = disc.hovered ? 0.97 : 1;
+                ctx.translate(50, 50); ctx.scale(shrink, shrink); ctx.translate(-50, -50);
+                ctx.lineWidth = 2.2;
+                ctx.strokeStyle = "rgba(255,255,255,0.4)";
+                ctx.beginPath(); ctx.arc(50, 50, 29, 0, TAU); ctx.stroke();
+                ctx.restore();
 
-                // core
-                ctx.fillStyle = "rgba(10,20,40,0.28)";
-                ctx.beginPath(); ctx.arc(50, 52.5, 20, 0, TAU); ctx.fill();
-                const c = ctx.createRadialGradient(50, 42, 0, 50, 42, 23);
+                // core: a soft shadow so it sits above the glass, then white
+                const cs = ctx.createRadialGradient(50, 51.5, 14, 50, 51.5, 24);
+                cs.addColorStop(0, "rgba(10,20,40,0.2)");
+                cs.addColorStop(1, "rgba(10,20,40,0)");
+                ctx.fillStyle = cs;
+                ctx.beginPath(); ctx.arc(50, 51.5, 24, 0, TAU); ctx.fill();
+                const c = ctx.createRadialGradient(50, 40, 0, 50, 40, 22.8);
                 c.addColorStop(0, "#ffffff");
                 c.addColorStop(1, "#f4f7fb");
                 ctx.fillStyle = c;
@@ -191,7 +200,7 @@ Item {
             anchors.centerIn: parent
             width: 15
             height: 15
-            sourceSize: Qt.size(30, 30)
+            sourceSize: Qt.size(45, 45)
             source: Qt.resolvedUrl("../images/" + disc.emblem + ".svg")
         }
     }
@@ -219,6 +228,7 @@ Item {
         color: Qt.rgba(1, 1, 1, 0.85)
         font.family: "Instrument Sans"
         font.pixelSize: 12
+        opacity: 0.95
         style: Text.Raised
         styleColor: Qt.rgba(0, 0, 0, 0.35)
     }
