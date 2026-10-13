@@ -36,15 +36,26 @@ function ring(colorOf, gap = 0.16) {
  *  white rings, a white core, a darker edge for depth. core: "word" (SIOS),
  *  "files" (a folder mark) or "dot" (the assistant's blue light). small: fewer
  *  rings, for 16 to 24 px. */
+// each app's glass, so they tell apart at a glance: [light, mid, deep, edge, ink]
+const GLASS = {
+  word: ["#cfdaf6", "#8fa5e0", "#5a70b8", "#3f5394", "#26314a"],
+  files: ["#cfdaf6", "#8fa5e0", "#5a70b8", "#3f5394", "#26314a"],
+  store: ["#c9efe6", "#6cc4b0", "#2f8a7c", "#236b60", "#1d4d46"],
+  monitor: ["#fde0c8", "#f2a46e", "#c9673a", "#9a4a26", "#6b3318"],
+  settings: ["#e3e6ec", "#a3aab8", "#626a7c", "#474e5e", "#2a2f3a"],
+};
+
 export function discColor({ word = true, core = word ? "word" : "dot", small = false } = {}) {
   const ringW = small ? 12 : 8;
+  const [light, mid, deep, edge, ink] = GLASS[core] || GLASS.word;
+  const app = core !== "word" && core !== "dot";
   // three even segments, like a Tron identity disc
   const third = TAU / 3, gap = small ? 0.5 : 0.36;
   const segs = [0, 1, 2].map((i) => {
     const a0 = i * third - third / 2 + gap / 2, a1 = i * third + third / 2 - gap / 2;
     return `<path d="${arc(38, a0, a1)}" fill="none" stroke="#ffffff" stroke-width="${ringW}" stroke-linecap="round"/>`;
   }).join("");
-  const coreR = small ? 14 : core === "word" ? 21.5 : 17;
+  const coreR = small ? (app ? 17 : 14) : core === "word" ? 21.5 : app ? 21 : 17;
   const mark = core === "word"
     ? `<text x="51" y="53.8" text-anchor="middle" font-family="Jost" font-weight="400" font-size="10" letter-spacing="2.1" fill="#26314a">SIOS</text>`
     : core === "files"
@@ -56,14 +67,16 @@ export function discColor({ word = true, core = word ? "word" : "dot", small = f
       : core === "store"
         ? `<g fill="none" stroke="#26314a" stroke-width="${small ? 3.4 : 2.4}" stroke-linejoin="round" stroke-linecap="round"><path d="M42 45h16l-1.4 12.2a2 2 0 0 1-2 1.8H45.4a2 2 0 0 1-2-1.8z"/><path d="M46 45v-1.5a4 4 0 0 1 8 0V45"/></g>`
         : `<circle cx="50" cy="50" r="${small ? 6 : 5}" fill="#4f7bf7"/>`;
+  // app symbols drawn a quarter bigger than the logo's, in the app's own ink
+  const glyph = app ? `<g transform="translate(50 50) scale(${small ? 1.45 : 1.3}) translate(-50 -50)">${mark.replaceAll("#26314a", ink)}</g>` : mark;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
 <defs>
-<radialGradient id="glass" cx="50%" cy="28%" r="78%"><stop offset="0" stop-color="#cfdaf6"/><stop offset=".5" stop-color="#8fa5e0"/><stop offset="1" stop-color="#5a70b8"/></radialGradient>
+<radialGradient id="glass" cx="50%" cy="28%" r="78%"><stop offset="0" stop-color="${light}"/><stop offset=".5" stop-color="${mid}"/><stop offset="1" stop-color="${deep}"/></radialGradient>
 <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".45"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
 <radialGradient id="core" cx="50%" cy="38%" r="65%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e8edf6"/></radialGradient>
 </defs>
 <ellipse cx="50" cy="${small ? 54 : 55}" rx="44" ry="42" fill="#1c2438" opacity=".22"/>
-<circle cx="50" cy="${small ? 51.5 : 52.5}" r="46" fill="#3f5394"/>
+<circle cx="50" cy="${small ? 51.5 : 52.5}" r="46" fill="${edge}"/>
 <circle cx="50" cy="49" r="46" fill="url(#glass)"/>
 <ellipse cx="50" cy="28" rx="34" ry="19" fill="url(#sheen)"/>
 <circle cx="50" cy="49" r="45.3" fill="none" stroke="#ffffff" stroke-opacity=".85" stroke-width="1.4"/>
@@ -74,7 +87,7 @@ ${small ? "" : `<circle cx="50" cy="50" r="30.5" fill="none" stroke="#ffffff" st
 <circle cx="50" cy="50" r="26.5" fill="none" stroke="#ffffff" stroke-opacity=".5" stroke-width="2.2"/>`}
 <circle cx="50" cy="52" r="${coreR + 1}" fill="#1c2438" opacity=".25"/>
 <circle cx="50" cy="50" r="${coreR}" fill="url(#core)"/>
-${mark}
+${glyph}
 </g>
 </svg>
 `;
