@@ -46,6 +46,10 @@ public:
 
     /** Go somewhere new (adds to back/forward history). "web:" is the From the web view. */
     Q_INVOKABLE void go(const QString &location);
+    /** Where you are, as a path to read or edit in the address bar (~ for home). */
+    Q_INVOKABLE QString pathText() const;
+    /** Go to a typed path (~, an absolute path, or a URL); false if there's no such folder. */
+    Q_INVOKABLE bool goTo(const QString &text);
     Q_INVOKABLE void back();
     Q_INVOKABLE void forward();
     Q_INVOKABLE void reload();

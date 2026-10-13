@@ -12,6 +12,7 @@ Rectangle {
     property alias searchField: search
     signal newFolder()
     signal emptyTrash()
+    signal copied()
 
     implicitHeight: 60
     color: Theme.surface
@@ -43,31 +44,138 @@ Rectangle {
         ToolButton { icon: "arrow-left"; tip: "Back"; active: bar.folder.canGoBack; onClicked: bar.folder.back() }
         ToolButton { icon: "arrow-right"; tip: "Forward"; active: bar.folder.canGoForward; onClicked: bar.folder.forward() }
 
-        // Home > Documents > ...
-        Row {
-            Layout.leftMargin: 10
+        // the address bar, like Windows: where you are as clickable pieces
+        // (Home > Documents > ...); click the empty part, or Ctrl+L, to type a path
+        Rectangle {
+            id: address
+            property bool editing: false
+            property bool wrong: false
+            Layout.leftMargin: 8
+            Layout.rightMargin: 6
             Layout.fillWidth: true
-            spacing: 4
-            clip: true
-            Repeater {
-                model: bar.folder.crumbs
-                delegate: Row {
-                    required property var modelData
-                    required property int index
-                    spacing: 4
-                    Icon { visible: index > 0; name: "chevron-right"; size: 14; color: Theme.fg3; anchors.verticalCenter: parent.verticalCenter }
-                    Text {
-                        readonly property bool last: index === bar.folder.crumbs.length - 1
-                        text: modelData.name
-                        color: last ? Theme.fg : Theme.fg2
-                        font.family: Theme.ui
-                        font.pixelSize: 14
-                        font.weight: last ? Font.DemiBold : Font.Normal
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bar.folder.go(modelData.location) }
+            implicitHeight: 36
+            radius: 10
+            color: editing ? Theme.surface : Theme.surface2
+            border.width: 1
+            border.color: wrong ? Theme.danger : (editing ? Theme.accentLine : (addressHover.containsMouse ? Theme.line : Qt.rgba(0, 0, 0, 0)))
+            Behavior on border.color { ColorAnimation { duration: 120 } }
+
+            function edit() {
+                wrong = false;
+                pathField.text = bar.folder.pathText();
+                editing = true;
+                pathField.forceActiveFocus();
+                pathField.selectAll();
+            }
+            function done() { editing = false; wrong = false; }
+
+            // click on the empty part of the bar to type
+            MouseArea {
+                id: addressHover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: address.editing ? Qt.IBeamCursor : Qt.ArrowCursor
+                onClicked: if (!address.editing) address.edit()
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 6
+                spacing: 6
+                Icon { name: bar.folder.isTrash ? "trash-2" : "folder"; size: 16; color: Theme.fg2 }
+
+                // Home > Documents > ...
+                Flickable {
+                    id: crumbsView
+                    visible: !address.editing
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentWidth: crumbsRow.width
+                    contentX: Math.max(0, contentWidth - width)  // keep the deepest folder in view
+                    interactive: false
+                    clip: true
+                    Row {
+                        id: crumbsRow
+                        height: parent.height
+                        spacing: 0
+                        Repeater {
+                            model: bar.folder.crumbs
+                            delegate: Row {
+                                required property var modelData
+                                required property int index
+                                height: crumbsRow.height
+                                Icon { visible: index > 0; name: "chevron-right"; size: 14; color: Theme.fg3; anchors.verticalCenter: parent.verticalCenter }
+                                Rectangle {
+                                    readonly property bool last: index === bar.folder.crumbs.length - 1
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: crumbText.implicitWidth + 14
+                                    height: 26
+                                    radius: 6
+                                    color: crumbMouse.containsMouse ? Theme.surface3 : "transparent"
+                                    Text {
+                                        id: crumbText
+                                        anchors.centerIn: parent
+                                        text: modelData.name
+                                        color: parent.last ? Theme.fg : Theme.fg2
+                                        font.family: Theme.ui
+                                        font.pixelSize: 14
+                                        font.weight: parent.last ? Font.DemiBold : Font.Normal
+                                    }
+                                    MouseArea { id: crumbMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: bar.folder.go(modelData.location) }
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: "Go to " + modelData.name
+                                }
+                            }
+                        }
                     }
+                }
+
+                // typing a path
+                QQC2.TextField {
+                    id: pathField
+                    visible: address.editing
+                    Layout.fillWidth: true
+                    color: Theme.fg
+                    selectionColor: Theme.accentSoft
+                    selectedTextColor: Theme.fg
+                    font.family: Theme.ui
+                    font.pixelSize: 14
+                    background: null
+                    padding: 0
+                    selectByMouse: true
+                    onTextEdited: address.wrong = false
+                    onAccepted: { if (bar.folder.goTo(text)) address.done(); else address.wrong = true; }
+                    Keys.onEscapePressed: address.done()
+                    onActiveFocusChanged: if (!activeFocus) address.done()
+                    Accessible.name: "Folder path"
+                }
+                Text {
+                    visible: address.wrong
+                    text: "No such folder"
+                    color: Theme.danger
+                    font.family: Theme.ui
+                    font.pixelSize: 12
+                }
+                // copy where you are
+                Rectangle {
+                    visible: !address.editing && addressHover.containsMouse
+                    implicitWidth: 26; implicitHeight: 26; radius: 6
+                    color: copyMouse.containsMouse ? Theme.surface3 : "transparent"
+                    Icon { anchors.centerIn: parent; name: "copy"; size: 14; color: Theme.fg2 }
+                    MouseArea {
+                        id: copyMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { pathField.text = bar.folder.pathText(); pathField.selectAll(); pathField.copy(); bar.copied(); }
+                    }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Copy path"
                 }
             }
         }
+        Shortcut { sequences: ["Ctrl+L", "Alt+D", "F4"]; onActivated: address.edit() }
 
         // empty the trash, when in it
         Rectangle {

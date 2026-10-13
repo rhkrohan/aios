@@ -154,6 +154,7 @@ QQC2.ApplicationWindow {
                 folder: folder
                 onNewFolder: app.newFolder()
                 onEmptyTrash: fileOps.emptyTrash()
+                onCopied: toast.show("Path copied", false, false)
             }
 
             // the items, with the keyboard

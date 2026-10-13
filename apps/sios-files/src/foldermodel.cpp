@@ -174,6 +174,41 @@ QString FolderModel::title() const
     return url.fileName().isEmpty() ? url.toDisplayString() : url.fileName();
 }
 
+QString FolderModel::pathText() const
+{
+    const QUrl url = QUrl::fromUserInput(m_location);
+    if (!url.isLocalFile())
+        return url.toDisplayString();
+    const QString path = QDir::cleanPath(url.toLocalFile());
+    const QString home = QDir::homePath();
+    if (path == home)
+        return QStringLiteral("~");
+    if (path.startsWith(home + QLatin1Char('/')))
+        return QStringLiteral("~") + path.mid(home.size());
+    return path;
+}
+
+bool FolderModel::goTo(const QString &text)
+{
+    QString t = text.trimmed();
+    if (t.isEmpty())
+        return false;
+    if (t == QLatin1String("~") || t.startsWith(QLatin1String("~/")))
+        t = QDir::homePath() + t.mid(1);
+    const QUrl url = QUrl::fromUserInput(t, QDir::homePath(), QUrl::AssumeLocalFile);
+    if (url.isLocalFile()) {
+        const QFileInfo fi(url.toLocalFile());
+        if (!fi.isDir())
+            return false;
+        go(QUrl::fromLocalFile(QDir::cleanPath(fi.absoluteFilePath())).toString());
+        return true;
+    }
+    if (!url.isValid())
+        return false;
+    go(url.toString());
+    return true;
+}
+
 QVariantList FolderModel::crumbs() const
 {
     // Home > Documents > Taxes, or just the view's name

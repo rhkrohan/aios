@@ -54,7 +54,7 @@ qt_add_qml_module(sios-files
     RESOURCES
         src/icons/arrow-left.svg src/icons/arrow-right.svg src/icons/chevron-right.svg
         src/icons/search.svg src/icons/arrow-up-down.svg src/icons/layout-grid.svg src/icons/list.svg
-        src/icons/folder-plus.svg src/icons/panel-right.svg src/icons/x.svg
+        src/icons/folder-plus.svg src/icons/panel-right.svg src/icons/x.svg src/icons/copy.svg
         src/icons/house.svg src/icons/file-text.svg src/icons/download.svg src/icons/code-xml.svg
         src/icons/image.svg src/icons/clock.svg src/icons/globe.svg src/icons/trash-2.svg
         src/icons/git-branch.svg src/icons/sparkles.svg src/icons/lock.svg src/icons/folder.svg
