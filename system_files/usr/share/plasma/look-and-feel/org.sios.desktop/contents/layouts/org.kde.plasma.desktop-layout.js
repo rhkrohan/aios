@@ -65,3 +65,14 @@ for (const desktop of desktops()) {
     desktop.writeConfig("ItemGeometriesHorizontal", layout(g.width, g.height));
     desktop.reloadConfig();
 }
+
+// Desktop right-click menu: the folder's own items (New folder, Paste, ...),
+// then Lock, wallpaper and display settings. KDE keeps this per user in one
+// shared group, not on the desktop itself, so it's written by file.
+const actionPlugins = ConfigFile("plasma-org.kde.plasma.desktop-appletsrc", "ActionPlugins");
+const desktopActions = ConfigFile(actionPlugins, "0");
+desktopActions.writeEntry("RightButton;NoModifier", "org.kde.contextmenu");
+const rightClick = ConfigFile(desktopActions, "RightButton;NoModifier");
+["_context", "_lock_screen", "configure", "_display_settings"].forEach((k) => rightClick.writeEntry(k, true));
+["_sep1", "configure shortcuts", "_open_terminal", "_run_command", "add widgets", "_add panel", "manage activities",
+ "remove", "desktop edit mode", "edit mode", "_logout", "_wallpaper"].forEach((k) => rightClick.writeEntry(k, false));
