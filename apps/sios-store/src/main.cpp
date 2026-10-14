@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     app.setApplicationDisplayName(QStringLiteral("Store"));
     app.setOrganizationDomain(QStringLiteral("sios.org"));
     app.setDesktopFileName(QStringLiteral("org.sios.store"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("plasmadiscover"), QIcon::fromTheme(QStringLiteral("system-software-install"))));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("org.sios.store"), QIcon::fromTheme(QStringLiteral("system-software-install"))));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     Catalog catalog;

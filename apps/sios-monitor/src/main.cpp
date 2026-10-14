@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     app.setApplicationDisplayName(QStringLiteral("Monitor"));
     app.setOrganizationDomain(QStringLiteral("sios.org"));
     app.setDesktopFileName(QStringLiteral("org.sios.monitor"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("utilities-system-monitor")));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("org.sios.monitor")));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     Sampler sampler;

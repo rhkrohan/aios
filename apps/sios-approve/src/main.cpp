@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     app.setApplicationName(QStringLiteral("sios-approve"));
     app.setApplicationDisplayName(QStringLiteral("SIOS"));
     app.setDesktopFileName(QStringLiteral("org.sios.approve"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("security-high")));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("org.sios.approve")));
     app.setQuitOnLastWindowClosed(false);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 

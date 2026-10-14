@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     app.setApplicationDisplayName(QStringLiteral("Files"));
     app.setOrganizationDomain(QStringLiteral("sios.org"));
     app.setDesktopFileName(QStringLiteral("org.sios.files"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("sios-files"), QIcon::fromTheme(QStringLiteral("system-file-manager"))));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("org.sios.files"), QIcon::fromTheme(QStringLiteral("system-file-manager"))));
     // we draw our own controls from the preview's design; Basic keeps Qt out of the way
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 

@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     app.setApplicationDisplayName(QStringLiteral("Settings"));
     app.setOrganizationDomain(QStringLiteral("sios.org"));
     app.setDesktopFileName(QStringLiteral("org.sios.settings"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("preferences-system")));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("org.sios.settings")));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     QCommandLineParser args;

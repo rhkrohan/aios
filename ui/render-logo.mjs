@@ -2,7 +2,7 @@
 // build_concept_html/src/components/icons/FolderDisc.tsx). Writes every place
 // the mark appears on the image:
 //   hicolor apps: sios-logo, sios-logo-symbolic, sios-start (top bar),
-//                 start-here, distributor-logo(-symbolic), sios-files (Files app)
+//                 start-here, distributor-logo(-symbolic) (app icons: ui/make-app-icons.py)
 // Run: node ui/render-logo.mjs   (PNG copies: ui/render-logo-png.mjs)
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -164,10 +164,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   write("scalable/apps/sios-logo.svg", discColor());
   write("scalable/apps/distributor-logo.svg", discColor());
   write("scalable/places/start-here.svg", discColor());
-  write("scalable/apps/sios-files.svg", filesIcon());
+  // the Files app icon is now ui/make-app-icons.py (org.sios.files)
   // small sizes: fewer rings so they stay crisp in a title bar or menu
-  for (const px of [16, 22, 24, 32]) {
-    write(`${px}x${px}/apps/sios-files.svg`, filesIcon({ small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
     write(`${px}x${px}/apps/sios-logo.svg`, discColor({ core: "dot", small: true }).replace('width="100" height="100"', `width="${px}" height="${px}"`));
   }
   write("scalable/apps/sios-start.svg", discStart());
