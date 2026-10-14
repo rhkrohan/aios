@@ -13,17 +13,19 @@ use crate::policy::Level;
 use crate::token::Cap;
 use crate::tools::{self, ToolSpec};
 
-/// Tool names on the wire: models want `[a-zA-Z0-9_-]`, so "fs.read" travels as "fs_read".
+/// Tool names on the wire: models want `[a-zA-Z0-9_-]`, so "files.read" travels as "files_read".
 pub fn wire_name(name: &str) -> String {
     name.replace('.', "_")
 }
 
-/// Accept either form back from a model.
+/// Accept either form back from a model, and old names from before the rename (D36).
+/// Area names never contain "_", so the first one is always the area's end.
 pub fn canonical(name: &str) -> String {
-    match name.split_once('_') {
+    let dotted = match name.split_once('_') {
         Some((a, b)) if !name.contains('.') => format!("{a}.{b}"),
         _ => name.to_string(),
-    }
+    };
+    tools::current(&dotted)
 }
 
 /// Does a call's arguments fit the tool's schema? Missing fields, unknown fields
@@ -67,11 +69,11 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
     };
     let path = |about: &str| json!({ "type": "string", "description": format!("{about} {allowed}") });
     match t.name {
-        "fs.list" => json!({ "type": "object", "properties": { "path": path("Folder to list, relative to the sandbox.") }, "required": ["path"], "additionalProperties": false }),
-        "fs.read" => json!({ "type": "object", "properties": { "path": path("File to read, relative to the sandbox.") }, "required": ["path"], "additionalProperties": false }),
-        "fs.write" => json!({ "type": "object", "properties": { "path": path("File to create or replace."), "text": { "type": "string", "description": "The full new contents." } }, "required": ["path", "text"], "additionalProperties": false }),
-        "fs.move" => json!({ "type": "object", "properties": { "from": path("What to move."), "to": path("New path, or a folder ending with / to move it into (created if missing).") }, "required": ["from", "to"], "additionalProperties": false }),
-        "fs.trash" => json!({ "type": "object", "properties": { "path": path("File or folder to move to the Trash.") }, "required": ["path"], "additionalProperties": false }),
+        "files.list" => json!({ "type": "object", "properties": { "path": path("Folder to list, relative to the sandbox.") }, "required": ["path"], "additionalProperties": false }),
+        "files.read" => json!({ "type": "object", "properties": { "path": path("File to read, relative to the sandbox.") }, "required": ["path"], "additionalProperties": false }),
+        "files.write" => json!({ "type": "object", "properties": { "path": path("File to create or replace."), "text": { "type": "string", "description": "The full new contents." } }, "required": ["path", "text"], "additionalProperties": false }),
+        "files.move" => json!({ "type": "object", "properties": { "from": path("What to move."), "to": path("New path, or a folder ending with / to move it into (created if missing).") }, "required": ["from", "to"], "additionalProperties": false }),
+        "files.trash" => json!({ "type": "object", "properties": { "path": path("File or folder to move to the Trash.") }, "required": ["path"], "additionalProperties": false }),
         "mail.send" => json!({
             "type": "object",
             "properties": {
@@ -83,27 +85,27 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
             "required": ["to", "subject", "body"],
             "additionalProperties": false
         }),
-        "fs.find" => json!({ "type": "object", "properties": { "path": path("Folder to search under."), "query": { "type": "string", "description": "Words in the name, a label (Finance, Work, Personal), or \"untrusted\"." } }, "required": ["path", "query"], "additionalProperties": false }),
-        "fs.organize" => json!({
+        "files.find" => json!({ "type": "object", "properties": { "path": path("Folder to search under."), "query": { "type": "string", "description": "Words in the name, a label (Finance, Work, Personal), or \"untrusted\"." } }, "required": ["path", "query"], "additionalProperties": false }),
+        "files.organize" => json!({
             "type": "object",
             "properties": { "moves": { "type": "array", "description": "Every move, in one call.", "items": { "type": "object", "properties": { "from": path("File to move."), "to": path("Destination. End with / to move into a folder (it's created if missing), e.g. \"Downloads/Finance/\".") }, "required": ["from", "to"], "additionalProperties": false } } },
             "required": ["moves"],
             "additionalProperties": false
         }),
-        "fs.copy" => json!({ "type": "object", "properties": { "from": path("File to copy."), "to": path("New path, or a folder ending with / (created if missing).") }, "required": ["from", "to"], "additionalProperties": false }),
-        "fs.mkdir" | "fs.restore" | "fs.delete" => json!({ "type": "object", "properties": { "path": path("The folder or file.") }, "required": ["path"], "additionalProperties": false }),
-        "ui.open_app" => json!({ "type": "object", "properties": { "app": { "type": "string", "enum": ["files", "browser", "mail", "settings", "terminal", "store", "security", "goals", "activity"] } }, "required": ["app"], "additionalProperties": false }),
-        "ui.show_folder" | "ui.quick_look" => json!({ "type": "object", "properties": { "path": path("What to show.") }, "required": ["path"], "additionalProperties": false }),
-        "ui.notify" => json!({ "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"], "additionalProperties": false }),
-        "ui.set_theme" => json!({ "type": "object", "properties": { "theme": { "type": "string", "enum": ["light", "dark"] } }, "required": ["theme"], "additionalProperties": false }),
-        "sys.set_volume" | "sys.set_brightness" => json!({ "type": "object", "properties": { "level": { "type": "integer", "description": "0 to 100" } }, "required": ["level"], "additionalProperties": false }),
-        "sys.dnd" | "net.wifi" | "net.bluetooth" => json!({ "type": "object", "properties": { "on": { "type": "boolean" } }, "required": ["on"], "additionalProperties": false }),
-        "ui.set_wallpaper" => json!({ "type": "object", "properties": { "name": { "type": "string", "enum": ["dusk", "lake"] } }, "required": ["name"], "additionalProperties": false }),
-        "ui.close_app" | "ui.focus_app" => json!({ "type": "object", "properties": { "app": { "type": "string", "enum": ["files", "browser", "mail", "settings", "terminal", "store", "security", "goals", "activity"] } }, "required": ["app"], "additionalProperties": false }),
-        "ui.side_by_side" => json!({ "type": "object", "properties": { "left": { "type": "string" }, "right": { "type": "string" } }, "required": ["left", "right"], "additionalProperties": false }),
-        "sys.lock" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
-        "sys.remind" => json!({ "type": "object", "properties": { "minutes": { "type": "integer" }, "text": { "type": "string" } }, "required": ["minutes", "text"], "additionalProperties": false }),
-        "store.install" | "store.remove" => json!({ "type": "object", "properties": { "app": { "type": "string", "description": "Store app id, e.g. github, slack, notion, calendar" } }, "required": ["app"], "additionalProperties": false }),
+        "files.copy" => json!({ "type": "object", "properties": { "from": path("File to copy."), "to": path("New path, or a folder ending with / (created if missing).") }, "required": ["from", "to"], "additionalProperties": false }),
+        "files.mkdir" | "files.restore" | "files.delete" => json!({ "type": "object", "properties": { "path": path("The folder or file.") }, "required": ["path"], "additionalProperties": false }),
+        "apps.open" => json!({ "type": "object", "properties": { "app": { "type": "string", "enum": ["files", "browser", "mail", "settings", "terminal", "store", "security", "goals", "activity"] } }, "required": ["app"], "additionalProperties": false }),
+        "files.show" | "files.preview" => json!({ "type": "object", "properties": { "path": path("What to show.") }, "required": ["path"], "additionalProperties": false }),
+        "system.notify" => json!({ "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"], "additionalProperties": false }),
+        "settings.set_theme" => json!({ "type": "object", "properties": { "theme": { "type": "string", "enum": ["light", "dark"] } }, "required": ["theme"], "additionalProperties": false }),
+        "settings.set_volume" | "settings.set_brightness" => json!({ "type": "object", "properties": { "level": { "type": "integer", "description": "0 to 100" } }, "required": ["level"], "additionalProperties": false }),
+        "settings.dnd" | "network.wifi_power" | "network.bluetooth_power" => json!({ "type": "object", "properties": { "on": { "type": "boolean" } }, "required": ["on"], "additionalProperties": false }),
+        "settings.set_wallpaper" => json!({ "type": "object", "properties": { "name": { "type": "string", "enum": ["dusk", "lake"] } }, "required": ["name"], "additionalProperties": false }),
+        "apps.close" | "apps.focus" => json!({ "type": "object", "properties": { "app": { "type": "string", "enum": ["files", "browser", "mail", "settings", "terminal", "store", "security", "goals", "activity"] } }, "required": ["app"], "additionalProperties": false }),
+        "apps.arrange" => json!({ "type": "object", "properties": { "left": { "type": "string" }, "right": { "type": "string" } }, "required": ["left", "right"], "additionalProperties": false }),
+        "system.lock" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
+        "system.remind" => json!({ "type": "object", "properties": { "minutes": { "type": "integer" }, "text": { "type": "string" } }, "required": ["minutes", "text"], "additionalProperties": false }),
+        "apps.install" | "apps.remove" => json!({ "type": "object", "properties": { "app": { "type": "string", "description": "Store app id, e.g. github, slack, notion, calendar" } }, "required": ["app"], "additionalProperties": false }),
         "memory.search" | "people.resolve" => json!({ "type": "object", "properties": { "query": { "type": "string" } }, "required": ["query"], "additionalProperties": false }),
         "memory.save" => json!({
             "type": "object",
@@ -115,8 +117,9 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
             "required": ["text", "kind", "group"],
             "additionalProperties": false
         }),
+        "apps.list" | "network.list" | "system.state" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
         "memory.forget" => json!({ "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"], "additionalProperties": false }),
-        "net.connect_wifi" => json!({ "type": "object", "properties": { "ssid": { "type": "string", "description": "Network name." } }, "required": ["ssid"], "additionalProperties": false }),
+        "network.connect_wifi" => json!({ "type": "object", "properties": { "ssid": { "type": "string", "description": "Network name." } }, "required": ["ssid"], "additionalProperties": false }),
         _ => json!({ "type": "object" }),
     }
 }
@@ -207,9 +210,9 @@ mod tests {
 
     #[test]
     fn only_granted_tools_are_described() {
-        let m = build(&cap(&["fs.read", "fs.write"]), Some(5), None, 900, "openai").unwrap();
+        let m = build(&cap(&["files.read", "files.write"]), Some(5), None, 900, "openai").unwrap();
         let names: Vec<&str> = m["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-        assert_eq!(names, vec!["fs_read", "fs_write"]);
+        assert_eq!(names, vec!["files_read", "files_write"]);
         assert_eq!(m["limits"]["expires_in_seconds"], 100);
         assert_eq!(m["limits"]["may_send_data_out"], false);
     }
@@ -217,7 +220,7 @@ mod tests {
     #[test]
     fn every_dialect_carries_the_same_tools() {
         for d in DIALECTS {
-            let m = build(&cap(&["fs.read", "mail.send"]), None, None, 0, d).unwrap();
+            let m = build(&cap(&["files.read", "mail.send"]), None, None, 0, d).unwrap();
             assert_eq!(m["tools"].as_array().unwrap().len(), 2, "{d}");
         }
         let mcp = build(&cap(&["mail.send"]), None, None, 0, "mcp").unwrap();
@@ -227,7 +230,7 @@ mod tests {
 
     #[test]
     fn path_fields_name_the_allowed_folders() {
-        let m = build(&cap(&["fs.list"]), None, None, 0, "openai").unwrap();
+        let m = build(&cap(&["files.list"]), None, None, 0, "openai").unwrap();
         let d = m["tools"][0]["parameters"]["properties"]["path"]["description"].as_str().unwrap();
         assert!(d.contains("Must be inside: Projects"));
         assert_eq!(m["tools"][0]["parameters"]["required"][0], "path");
@@ -244,8 +247,8 @@ mod tests {
 
     #[test]
     fn wrong_arguments_are_named() {
-        let t = tools::spec("fs.write").unwrap();
-        let c = cap(&["fs.write"]);
+        let t = tools::spec("files.write").unwrap();
+        let c = cap(&["files.write"]);
         assert!(check_args(t, &c, &json!({ "path": "Projects/a.md", "text": "x" })).is_ok());
         assert!(check_args(t, &c, &json!({ "path": "Projects/a.md", "content": "x" })).unwrap_err().contains("needs \"text\""));
         assert!(check_args(t, &c, &json!({ "path": 3, "text": "x" })).unwrap_err().contains("should be a string"));
@@ -253,8 +256,30 @@ mod tests {
 
     #[test]
     fn names_round_trip() {
-        assert_eq!(canonical(&wire_name("fs.read")), "fs.read");
+        assert_eq!(canonical(&wire_name("files.read")), "files.read");
         assert_eq!(canonical("mail_send"), "mail.send");
-        assert_eq!(canonical("fs.read"), "fs.read");
+        assert_eq!(canonical("files.read"), "files.read");
+        assert_eq!(canonical("settings_set_volume"), "settings.set_volume");
+        assert_eq!(canonical("network_wifi_power"), "network.wifi_power");
+    }
+
+    #[test]
+    fn old_names_still_work() {
+        assert_eq!(canonical("fs.read"), "files.read");
+        assert_eq!(canonical("fs_organize"), "files.organize");
+        assert_eq!(canonical("sys.set_volume"), "settings.set_volume");
+        assert_eq!(canonical("ui_side_by_side"), "apps.arrange");
+        assert_eq!(canonical("store.install"), "apps.install");
+        // every alias lands on a real tool, and no area name has a "_"
+        for (_, new) in tools::ALIASES {
+            assert!(tools::spec(new).is_some(), "{new}");
+        }
+        for t in tools::TOOLS {
+            assert!(!t.name.split('.').next().unwrap().contains('_'), "{}", t.name);
+            assert_eq!(canonical(&wire_name(t.name)), t.name);
+        }
+        assert_eq!(tools::current_patterns("fs.*"), vec!["files.*"]);
+        assert!(tools::current_patterns("ui.*").contains(&"apps.open".to_string()));
+        assert!(tools::current_patterns("sys.*").contains(&"system.lock".to_string()));
     }
 }

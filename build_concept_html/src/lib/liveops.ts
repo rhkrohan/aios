@@ -29,38 +29,38 @@ export function liveNewFolder(dir: string): string {
   const taken = new Set((os().fs[dir] ?? []).map((i) => i.name));
   let name = "New folder";
   for (let n = 2; taken.has(name); n++) name = `New folder ${n}`;
-  void act("fs.mkdir", { path: join(dir, name) });
+  void act("files.mkdir", { path: join(dir, name) });
   return `live:${join(dir, name)}`;
 }
 
 export function liveRename(dir: string, id: string, name: string) {
   const old = nameOf(dir, id);
   if (!old || !name.trim() || old === name.trim()) return;
-  void act("fs.move", { from: join(dir, old), to: join(dir, name.trim()) });
+  void act("files.move", { from: join(dir, old), to: join(dir, name.trim()) });
 }
 
 export function liveMove(fromDir: string, ids: string[], toDir: string) {
   if (fromDir === toDir) return;
   const moves = ids.map((id) => nameOf(fromDir, id)).filter(Boolean).map((n) => ({ from: join(fromDir, n!), to: `${rel(toDir)}/` }));
-  if (moves.length) void act("fs.organize", { moves });
+  if (moves.length) void act("files.organize", { moves });
 }
 
 export async function liveTrash(fromDir: string, ids: string[]) {
   for (const id of ids) {
     const n = nameOf(fromDir, id);
-    if (n) await act("fs.trash", { path: join(fromDir, n) });
+    if (n) await act("files.trash", { path: join(fromDir, n) });
   }
 }
 
 export async function livePutBack(ids: string[]) {
   for (const id of ids) {
     const n = nameOf("~/Trash", id);
-    if (n) await act("fs.restore", { path: `.Trash/${n}` });
+    if (n) await act("files.restore", { path: `.Trash/${n}` });
   }
 }
 
 export async function liveEmptyTrash() {
-  for (const item of os().fs["~/Trash"] ?? []) await act("fs.delete", { path: `.Trash/${item.name}` });
+  for (const item of os().fs["~/Trash"] ?? []) await act("files.delete", { path: `.Trash/${item.name}` });
 }
 
 export async function liveImport(dir: string, files: File[]): Promise<number> {
@@ -70,7 +70,7 @@ export async function liveImport(dir: string, files: File[]): Promise<number> {
       os().pushToast({ title: `${f.name} wasn't imported`, body: "The live sandbox takes text files up to 1 MB for now.", tone: "info" });
       continue;
     }
-    if (await act("fs.write", { path: join(dir, f.name), text: await f.text() })) n++;
+    if (await act("files.write", { path: join(dir, f.name), text: await f.text() })) n++;
   }
   return n;
 }

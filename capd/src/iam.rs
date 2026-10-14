@@ -43,11 +43,28 @@ pub struct When {
     pub tainted: Option<bool>,
 }
 
+impl Role {
+    /// Every tool pattern in today's names (D36).
+    pub fn current_names(&mut self) {
+        for s in self.statements.iter_mut() {
+            let mut out: Vec<String> = Vec::new();
+            for t in &s.tools {
+                for n in crate::tools::current_patterns(t) {
+                    if !out.contains(&n) {
+                        out.push(n);
+                    }
+                }
+            }
+            s.tools = out;
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Statement {
     pub id: String,
     pub effect: Effect,
-    /// Tool names; "*" matches any run of characters ("fs.*", "*").
+    /// Tool names; "*" matches any run of characters ("files.*", "*").
     pub tools: Vec<String>,
     /// Places it covers. Empty: anywhere.
     #[serde(default)]
@@ -132,14 +149,14 @@ fn seed_roles() -> Vec<Role> {
             id: "reader".into(),
             name: "Reader".into(),
             about: "Can look and search. Changes nothing.".into(),
-            statements: vec![st("r1", Effect::Allow, &["fs.list", "fs.read", "fs.find", "memory.search", "people.resolve", "ui.*"], &[], Mode::Auto, "Look at and search anything not denied", read_only)],
+            statements: vec![st("r1", Effect::Allow, &["files.list", "files.read", "files.find", "files.show", "files.preview", "memory.search", "people.resolve", "apps.*", "system.*", "network.list"], &[], Mode::Auto, "Look at and search anything not denied", read_only)],
             global: false,
         },
         Role {
             id: "organizer".into(),
             name: "Organizer".into(),
             about: "Tidies files in your working folders. Everything it does can be undone.".into(),
-            statements: vec![st("o1", Effect::Allow, &["fs.move", "fs.organize", "fs.mkdir", "fs.write", "fs.copy", "fs.trash", "fs.restore"], &["Downloads", "Projects"], Mode::Auto, "Move and tidy files in Downloads and Projects", undoable)],
+            statements: vec![st("o1", Effect::Allow, &["files.move", "files.organize", "files.mkdir", "files.write", "files.copy", "files.trash", "files.restore"], &["Downloads", "Projects"], Mode::Auto, "Move and tidy files in Downloads and Projects", undoable)],
             global: false,
         },
         Role {
@@ -240,7 +257,7 @@ fn deny_covers(s: &Statement, a: &Action) -> bool {
         return false;
     }
     if !s.places.is_empty() {
-        let file_tool = ["fs.", "files.", "memory."].iter().any(|p| a.tool.starts_with(p));
+        let file_tool = ["files.", "memory."].iter().any(|p| a.tool.starts_with(p));
         let overlaps = a.places.iter().any(|p| s.places.iter().any(|sp| crate::token::within(p, place(sp)) || crate::token::within(place(sp), p)));
         if !(overlaps || (a.places.is_empty() && file_tool)) {
             return false;
@@ -266,6 +283,10 @@ impl Iam {
     pub fn open(path: &Path, now: u64) -> Iam {
         let mut iam: Iam = std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         iam.path = path.to_path_buf();
+        // roles saved before the tool rename (D36) keep meaning the same tools
+        for r in iam.roles.iter_mut() {
+            r.current_names();
+        }
         // the built-ins are always there, even in an older or hand-edited file
         for r in seed_roles() {
             if !iam.roles.iter().any(|x| x.id == r.id) {
@@ -372,34 +393,34 @@ mod tests {
 
     #[test]
     fn globs() {
-        assert!(tool_matches("*", "fs.read"));
-        assert!(tool_matches("fs.*", "fs.read"));
-        assert!(!tool_matches("fs.*", "mail.send"));
+        assert!(tool_matches("*", "files.read"));
+        assert!(tool_matches("files.*", "files.read"));
+        assert!(!tool_matches("files.*", "mail.send"));
         assert!(tool_matches("*.send", "mail.send"));
-        assert!(tool_matches("ui.*", "ui.open_app"));
-        assert!(!tool_matches("fs.read", "fs.readx"));
+        assert!(tool_matches("apps.*", "apps.open"));
+        assert!(!tool_matches("files.read", "files.readx"));
     }
 
     #[test]
     fn roles_allow_deny_and_default_no() {
         let mut i = iam();
         let p = |s: &str| vec![s.to_string()];
-        assert_eq!(i.decide("app:claude", &act("fs.read", Level::Read, &p("Documents/a.txt"))).result, Res::Pass);
-        assert_eq!(i.decide("app:claude", &act("fs.move", Level::Reversible, &p("Downloads/a"))).result, Res::Pass);
-        assert_eq!(i.decide("app:claude", &act("fs.move", Level::Reversible, &p("Documents/a"))).result, Res::Fail);
+        assert_eq!(i.decide("app:claude", &act("files.read", Level::Read, &p("Documents/a.txt"))).result, Res::Pass);
+        assert_eq!(i.decide("app:claude", &act("files.move", Level::Reversible, &p("Downloads/a"))).result, Res::Pass);
+        assert_eq!(i.decide("app:claude", &act("files.move", Level::Reversible, &p("Documents/a"))).result, Res::Fail);
         assert_eq!(i.decide("app:claude", &act("mail.send", Level::Irreversible, &[])).result, Res::Fail);
-        assert_eq!(i.decide("nobody", &act("fs.read", Level::Read, &[])).result, Res::Fail);
-        assert_eq!(i.decide(OWNER, &act("fs.delete", Level::Irreversible, &[])).result, Res::Pass);
+        assert_eq!(i.decide("nobody", &act("files.read", Level::Read, &[])).result, Res::Fail);
+        assert_eq!(i.decide(OWNER, &act("files.delete", Level::Irreversible, &[])).result, Res::Pass);
         // a global deny beats any allow, "~/" places work too
         i.roles[0].statements.push(st("d", Effect::Deny, &["*"], &["~/Documents/Taxes"], Mode::Auto, "Never Taxes", None));
-        let d = i.decide("app:claude", &act("fs.read", Level::Read, &p("Documents/Taxes/r.txt")));
+        let d = i.decide("app:claude", &act("files.read", Level::Read, &p("Documents/Taxes/r.txt")));
         assert_eq!(d.result, Res::Fail);
         assert!(d.detail.contains("Never Taxes"));
         // the parent folder, a move that only partly touches it, and a file tool with no place: all denied
-        assert_eq!(i.decide("app:claude", &act("fs.read", Level::Read, &p("Documents"))).result, Res::Fail);
+        assert_eq!(i.decide("app:claude", &act("files.read", Level::Read, &p("Documents"))).result, Res::Fail);
         let mixed = vec!["Documents/Taxes/r.txt".to_string(), "Downloads/x".to_string()];
-        assert_eq!(i.decide("app:claude", &act("fs.move", Level::Reversible, &mixed)).result, Res::Fail);
-        assert_eq!(i.decide("app:claude", &act("fs.find", Level::Read, &[])).result, Res::Fail);
+        assert_eq!(i.decide("app:claude", &act("files.move", Level::Reversible, &mixed)).result, Res::Fail);
+        assert_eq!(i.decide("app:claude", &act("files.find", Level::Read, &[])).result, Res::Fail);
         // ask mode
         i.get_mut_for_test("app:claude").roles.push("mailer".into());
         assert_eq!(i.decide("app:claude", &act("mail.send", Level::Irreversible, &[])).result, Res::Ask);
@@ -412,6 +433,20 @@ mod tests {
         assert_eq!(r.statements[0].when.as_ref().unwrap().max_risk.as_deref(), Some("reversible"));
         let i: Identity = serde_json::from_str(r#"{"id":"a","name":"A","kind":"app","proof":"p","createdBy":"You","roles":[],"since":1}"#).unwrap();
         assert_eq!(i.created_by, "You");
+    }
+
+    #[test]
+    fn roles_saved_with_old_tool_names_mean_the_same_tools() {
+        let mut r: Role = serde_json::from_str(r#"{"id":"x","name":"X","about":"","statements":[{"id":"s","effect":"allow","tools":["fs.read","ui.*","sys.*","fs.*","files.read"],"places":[],"mode":"auto","note":""}]}"#).unwrap();
+        r.current_names();
+        let t = &r.statements[0].tools;
+        for want in ["files.read", "apps.open", "files.show", "settings.set_theme", "settings.set_volume", "system.lock", "files.*"] {
+            assert!(t.contains(&want.to_string()), "{want} missing from {t:?}");
+        }
+        assert_eq!(t.iter().filter(|x| *x == "files.read").count(), 1, "no duplicates");
+        assert!(!t.iter().any(|x| x.starts_with("ui.") || x.starts_with("sys.") || x.starts_with("fs.")));
+        // and an old pattern allows nothing new: sys.* never covered installs
+        assert!(!t.iter().any(|x| x == "apps.*" || x == "apps.install"));
     }
 
     impl Iam {

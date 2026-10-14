@@ -183,7 +183,7 @@ mod tests {
             principal: "openai-agent",
             paused: false,
             iam: (Res::Pass, "ok".into()),
-            tool: "fs.read",
+            tool: "files.read",
             level: Some(Level::Read),
             egress: false,
             cap_tools: tools,
@@ -200,13 +200,13 @@ mod tests {
 
     #[test]
     fn plain_read_is_allowed() {
-        let (t, p) = (vec!["fs.read".to_string()], vec!["Projects".to_string()]);
+        let (t, p) = (vec!["files.read".to_string()], vec!["Projects".to_string()]);
         assert_eq!(evaluate(&facts(&t, &p)).0, Decision::Allow);
     }
 
     #[test]
     fn outside_the_slice_is_blocked() {
-        let (t, p) = (vec!["fs.read".to_string()], vec!["Projects".to_string()]);
+        let (t, p) = (vec!["files.read".to_string()], vec!["Projects".to_string()]);
         let mut f = facts(&t, &p);
         f.targets = Ok(vec!["Documents/taxes.pdf".into()]);
         let (d, checks, _) = evaluate(&f);
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn tool_not_granted_is_blocked() {
-        let (t, p) = (vec!["fs.read".to_string()], vec!["".to_string()]);
+        let (t, p) = (vec!["files.read".to_string()], vec!["".to_string()]);
         let mut f = facts(&t, &p);
         f.tool = "mail.send";
         f.level = Some(Level::Irreversible);
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn spent_budget_and_uses_block() {
-        let (t, p) = (vec!["fs.read".to_string()], vec!["".to_string()]);
+        let (t, p) = (vec!["files.read".to_string()], vec!["".to_string()]);
         let mut f = facts(&t, &p);
         f.uses_left = Some(0);
         assert_eq!(evaluate(&f).0, Decision::Block);

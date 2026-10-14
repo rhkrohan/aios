@@ -411,7 +411,7 @@ export const COMMANDS: Record<string, Cmd> = {
       if (!isDir(dir)) return ctx.print([s(`touch: ${dir}: no such folder`, "err")]);
       if (fs[dir].some((i) => i.name === name)) return;
       if (os().settings.liveMachine) {
-        void liveOwner("do", { tool: "fs.write", args: { path: [rel(dir), name].filter(Boolean).join("/"), text: "" } }).then(() => refreshLive());
+        void liveOwner("do", { tool: "files.write", args: { path: [rel(dir), name].filter(Boolean).join("/"), text: "" } }).then(() => refreshLive());
         return;
       }
       const item: FileItem = {

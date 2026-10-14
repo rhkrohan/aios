@@ -32,28 +32,28 @@ export function toChecks(raw: unknown): PolicyCheck[] {
   return raw.map((c: { id: string; result: PolicyCheck["result"]; detail: string }) => ({ id: c.id, label: CHECK_LABEL[c.id] ?? c.id, result: c.result, detail: c.detail }));
 }
 
-/** "fs_read" (as models send it) and "fs.read" are the same tool; "ui.show_folder" stays as is. */
+/** "files_read" (as models send it) and "files.read" are the same tool; "files.show" stays as is. */
 const canon = (t: string) => (t.includes(".") ? t : t.replace("_", "."));
 
 /** Plain words for a tool call. */
 function say(tool: string, a: Record<string, unknown>): string {
   const p = String(a.path ?? "");
   switch (canon(tool)) {
-    case "fs.list":
+    case "files.list":
       return `Looking in ${p || "the home folder"}`;
-    case "fs.find":
+    case "files.find":
       return `Finding "${a.query}" in ${p || "the home folder"}`;
-    case "fs.read":
+    case "files.read":
       return `Reading ${p}`;
-    case "fs.write":
+    case "files.write":
       return `Writing ${p}`;
-    case "fs.move":
+    case "files.move":
       return `Moving ${a.from} to ${a.to}`;
-    case "fs.organize":
+    case "files.organize":
       return `Moving ${Array.isArray(a.moves) ? a.moves.length : "several"} files`;
-    case "fs.trash":
+    case "files.trash":
       return `Moving ${p} to the Trash`;
-    case "fs.copy":
+    case "files.copy":
       return `Copying ${a.from} to ${a.to}`;
     case "memory.save":
       return `Remembering: ${String(a.text ?? "").slice(0, 60)}`;
@@ -65,43 +65,43 @@ function say(tool: string, a: Record<string, unknown>): string {
       return `Looking up ${a.query}`;
     case "mail.send":
       return `Emailing ${[a.to].flat().join(", ")}`;
-    case "ui.open_app":
+    case "apps.open":
       return `Opening ${a.app}`;
-    case "ui.show_folder":
+    case "files.show":
       return `Showing you ${p}`;
-    case "ui.quick_look":
+    case "files.preview":
       return `Previewing ${p}`;
-    case "ui.notify":
+    case "system.notify":
       return "Notifying you";
-    case "ui.set_theme":
+    case "settings.set_theme":
       return `Switching to ${a.theme} mode`;
-    case "net.connect_wifi":
+    case "network.connect_wifi":
       return `Joining ${a.ssid}`;
-    case "net.wifi":
+    case "network.wifi_power":
       return `Turning Wi-Fi ${a.on ? "on" : "off"}`;
-    case "net.bluetooth":
+    case "network.bluetooth_power":
       return `Turning Bluetooth ${a.on ? "on" : "off"}`;
-    case "sys.set_volume":
+    case "settings.set_volume":
       return `Setting volume to ${a.level}%`;
-    case "sys.set_brightness":
+    case "settings.set_brightness":
       return `Setting brightness to ${a.level}%`;
-    case "sys.dnd":
+    case "settings.dnd":
       return `Turning Do Not Disturb ${a.on ? "on" : "off"}`;
-    case "ui.set_wallpaper":
+    case "settings.set_wallpaper":
       return `Changing the wallpaper to ${a.name}`;
-    case "ui.close_app":
+    case "apps.close":
       return `Closing ${a.app}`;
-    case "ui.focus_app":
+    case "apps.focus":
       return `Bringing ${a.app} to the front`;
-    case "ui.side_by_side":
+    case "apps.arrange":
       return `Putting ${a.left} and ${a.right} side by side`;
-    case "sys.lock":
+    case "system.lock":
       return "Locking the screen";
-    case "sys.remind":
+    case "system.remind":
       return `Reminder in ${a.minutes} min: ${a.text}`;
-    case "store.install":
+    case "apps.install":
       return `Installing ${a.app}`;
-    case "store.remove":
+    case "apps.remove":
       return `Removing ${a.app}`;
     default:
       return tool;
@@ -109,31 +109,31 @@ function say(tool: string, a: Record<string, unknown>): string {
 }
 
 const LEVEL: Record<string, "read" | "reversible" | "irreversible"> = {
-  "store.install": "irreversible",
-  "store.remove": "irreversible",
-  "sys.set_volume": "reversible",
-  "sys.set_brightness": "reversible",
-  "sys.dnd": "reversible",
-  "net.wifi": "reversible",
-  "net.bluetooth": "reversible",
-  "ui.set_wallpaper": "reversible",
-  "sys.lock": "reversible",
-  "sys.remind": "reversible",
-  "fs.list": "read",
-  "fs.find": "read",
-  "fs.read": "read",
-  "fs.write": "reversible",
-  "fs.move": "reversible",
-  "fs.organize": "reversible",
-  "fs.trash": "reversible",
-  "fs.copy": "reversible",
+  "apps.install": "irreversible",
+  "apps.remove": "irreversible",
+  "settings.set_volume": "reversible",
+  "settings.set_brightness": "reversible",
+  "settings.dnd": "reversible",
+  "network.wifi_power": "reversible",
+  "network.bluetooth_power": "reversible",
+  "settings.set_wallpaper": "reversible",
+  "system.lock": "reversible",
+  "system.remind": "reversible",
+  "files.list": "read",
+  "files.find": "read",
+  "files.read": "read",
+  "files.write": "reversible",
+  "files.move": "reversible",
+  "files.organize": "reversible",
+  "files.trash": "reversible",
+  "files.copy": "reversible",
   "memory.save": "reversible",
   "memory.forget": "reversible",
   "memory.search": "read",
   "people.resolve": "read",
   "mail.send": "irreversible",
-  "ui.set_theme": "reversible",
-  "net.connect_wifi": "reversible",
+  "settings.set_theme": "reversible",
+  "network.connect_wifi": "reversible",
 };
 
 
@@ -253,19 +253,19 @@ function perform(effect: { type: string; [k: string]: unknown }) {
 }
 
 /** What a "do it yourself" button may do: show you where, never change anything itself. */
-export const MANUAL_TOOLS = ["ui.show_folder", "ui.open_app", "ui.quick_look", "ui.focus_app"];
+export const MANUAL_TOOLS = ["files.show", "apps.open", "files.preview", "apps.focus"];
 
 /** An action the owner takes themselves from a "do it yourself" button. */
 export async function doItYourself(tool: string, args: Record<string, unknown>) {
   const t = canon(tool);
   if (!MANUAL_TOOLS.includes(t)) return;
-  if (t.startsWith("fs.")) {
+  if (t.startsWith("files.")) {
     const { liveOwner, refreshLive } = await import("./livemirror");
     try {
       // reading is just showing: open it in Files
-      if (t === "fs.read" || t === "fs.list" || t === "fs.find") {
+      if (t === "files.read" || t === "files.list" || t === "files.find") {
         const p = String(args.path ?? "");
-        os().openApp("files", { path: p ? `~/${t === "fs.read" && p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : p}` : "~" });
+        os().openApp("files", { path: p ? `~/${t === "files.read" && p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : p}` : "~" });
         return;
       }
       await liveOwner("do", { tool: t, args });
@@ -277,24 +277,24 @@ export async function doItYourself(tool: string, args: Record<string, unknown>) 
     return;
   }
   const effect: Record<string, { type: string; [k: string]: unknown }> = {
-    "ui.open_app": { type: "open_app", app: args.app },
-    "ui.show_folder": { type: "show_folder", path: args.path },
-    "ui.quick_look": { type: "quick_look", path: args.path },
-    "ui.set_theme": { type: "set_theme", theme: args.theme },
-    "ui.set_wallpaper": { type: "wallpaper", name: args.name },
-    "ui.close_app": { type: "close_app", app: args.app },
-    "ui.focus_app": { type: "focus_app", app: args.app },
-    "ui.side_by_side": { type: "side_by_side", left: args.left, right: args.right },
-    "sys.set_volume": { type: "volume", level: args.level },
-    "sys.set_brightness": { type: "brightness", level: args.level },
-    "sys.dnd": { type: "dnd", on: args.on },
-    "net.wifi": { type: "wifi_power", on: args.on },
-    "net.bluetooth": { type: "bluetooth", on: args.on },
-    "net.connect_wifi": { type: "connect_wifi", ssid: args.ssid },
-    "sys.lock": { type: "lock" },
-    "sys.remind": { type: "remind", minutes: args.minutes, text: args.text },
-    "store.install": { type: "install", app: args.app },
-    "store.remove": { type: "uninstall", app: args.app },
+    "apps.open": { type: "open_app", app: args.app },
+    "files.show": { type: "show_folder", path: args.path },
+    "files.preview": { type: "quick_look", path: args.path },
+    "settings.set_theme": { type: "set_theme", theme: args.theme },
+    "settings.set_wallpaper": { type: "wallpaper", name: args.name },
+    "apps.close": { type: "close_app", app: args.app },
+    "apps.focus": { type: "focus_app", app: args.app },
+    "apps.arrange": { type: "side_by_side", left: args.left, right: args.right },
+    "settings.set_volume": { type: "volume", level: args.level },
+    "settings.set_brightness": { type: "brightness", level: args.level },
+    "settings.dnd": { type: "dnd", on: args.on },
+    "network.wifi_power": { type: "wifi_power", on: args.on },
+    "network.bluetooth_power": { type: "bluetooth", on: args.on },
+    "network.connect_wifi": { type: "connect_wifi", ssid: args.ssid },
+    "system.lock": { type: "lock" },
+    "system.remind": { type: "remind", minutes: args.minutes, text: args.text },
+    "apps.install": { type: "install", app: args.app },
+    "apps.remove": { type: "uninstall", app: args.app },
   };
   if (effect[t]) perform(effect[t]);
   else if (t === "mail.send") os().openApp("mail");

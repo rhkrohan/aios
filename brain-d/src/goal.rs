@@ -232,7 +232,7 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
             Outcome::Done(texts) => {
                 // a plan that sends or installs anything is re-planned every time, so it always uses
                 // current memory (a cached "email Sara" would miss a second Sara added later)
-                let irreversible = plan.steps.iter().any(|s| ["mail.send", "store.install", "store.remove"].contains(&s.tool.as_str()));
+                let irreversible = plan.steps.iter().any(|s| ["mail.send", "apps.install", "apps.remove"].contains(&s.tool.as_str()));
                 if source == "model" && !replanned_during && r.history.is_empty() && !irreversible {
                     r.ctx.routines.lock().unwrap().save(&r.request, &plan);
                 }
@@ -278,7 +278,7 @@ fn dry_run(r: &Run, plan: &Plan, token: &str) -> Result<(Vec<Value>, Vec<String>
             continue;
         }
         let checks: Vec<(String, Value)> = if s.kind == "compose" {
-            s.sources.iter().map(|p| ("fs.read".to_string(), json!({ "path": p }))).collect()
+            s.sources.iter().map(|p| ("files.read".to_string(), json!({ "path": p }))).collect()
         } else {
             // compose text isn't known yet; check the call's shape with a stand-in
             let filled = plan::fill(&s.args_json, &(1..=plan.steps.len()).map(|k| (k, "(text)".to_string())).collect::<Vec<_>>(), true);
@@ -328,7 +328,7 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
         if s.kind == "compose" {
             let mut docs = Vec::new();
             for p in &s.sources {
-                let res = r.ctx.capd.tool(token, "fs.read", &json!({ "path": p }), false)?;
+                let res = r.ctx.capd.tool(token, "files.read", &json!({ "path": p }), false)?;
                 if res["decision"] != "allow" || res.get("error").is_some_and(|e| !e.is_null()) {
                     emit(r.g, json!({ "t": "step", "n": n, "kind": "compose", "decision": res["decision"], "reason": res["reason"], "error": res["error"], "ms": ms(t) }));
                     return Ok(Outcome::Failed(format!("couldn't read {p}: {}", res["error"].as_str().or(res["reason"].as_str()).unwrap_or("refused"))));

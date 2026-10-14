@@ -39,18 +39,18 @@ if (!existsSync(CAPD)) throw new Error("Build capd first: cargo build --release"
 const GOALS = [
   {
     id: "summarize",
-    request: "Summarize Downloads/Q3 board notes.txt into a short Projects/board-packet/summary.md.",
-    cap: { tools: ["fs.list", "fs.read", "fs.write"], paths: ["Downloads", "Projects/board-packet"], uses: 12, budget: 15, no_egress: true },
+    request: "Summarize Downloads/Q3 board notes.pdf into a short Projects/board-packet/summary.md.",
+    cap: { tools: ["files.list", "files.read", "files.write"], paths: ["Downloads", "Projects/board-packet"], uses: 12, budget: 15, no_egress: true },
   },
   {
     id: "tidy",
     request: "Tidy my Downloads folder: put money-related files in Downloads/Finance and notes or documents in Downloads/Notes.",
-    cap: { tools: ["fs.list", "fs.read", "fs.move"], paths: ["Downloads"], uses: 20, budget: 20, no_egress: true },
+    cap: { tools: ["files.list", "files.read", "files.move"], paths: ["Downloads"], uses: 20, budget: 20, no_egress: true },
   },
   {
     id: "email",
-    request: "Email Sara (sara.okafor@example.com) a two-line summary of Projects/README.md.",
-    cap: { tools: ["fs.read", "mail.send"], paths: ["Projects"], uses: 6, budget: 6 },
+    request: "Email Sara (sara.okafor@example.com) a two-line summary of Projects/sios/README.md.",
+    cap: { tools: ["files.read", "mail.send"], paths: ["Projects"], uses: 6, budget: 6 },
   },
 ];
 

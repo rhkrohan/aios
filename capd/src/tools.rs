@@ -23,46 +23,104 @@ pub struct ToolSpec {
 }
 
 pub const TOOLS: &[ToolSpec] = &[
-    ToolSpec { name: "fs.list", level: Level::Read, egress: false, path_args: &["path"], about: "List a folder: names, kinds, sizes, labels." },
-    ToolSpec { name: "fs.read", level: Level::Read, egress: false, path_args: &["path"], about: "Read a text file. Untrusted files are returned as data, marked untrusted." },
-    ToolSpec { name: "fs.write", level: Level::Reversible, egress: false, path_args: &["path"], about: "Create or replace a text file. The old version is kept for undo." },
-    ToolSpec { name: "fs.move", level: Level::Reversible, egress: false, path_args: &["from", "to"], about: "Move or rename a file or folder." },
-    ToolSpec { name: "fs.copy", level: Level::Reversible, egress: false, path_args: &["from", "to"], about: "Copy a file exactly (contents untouched). End `to` with / to copy into a folder." },
-    ToolSpec { name: "fs.trash", level: Level::Reversible, egress: false, path_args: &["path"], about: "Move a file or folder to the Trash (can be undone)." },
+    ToolSpec { name: "files.list", level: Level::Read, egress: false, path_args: &["path"], about: "List a folder: names, kinds, sizes, labels." },
+    ToolSpec { name: "files.read", level: Level::Read, egress: false, path_args: &["path"], about: "Read a text file. Untrusted files are returned as data, marked untrusted." },
+    ToolSpec { name: "files.write", level: Level::Reversible, egress: false, path_args: &["path"], about: "Create or replace a text file. The old version is kept for undo." },
+    ToolSpec { name: "files.move", level: Level::Reversible, egress: false, path_args: &["from", "to"], about: "Move or rename a file or folder." },
+    ToolSpec { name: "files.copy", level: Level::Reversible, egress: false, path_args: &["from", "to"], about: "Copy a file exactly (contents untouched). End `to` with / to copy into a folder." },
+    ToolSpec { name: "files.trash", level: Level::Reversible, egress: false, path_args: &["path"], about: "Move a file or folder to the Trash (can be undone)." },
     ToolSpec { name: "mail.send", level: Level::Irreversible, egress: true, path_args: &["attach"], about: "Send an email, optionally attaching one file." },
     // coarse tools (D16): one call does a whole step, capd still checks every path in it
-    ToolSpec { name: "fs.find", level: Level::Read, egress: false, path_args: &["path"], about: "Find files under a folder by name or meaning: words in the name, a label (Finance, Work...), or \"untrusted\"/\"web\"." },
-    ToolSpec { name: "fs.organize", level: Level::Reversible, egress: false, path_args: &[], about: "Move many files in one step: a list of {from, to}. Missing destination folders are created. All or nothing." },
-    ToolSpec { name: "fs.mkdir", level: Level::Reversible, egress: false, path_args: &["path"], about: "Create a folder." },
-    ToolSpec { name: "fs.restore", level: Level::Reversible, egress: false, path_args: &["path"], about: "Put something back from the Trash where it came from." },
-    ToolSpec { name: "fs.delete", level: Level::Irreversible, egress: false, path_args: &["path"], about: "Delete something in the Trash for good." },
+    ToolSpec { name: "files.find", level: Level::Read, egress: false, path_args: &["path"], about: "Find files under a folder by name or meaning: words in the name, a label (Finance, Work...), or \"untrusted\"/\"web\"." },
+    ToolSpec { name: "files.organize", level: Level::Reversible, egress: false, path_args: &[], about: "Move many files in one step: a list of {from, to}. Missing destination folders are created. All or nothing." },
+    ToolSpec { name: "files.mkdir", level: Level::Reversible, egress: false, path_args: &["path"], about: "Create a folder." },
+    ToolSpec { name: "files.restore", level: Level::Reversible, egress: false, path_args: &["path"], about: "Put something back from the Trash where it came from." },
+    ToolSpec { name: "files.delete", level: Level::Irreversible, egress: false, path_args: &["path"], about: "Delete something in the Trash for good." },
     // system tools: carried out by the desktop shell (on SIOS: D-Bus to KWin, NetworkManager, portals)
-    ToolSpec { name: "ui.open_app", level: Level::Read, egress: false, path_args: &[], about: "Open an app on the owner's screen: files, browser, mail, settings, terminal, store, security, goals, activity." },
-    ToolSpec { name: "ui.show_folder", level: Level::Read, egress: false, path_args: &["path"], about: "Show a folder to the owner in Files." },
-    ToolSpec { name: "ui.quick_look", level: Level::Read, egress: false, path_args: &["path"], about: "Show the owner a preview of a file." },
-    ToolSpec { name: "ui.notify", level: Level::Read, egress: false, path_args: &[], about: "Show the owner a short notification." },
-    ToolSpec { name: "ui.set_theme", level: Level::Reversible, egress: false, path_args: &[], about: "Switch the desktop between light and dark." },
-    ToolSpec { name: "net.connect_wifi", level: Level::Reversible, egress: false, path_args: &[], about: "Connect to a Wi-Fi network by name." },
+    ToolSpec { name: "apps.open", level: Level::Read, egress: false, path_args: &[], about: "Open an app on the owner's screen: files, browser, mail, settings, terminal, store, security, goals, activity." },
+    ToolSpec { name: "files.show", level: Level::Read, egress: false, path_args: &["path"], about: "Show a folder to the owner in Files." },
+    ToolSpec { name: "files.preview", level: Level::Read, egress: false, path_args: &["path"], about: "Show the owner a preview of a file." },
+    ToolSpec { name: "system.notify", level: Level::Read, egress: false, path_args: &[], about: "Show the owner a short notification." },
+    ToolSpec { name: "settings.set_theme", level: Level::Reversible, egress: false, path_args: &[], about: "Switch the desktop between light and dark." },
+    ToolSpec { name: "network.connect_wifi", level: Level::Reversible, egress: false, path_args: &[], about: "Connect to a Wi-Fi network by name." },
     // more of the system (on SIOS: PipeWire, PowerDevil, BlueZ, NetworkManager, KWin, logind, systemd timers, Flatpak)
-    ToolSpec { name: "sys.set_volume", level: Level::Reversible, egress: false, path_args: &[], about: "Set the sound volume, 0 to 100." },
-    ToolSpec { name: "sys.set_brightness", level: Level::Reversible, egress: false, path_args: &[], about: "Set the screen brightness, 0 to 100." },
-    ToolSpec { name: "sys.dnd", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Do Not Disturb on or off." },
-    ToolSpec { name: "net.wifi", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Wi-Fi on or off." },
-    ToolSpec { name: "net.bluetooth", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Bluetooth on or off." },
-    ToolSpec { name: "ui.set_wallpaper", level: Level::Reversible, egress: false, path_args: &[], about: "Change the wallpaper: dusk or lake." },
-    ToolSpec { name: "ui.close_app", level: Level::Read, egress: false, path_args: &[], about: "Close an app's window." },
-    ToolSpec { name: "ui.focus_app", level: Level::Read, egress: false, path_args: &[], about: "Bring an app's window to the front." },
-    ToolSpec { name: "ui.side_by_side", level: Level::Read, egress: false, path_args: &[], about: "Put two apps side by side on the screen." },
-    ToolSpec { name: "sys.lock", level: Level::Reversible, egress: false, path_args: &[], about: "Lock the screen." },
-    ToolSpec { name: "sys.remind", level: Level::Reversible, egress: false, path_args: &[], about: "Remind the owner of something in a number of minutes (1 to 1440)." },
-    ToolSpec { name: "store.install", level: Level::Irreversible, egress: false, path_args: &[], about: "Install an app from the Store (always asks: it changes what AIs can do)." },
-    ToolSpec { name: "store.remove", level: Level::Irreversible, egress: false, path_args: &[], about: "Remove an installed app (always asks)." },
+    ToolSpec { name: "settings.set_volume", level: Level::Reversible, egress: false, path_args: &[], about: "Set the sound volume, 0 to 100." },
+    ToolSpec { name: "settings.set_brightness", level: Level::Reversible, egress: false, path_args: &[], about: "Set the screen brightness, 0 to 100." },
+    ToolSpec { name: "settings.dnd", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Do Not Disturb on or off." },
+    ToolSpec { name: "network.wifi_power", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Wi-Fi on or off." },
+    ToolSpec { name: "network.bluetooth_power", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Bluetooth on or off." },
+    ToolSpec { name: "settings.set_wallpaper", level: Level::Reversible, egress: false, path_args: &[], about: "Change the wallpaper: dusk or lake." },
+    ToolSpec { name: "apps.close", level: Level::Reversible, egress: false, path_args: &[], about: "Close an app's window." },
+    ToolSpec { name: "apps.focus", level: Level::Read, egress: false, path_args: &[], about: "Bring an app's window to the front." },
+    ToolSpec { name: "apps.arrange", level: Level::Read, egress: false, path_args: &[], about: "Put two apps side by side on the screen." },
+    ToolSpec { name: "system.lock", level: Level::Reversible, egress: false, path_args: &[], about: "Lock the screen." },
+    ToolSpec { name: "system.remind", level: Level::Reversible, egress: false, path_args: &[], about: "Remind the owner of something in a number of minutes (1 to 1440)." },
+    ToolSpec { name: "apps.install", level: Level::Irreversible, egress: false, path_args: &[], about: "Install an app from the Store (always asks: it changes what AIs can do)." },
+    ToolSpec { name: "apps.remove", level: Level::Irreversible, egress: false, path_args: &[], about: "Remove an installed app (always asks)." },
+    // read the system's state; real once the adapters land (M6), refused until then
+    ToolSpec { name: "apps.list", level: Level::Read, egress: false, path_args: &[], about: "List the open apps and their windows." },
+    ToolSpec { name: "network.list", level: Level::Read, egress: false, path_args: &[], about: "List network connections and nearby Wi-Fi networks." },
+    ToolSpec { name: "system.state", level: Level::Read, egress: false, path_args: &[], about: "The computer right now: volume, brightness, theme, network, battery, Do Not Disturb, the focused app." },
     // memory (Vault): checked and logged like everything else
     ToolSpec { name: "memory.search", level: Level::Read, egress: false, path_args: &[], about: "Search what the owner asked SIOS to remember: facts, preferences, people, past goals." },
     ToolSpec { name: "memory.save", level: Level::Reversible, egress: false, path_args: &[], about: "Remember a fact or preference the owner stated. Never passwords or keys (refused)." },
     ToolSpec { name: "memory.forget", level: Level::Reversible, egress: false, path_args: &[], about: "Forget one memory by id." },
     ToolSpec { name: "people.resolve", level: Level::Read, egress: false, path_args: &[], about: "Turn a name or role (\"Sara\", \"my accountant\") into people with emails." },
 ];
+
+/// Names from before the catalog rename (D36). Still accepted everywhere a tool
+/// name comes in (calls, passes, rules, roles), and mapped to today's name.
+/// Remove once the MCP door ships (M8).
+pub const ALIASES: &[(&str, &str)] = &[
+    ("fs.list", "files.list"),
+    ("fs.read", "files.read"),
+    ("fs.write", "files.write"),
+    ("fs.move", "files.move"),
+    ("fs.copy", "files.copy"),
+    ("fs.trash", "files.trash"),
+    ("fs.find", "files.find"),
+    ("fs.organize", "files.organize"),
+    ("fs.mkdir", "files.mkdir"),
+    ("fs.restore", "files.restore"),
+    ("fs.delete", "files.delete"),
+    ("ui.show_folder", "files.show"),
+    ("ui.quick_look", "files.preview"),
+    ("ui.open_app", "apps.open"),
+    ("ui.focus_app", "apps.focus"),
+    ("ui.close_app", "apps.close"),
+    ("ui.side_by_side", "apps.arrange"),
+    ("store.install", "apps.install"),
+    ("store.remove", "apps.remove"),
+    ("ui.set_theme", "settings.set_theme"),
+    ("ui.set_wallpaper", "settings.set_wallpaper"),
+    ("sys.set_volume", "settings.set_volume"),
+    ("sys.set_brightness", "settings.set_brightness"),
+    ("sys.dnd", "settings.dnd"),
+    ("net.connect_wifi", "network.connect_wifi"),
+    ("net.wifi", "network.wifi_power"),
+    ("net.bluetooth", "network.bluetooth_power"),
+    ("ui.notify", "system.notify"),
+    ("sys.lock", "system.lock"),
+    ("sys.remind", "system.remind"),
+];
+
+/// Today's name for a tool (an old name maps to its new one; anything else is unchanged).
+pub fn current(name: &str) -> String {
+    ALIASES.iter().find(|(old, _)| *old == name).map(|(_, new)| new.to_string()).unwrap_or_else(|| name.to_string())
+}
+
+/// A saved tool pattern (rules, roles) in today's names. An old area pattern
+/// becomes every new pattern its tools moved to, so it allows no more and no less.
+pub fn current_patterns(pattern: &str) -> Vec<String> {
+    match pattern {
+        "fs.*" => vec!["files.*".into()],
+        "net.*" => vec!["network.connect_wifi".into(), "network.wifi_power".into(), "network.bluetooth_power".into()],
+        "sys.*" => vec!["settings.set_volume".into(), "settings.set_brightness".into(), "settings.dnd".into(), "system.lock".into(), "system.remind".into()],
+        "store.*" => vec!["apps.install".into(), "apps.remove".into()],
+        "ui.*" => ["ui.show_folder", "ui.quick_look", "ui.open_app", "ui.focus_app", "ui.close_app", "ui.side_by_side", "ui.set_theme", "ui.set_wallpaper", "ui.notify"].iter().map(|o| current(o)).collect(),
+        other => vec![current(other)],
+    }
+}
 
 /// The Trash: a hidden folder at the top of the home.
 pub const TRASH: &str = ".Trash";
@@ -75,22 +133,22 @@ const APPS: [&str; 9] = ["files", "browser", "mail", "settings", "terminal", "st
 pub fn sources_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
     let mut out = Vec::new();
     match spec.name {
-        "fs.move" => out.extend(args.get("from").and_then(|v| v.as_str())),
-        "fs.organize" => {
+        "files.move" => out.extend(args.get("from").and_then(|v| v.as_str())),
+        "files.organize" => {
             for m in args.get("moves").and_then(|v| v.as_array()).into_iter().flatten() {
                 out.extend(m.get("from").and_then(|v| v.as_str()));
             }
         }
-        "fs.trash" | "fs.delete" | "fs.write" | "fs.restore" => out.extend(args.get("path").and_then(|v| v.as_str())),
+        "files.trash" | "files.delete" | "files.write" | "files.restore" => out.extend(args.get("path").and_then(|v| v.as_str())),
         _ => {}
     }
     out
 }
 
-/// Every path a call touches, including each move inside fs.organize.
+/// Every path a call touches, including each move inside files.organize.
 pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
     let mut out: Vec<&str> = spec.path_args.iter().filter_map(|a| args.get(*a).and_then(|v| v.as_str())).collect();
-    if spec.name == "fs.organize" {
+    if spec.name == "files.organize" {
         for m in args.get("moves").and_then(|v| v.as_array()).into_iter().flatten() {
             out.extend(["from", "to"].iter().filter_map(|k| m.get(*k).and_then(|v| v.as_str())));
         }
@@ -149,7 +207,7 @@ fn res(root: &Path, rel: &str) -> Result<Resolved, String> {
 pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outcome, String> {
     let done = |result: Value| Outcome { result, undo: None, read: vec![], wrote: None };
     match tool {
-        "fs.list" => {
+        "files.list" => {
             let r = res(env.root, args.get("path").and_then(|v| v.as_str()).unwrap_or(""))?;
             let mut items = Vec::new();
             for e in std::fs::read_dir(&r.real).map_err(|e| e.to_string())? {
@@ -175,7 +233,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             items.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
             Ok(done(json!({ "path": r.rel, "items": items })))
         }
-        "fs.read" => {
+        "files.read" => {
             let r = res(env.root, arg(args, "path")?)?;
             let bytes = std::fs::read(&r.real).map_err(|e| format!("can't read {}: {e}", r.rel))?;
             let text = String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_READ)]).into_owned();
@@ -192,7 +250,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             out.read.push((r.rel, labels, untrusted));
             Ok(out)
         }
-        "fs.write" => {
+        "files.write" => {
             let r = res(env.root, arg(args, "path")?)?;
             let text = arg(args, "text")?;
             let undo = if r.real.exists() {
@@ -209,7 +267,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             std::fs::write(&r.real, text).map_err(|e| e.to_string())?;
             Ok(Outcome { result: json!({ "path": r.rel, "bytes": text.len() }), undo: Some(undo), read: vec![], wrote: Some(r.rel) })
         }
-        "fs.move" => {
+        "files.move" => {
             let from = res(env.root, arg(args, "from")?)?;
             let to_arg = arg(args, "to")?;
             let mut to = res(env.root, to_arg)?;
@@ -240,7 +298,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                 wrote: None,
             })
         }
-        "fs.copy" => {
+        "files.copy" => {
             let from = res(env.root, arg(args, "from")?)?;
             let to_arg = arg(args, "to")?;
             let mut to = res(env.root, to_arg)?;
@@ -266,7 +324,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             meta.derive(&to.rel, env.principal, std::slice::from_ref(&src));
             Ok(Outcome { result: json!({ "copied": from.rel, "to": to.rel }), undo: Some(Undo::Remove { real: to.real }), read: vec![src], wrote: None })
         }
-        "fs.trash" => {
+        "files.trash" => {
             let r = res(env.root, arg(args, "path")?)?;
             if r.rel.is_empty() {
                 return Err("can't trash the whole sandbox".into());
@@ -295,7 +353,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                 wrote: None,
             })
         }
-        "fs.restore" => {
+        "files.restore" => {
             // put something back from the Trash where it came from
             let r = res(env.root, arg(args, "path")?)?;
             let from = meta.files.get(&r.rel).and_then(|m| m.trashed_from.clone()).ok_or("that isn't in the Trash")?;
@@ -311,7 +369,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             }
             Ok(Outcome { result: json!({ "restored": back.rel }), undo: Some(Undo::MoveBack { now: back.real, was: r.real, rel_now: back.rel, rel_was: r.rel }), read: vec![], wrote: None })
         }
-        "fs.delete" => {
+        "files.delete" => {
             // gone for good: only from the Trash
             let r = res(env.root, arg(args, "path")?)?;
             if !r.rel.starts_with(&format!("{TRASH}/")) {
@@ -326,7 +384,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             meta.files.retain(|p, _| !crate::token::within(p, &r.rel));
             Ok(done(json!({ "deleted": r.rel })))
         }
-        "fs.mkdir" => {
+        "files.mkdir" => {
             let r = res(env.root, arg(args, "path")?)?;
             if r.real.exists() {
                 return Err(format!("{} already exists", r.rel));
@@ -357,7 +415,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             std::fs::write(dir.join(format!("{}.json", env.op)), serde_json::to_vec_pretty(&msg).unwrap()).map_err(|e| e.to_string())?;
             Ok(Outcome { result: json!({ "sent": true, "outbox": format!("outbox/{}.json", env.op) }), undo: None, read, wrote: None })
         }
-        "fs.find" => {
+        "files.find" => {
             let r = res(env.root, arg(args, "path")?)?;
             let q = arg(args, "query")?.to_lowercase();
             let words: Vec<&str> = q.split_whitespace().filter(|w| w.len() > 1).collect();
@@ -397,7 +455,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             }
             Ok(done(json!({ "query": q, "under": r.rel, "matches": found })))
         }
-        "fs.organize" => {
+        "files.organize" => {
             let moves = args.get("moves").and_then(|v| v.as_array()).ok_or("missing \"moves\"")?;
             if moves.is_empty() || moves.len() > 200 {
                 return Err("give between 1 and 200 moves".into());
@@ -416,7 +474,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                 let shared = seen.get(to.trim_end_matches('/')).copied().unwrap_or(0) > 1;
                 let one = json!({ "from": m.get("from"), "to": to, "into_folder": shared });
                 let sub = Env { root: env.root, state: env.state, op: &format!("{}-{i}", env.op), principal: env.principal };
-                match run("fs.move", &one, &sub, meta) {
+                match run("files.move", &one, &sub, meta) {
                     Ok(o) => {
                         moved.push(o.result);
                         if let Some(u) = o.undo {
@@ -434,63 +492,63 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             }
             Ok(Outcome { result: json!({ "moved": moved }), undo: Some(Undo::Many(undos)), read: vec![], wrote: None })
         }
-        "ui.open_app" => {
+        "apps.open" => {
             let app = arg(args, "app")?;
             if !APPS.contains(&app) {
                 return Err(format!("no app called {app}; apps are {}", APPS.join(", ")));
             }
             Ok(done(json!({ "effect": { "type": "open_app", "app": app } })))
         }
-        "ui.show_folder" | "ui.quick_look" => {
+        "files.show" | "files.preview" => {
             let r = res(env.root, arg(args, "path")?)?;
             if !r.real.exists() {
                 return Err(format!("{} doesn't exist", r.rel));
             }
-            let kind = if tool == "ui.show_folder" { "show_folder" } else { "quick_look" };
+            let kind = if tool == "files.show" { "show_folder" } else { "quick_look" };
             Ok(done(json!({ "effect": { "type": kind, "path": r.rel } })))
         }
-        "ui.notify" => Ok(done(json!({ "effect": { "type": "notify", "text": arg(args, "text")?.chars().take(200).collect::<String>() } }))),
-        "ui.set_theme" => {
+        "system.notify" => Ok(done(json!({ "effect": { "type": "notify", "text": arg(args, "text")?.chars().take(200).collect::<String>() } }))),
+        "settings.set_theme" => {
             let t = arg(args, "theme")?;
             if t != "light" && t != "dark" {
                 return Err("theme is light or dark".into());
             }
             Ok(done(json!({ "effect": { "type": "set_theme", "theme": t } })))
         }
-        "net.connect_wifi" => Ok(done(json!({ "effect": { "type": "connect_wifi", "ssid": arg(args, "ssid")? } }))),
-        "sys.set_volume" | "sys.set_brightness" => {
+        "network.connect_wifi" => Ok(done(json!({ "effect": { "type": "connect_wifi", "ssid": arg(args, "ssid")? } }))),
+        "settings.set_volume" | "settings.set_brightness" => {
             let level = args.get("level").and_then(|v| v.as_i64()).ok_or("missing \"level\" (0 to 100)")?;
             if !(0..=100).contains(&level) {
                 return Err("level is 0 to 100".into());
             }
-            let kind = if tool == "sys.set_volume" { "volume" } else { "brightness" };
+            let kind = if tool == "settings.set_volume" { "volume" } else { "brightness" };
             Ok(done(json!({ "effect": { "type": kind, "level": level } })))
         }
-        "sys.dnd" | "net.wifi" | "net.bluetooth" => {
+        "settings.dnd" | "network.wifi_power" | "network.bluetooth_power" => {
             let on = args.get("on").and_then(|v| v.as_bool()).ok_or("missing \"on\" (true or false)")?;
             let kind = match tool {
-                "sys.dnd" => "dnd",
-                "net.wifi" => "wifi_power",
+                "settings.dnd" => "dnd",
+                "network.wifi_power" => "wifi_power",
                 _ => "bluetooth",
             };
             Ok(done(json!({ "effect": { "type": kind, "on": on } })))
         }
-        "ui.set_wallpaper" => {
+        "settings.set_wallpaper" => {
             let w = arg(args, "name")?;
             if w != "dusk" && w != "lake" {
                 return Err("wallpapers are dusk or lake".into());
             }
             Ok(done(json!({ "effect": { "type": "wallpaper", "name": w } })))
         }
-        "ui.close_app" | "ui.focus_app" => {
+        "apps.close" | "apps.focus" => {
             let app = arg(args, "app")?;
             if !APPS.contains(&app) {
                 return Err(format!("no app called {app}; apps are {}", APPS.join(", ")));
             }
-            let kind = if tool == "ui.close_app" { "close_app" } else { "focus_app" };
+            let kind = if tool == "apps.close" { "close_app" } else { "focus_app" };
             Ok(done(json!({ "effect": { "type": kind, "app": app } })))
         }
-        "ui.side_by_side" => {
+        "apps.arrange" => {
             let (l, r) = (arg(args, "left")?, arg(args, "right")?);
             for a in [l, r] {
                 if !APPS.contains(&a) {
@@ -499,19 +557,20 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             }
             Ok(done(json!({ "effect": { "type": "side_by_side", "left": l, "right": r } })))
         }
-        "sys.lock" => Ok(done(json!({ "effect": { "type": "lock" } }))),
-        "sys.remind" => {
+        "system.lock" => Ok(done(json!({ "effect": { "type": "lock" } }))),
+        "system.remind" => {
             let m = args.get("minutes").and_then(|v| v.as_i64()).ok_or("missing \"minutes\"")?;
             if !(1..=1440).contains(&m) {
                 return Err("minutes is 1 to 1440".into());
             }
             Ok(done(json!({ "effect": { "type": "remind", "minutes": m, "text": arg(args, "text")?.chars().take(200).collect::<String>() } })))
         }
-        "store.install" | "store.remove" => {
+        "apps.install" | "apps.remove" => {
             let app = arg(args, "app")?;
-            let kind = if tool == "store.install" { "install" } else { "uninstall" };
+            let kind = if tool == "apps.install" { "install" } else { "uninstall" };
             Ok(done(json!({ "effect": { "type": kind, "app": app } })))
         }
+        "apps.list" | "network.list" | "system.state" => Err(format!("{tool} works once SIOS's system adapters are installed")),
         other => Err(format!("{other} isn't a real tool")),
     }
 }

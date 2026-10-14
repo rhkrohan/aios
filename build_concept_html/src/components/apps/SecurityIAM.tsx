@@ -465,16 +465,16 @@ function PairApp({ onPaired }: { onPaired: (id: string) => void }) {
 /** Actions people think in, mapped to tool patterns. */
 /** Actions people think in, mapped to tool patterns: the sim's names, and capd's on the live machine. */
 const ACTIONS: { label: string; tools: string[]; live: string[]; risk: Permission }[] = [
-  { label: "look at and search files", tools: ["files.read", "files.find", "files.list"], live: ["fs.read", "fs.find", "fs.list"], risk: "read" },
-  { label: "move and organize files", tools: ["files.move", "files.organize"], live: ["fs.move", "fs.organize", "fs.mkdir"], risk: "reversible" },
-  { label: "write and edit files", tools: ["files.write"], live: ["fs.write", "fs.copy"], risk: "reversible" },
-  { label: "put files in the Trash", tools: ["files.trash"], live: ["fs.trash", "fs.restore"], risk: "reversible" },
+  { label: "look at and search files", tools: ["files.read", "files.find", "files.list"], live: ["files.read", "files.find", "files.list"], risk: "read" },
+  { label: "move and organize files", tools: ["files.move", "files.organize"], live: ["files.move", "files.organize", "files.mkdir"], risk: "reversible" },
+  { label: "write and edit files", tools: ["files.write"], live: ["files.write", "files.copy"], risk: "reversible" },
+  { label: "put files in the Trash", tools: ["files.trash"], live: ["files.trash", "files.restore"], risk: "reversible" },
   { label: "write email drafts", tools: ["gmail.draft"], live: [], risk: "reversible" },
   { label: "send email", tools: ["gmail.send"], live: ["mail.send"], risk: "irreversible" },
   { label: "send Slack messages", tools: ["slack.message.send"], live: [], risk: "irreversible" },
   { label: "submit web forms", tools: ["forms.submit"], live: [], risk: "irreversible" },
-  { label: "change settings", tools: ["settings.*"], live: ["ui.*", "sys.*"], risk: "reversible" },
-  { label: "change Wi-Fi", tools: ["network.*"], live: ["net.*"], risk: "reversible" },
+  { label: "change settings", tools: ["settings.*"], live: ["settings.*"], risk: "reversible" },
+  { label: "change Wi-Fi", tools: ["network.*"], live: ["network.*"], risk: "reversible" },
   { label: "search memory", tools: ["memory.search"], live: ["memory.search", "people.resolve"], risk: "read" },
   { label: "do anything", tools: ["*"], live: ["*"], risk: "irreversible" },
 ];
@@ -650,13 +650,13 @@ export function Roles() {
 // ------------------------------------------------------------------ what if
 
 const TRY: { label: string; tool: string; risk: Permission; input?: Record<string, unknown>; live?: { tool: string; args: (place: string) => Record<string, unknown> } }[] = [
-  { label: "Read a file", tool: "files.read", risk: "read", live: { tool: "fs.read", args: (p) => ({ path: `${p}/x.txt` }) } },
-  { label: "Search files", tool: "files.find", risk: "read", live: { tool: "fs.find", args: (p) => ({ path: p, query: "x" }) } },
-  { label: "Move a file", tool: "files.move", risk: "reversible", live: { tool: "fs.move", args: (p) => ({ from: `${p}/x.txt`, to: `${p}/y.txt` }) } },
-  { label: "Write a file", tool: "files.write", risk: "reversible", live: { tool: "fs.write", args: (p) => ({ path: `${p}/x.txt`, text: "x" }) } },
-  { label: "Put a file in the Trash", tool: "files.trash", risk: "reversible", live: { tool: "fs.trash", args: (p) => ({ path: `${p}/x.txt` }) } },
-  { label: "Change the theme", tool: "settings.set_theme", risk: "reversible", input: { theme: "dark" }, live: { tool: "ui.set_theme", args: () => ({ theme: "dark" }) } },
-  { label: "Join a Wi-Fi network", tool: "network.connect_wifi", risk: "reversible", input: { ssid: "Cafe" }, live: { tool: "net.connect_wifi", args: () => ({ ssid: "Cafe" }) } },
+  { label: "Read a file", tool: "files.read", risk: "read", live: { tool: "files.read", args: (p) => ({ path: `${p}/x.txt` }) } },
+  { label: "Search files", tool: "files.find", risk: "read", live: { tool: "files.find", args: (p) => ({ path: p, query: "x" }) } },
+  { label: "Move a file", tool: "files.move", risk: "reversible", live: { tool: "files.move", args: (p) => ({ from: `${p}/x.txt`, to: `${p}/y.txt` }) } },
+  { label: "Write a file", tool: "files.write", risk: "reversible", live: { tool: "files.write", args: (p) => ({ path: `${p}/x.txt`, text: "x" }) } },
+  { label: "Put a file in the Trash", tool: "files.trash", risk: "reversible", live: { tool: "files.trash", args: (p) => ({ path: `${p}/x.txt` }) } },
+  { label: "Change the theme", tool: "settings.set_theme", risk: "reversible", input: { theme: "dark" }, live: { tool: "settings.set_theme", args: () => ({ theme: "dark" }) } },
+  { label: "Join a Wi-Fi network", tool: "network.connect_wifi", risk: "reversible", input: { ssid: "Cafe" }, live: { tool: "network.connect_wifi", args: () => ({ ssid: "Cafe" }) } },
   { label: "Write an email draft", tool: "gmail.draft", risk: "reversible", input: { to: "sara@example.com" } },
   { label: "Send an email", tool: "gmail.send", risk: "irreversible", input: { to: "sara@example.com" }, live: { tool: "mail.send", args: () => ({ to: ["sara@example.com"], subject: "Hi", body: "Hi" }) } },
   { label: "Search memory", tool: "memory.search", risk: "read", input: { query: "accountant" }, live: { tool: "memory.search", args: () => ({ query: "accountant" }) } },

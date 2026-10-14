@@ -126,7 +126,7 @@ mod tests {
             parent: None,
             principal: "openai-agent".into(),
             goal: "test".into(),
-            tools: vec!["fs.read".into(), "fs.write".into()],
+            tools: vec!["files.read".into(), "files.write".into()],
             paths: vec!["Projects".into()],
             expires_at: 2_000_000_000,
             uses: Some(10),
@@ -148,7 +148,7 @@ mod tests {
         let t = sign(k, &cap());
         let (body, tag) = t.split_once('.').unwrap();
         let mut json: serde_json::Value = serde_json::from_slice(&B64.decode(body).unwrap()).unwrap();
-        json["tools"] = serde_json::json!(["fs.read", "fs.write", "mail.send"]);
+        json["tools"] = serde_json::json!(["files.read", "files.write", "mail.send"]);
         let forged = format!("{}.{}", B64.encode(serde_json::to_vec(&json).unwrap()), tag);
         assert_eq!(verify(k, &forged), Err(TokenError::BadSignature));
     }

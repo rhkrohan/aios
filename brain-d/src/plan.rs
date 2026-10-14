@@ -97,20 +97,20 @@ pub fn schema() -> Value {
 }
 
 /// The only actions the model may suggest for the owner to click: they show things, they change nothing.
-pub const MANUAL_TOOLS: [&str; 4] = ["ui.show_folder", "ui.open_app", "ui.quick_look", "ui.focus_app"];
+pub const MANUAL_TOOLS: [&str; 4] = ["files.show", "apps.open", "files.preview", "apps.focus"];
 
 pub const PLANNER: &str = "You plan work on a personal computer called SIOS. You get a briefing (files, labels, people, tools) and a request. \
 Return the WHOLE plan at once; the operating system checks it with the broker and runs it without asking you again. \
-Rules: use exact paths from the briefing; never invent files or people; prefer few, big steps (fs.organize for many moves, fs.find to search); \
+Rules: use exact paths from the briefing; never invent files or people; prefer few, big steps (files.organize for many moves, files.find to search); \
 use a compose step whenever text must be written from file contents, then pass its text to later steps as {{N}}; \
-fs.organize and fs.move create missing destination folders, so don't create folders separately; \
+files.organize and files.move create missing destination folders, so don't create folders separately; \
 for anything that only shows something to the owner, use ui tools; \
 use exactly the argument fields listed for each tool; \
-to duplicate a file use fs.copy, never a compose step (that would rewrite its contents); \
+to duplicate a file use files.copy, never a compose step (that would rewrite its contents); \
 when the owner says \"remember\", \"note that\" or \"from now on\", save it with memory.save in their words; \
 use WHAT I REMEMBER and PEOPLE directly instead of asking again; \
 if the request doesn't say WHAT to change or WHERE (\"fix my files\", \"sort everything\", \"clean up\" with no folder), ask a question instead of guessing, never reorganize many files on a guess; \
-if something is off limits or you have no tool for it, return no steps, say why, and put a manual action that shows the owner where to do it (ui.show_folder or ui.open_app); \
+if something is off limits or you have no tool for it, return no steps, say why, and put a manual action that shows the owner where to do it (files.show or apps.open); \
 if the request can't be done, return no steps and say why in reply. \
 Use the conversation so far to resolve words like \"it\", \"that\" or \"also\". \
 Look at SYSTEM RIGHT NOW before changing a setting. \
@@ -164,7 +164,7 @@ pub fn pass_for(plan: &Plan, exists: impl Fn(&str) -> Option<bool>) -> (Vec<Stri
     };
     for s in &plan.steps {
         if s.kind == "compose" {
-            tools.insert("fs.read".into());
+            tools.insert("files.read".into());
             for src in &s.sources {
                 add_path(src);
             }
@@ -206,25 +206,25 @@ mod tests {
             understanding: String::new(),
             steps: vec![
                 Step { kind: "compose".into(), tool: String::new(), args_json: String::new(), sources: vec!["Downloads/notes.txt".into()], instruction: "sum".into(), why: String::new() },
-                step("fs.write", r#"{"path":"Projects/packet/summary.md","text":"{{1}}"}"#),
-                step("fs.organize", r#"{"moves":[{"from":"Downloads/a.csv","to":"Downloads/Finance/a.csv"}]}"#),
+                step("files.write", r#"{"path":"Projects/packet/summary.md","text":"{{1}}"}"#),
+                step("files.organize", r#"{"moves":[{"from":"Downloads/a.csv","to":"Downloads/Finance/a.csv"}]}"#),
             ],
             reply: String::new(),
         };
         let existing = ["Downloads/notes.txt", "Downloads/a.csv", "Projects/packet"];
         let (tools, paths) = pass_for(&plan, |p| existing.contains(&p).then_some(true));
-        assert_eq!(tools, vec!["fs.organize", "fs.read", "fs.write"]);
+        assert_eq!(tools, vec!["files.organize", "files.read", "files.write"]);
         assert_eq!(paths, vec!["Downloads/Finance", "Downloads/a.csv", "Downloads/notes.txt", "Projects/packet"]);
     }
 
     #[test]
     fn new_top_level_files_and_generated_paths() {
-        let plan = Plan { question: String::new(), undo_last: false, manual: vec![], understanding: String::new(), reply: String::new(), steps: vec![step("fs.write", r#"{"path":"summary.md","text":"x"}"#)] };
+        let plan = Plan { question: String::new(), undo_last: false, manual: vec![], understanding: String::new(), reply: String::new(), steps: vec![step("files.write", r#"{"path":"summary.md","text":"x"}"#)] };
         let (_, paths) = pass_for(&plan, |_| None);
         assert_eq!(paths, vec!["summary.md"], "not the whole home");
-        assert!(placeholder_paths(&step("fs.write", r#"{"path":"Projects/{{1}}","text":"x"}"#)).is_some());
-        assert!(placeholder_paths(&step("fs.organize", r#"{"moves":[{"from":"a","to":"{{2}}"}]}"#)).is_some());
-        assert!(placeholder_paths(&step("fs.write", r#"{"path":"Projects/a.md","text":"{{1}}"}"#)).is_none());
+        assert!(placeholder_paths(&step("files.write", r#"{"path":"Projects/{{1}}","text":"x"}"#)).is_some());
+        assert!(placeholder_paths(&step("files.organize", r#"{"moves":[{"from":"a","to":"{{2}}"}]}"#)).is_some());
+        assert!(placeholder_paths(&step("files.write", r#"{"path":"Projects/a.md","text":"{{1}}"}"#)).is_none());
     }
 
     #[test]

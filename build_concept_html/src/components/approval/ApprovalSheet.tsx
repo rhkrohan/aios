@@ -18,20 +18,20 @@ import { StringOrb } from "../icons/StringOrb";
 import { Avatar } from "../ui";
 
 const TOOL_WORDS: Record<string, string> = {
-  "fs.list": "look in folders",
-  "fs.read": "read files",
-  "fs.write": "create and edit files",
-  "fs.move": "move files",
-  "fs.trash": "move files to the Trash",
+  "files.list": "look in folders",
+  "files.read": "read files",
+  "files.write": "create and edit files",
+  "files.move": "move files",
+  "files.trash": "move files to the Trash",
   "mail.send": "send email (asks you each time)",
-  "fs.find": "search files",
-  "fs.organize": "move files",
-  "ui.open_app": "open apps",
-  "ui.show_folder": "show you folders",
-  "ui.quick_look": "show you previews",
-  "ui.notify": "notify you",
-  "ui.set_theme": "switch light or dark",
-  "net.connect_wifi": "join Wi-Fi",
+  "files.find": "search files",
+  "files.organize": "move files",
+  "apps.open": "open apps",
+  "files.show": "show you folders",
+  "files.preview": "show you previews",
+  "system.notify": "notify you",
+  "settings.set_theme": "switch light or dark",
+  "network.connect_wifi": "join Wi-Fi",
 };
 
 export function ApprovalSheet() {
