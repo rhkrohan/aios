@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: AI OS layer plan (milestones M0 to M11 in phase-2): D33 to D35 accepted by the owner (broker holds API keys and makes model calls; Anthropic, OpenAI, OpenAI-compatible and Gemini; full typed tool catalog over local MCP). D31, D32, D36, D37, D38 proposed (user-service broker for v1, caller identity by SO_PEERCRED and program path, tool rename, native approval prompt, CLI adapters and a Rust image stage). D19's key handling superseded once the gateway lands.
 - 2026-10-12: D30 withdrawn, D27 stands (owner: "the design was good"): Kvantum menus keep the SIOS design; rounded corners fixed.
 - 2026-10-12: D30 accepted (owner rejected the Kvantum menus, "this is the wrong strategy"): apps use Breeze in the SIOS colours for real rounded menus; D27 replaced.
 - 2026-10-12: D29 accepted (owner chose "Build SIOS Files"): our own apps are native Qt (C++ and QML, KIO for files), built in an image stage; SIOS Files first and default for folders.

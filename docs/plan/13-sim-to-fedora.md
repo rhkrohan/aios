@@ -10,18 +10,18 @@ The digital version (the preview in `build_concept_html`, plus `capd` and `brain
 | --- | --- | --- | --- |
 | Shell: desktop, Files, approval sheet, launcher | Next.js page | KDE Plasma plus SIOS shell components (QML) | D2 |
 | Shell look and layout (Stage A) | Design tokens, top bar, dock, tunnel wallpaper, Instrument Sans / Jost | Built in `system_files/`: SIOS look-and-feel (light and dark), color schemes from the tokens, top bar + floating dock layout, wordmark widget, tunnel wallpaper, fonts, splash, lock and login wallpaper, About. Not yet booted. | D2 |
-| Trusted approval prompt | Approval sheet; only the page's server may answer capd as owner | A polkit-style agent in the shell, the only process allowed to grant passes and answer approvals | D4 |
+| Trusted approval prompt | Approval sheet; only the page's server may answer capd as owner | Native Qt app `sios-approve`, the only program that may grant passes and answer approvals; recognised by its path in `/usr/bin`, decides only by a click in its own window (M5) | D4, D32, D37 |
 | brain-d: briefing, planner, plan check, routines, MCP door | Rust process, socket `~/.sios/brain.sock` | Rust systemd user service, D-Bus `org.sios.Brain1`, socket in `$XDG_RUNTIME_DIR/sios` | D3, D12 |
-| Broker: capabilities, checks, audit, undo | `capd`, Rust process, socket `~/.sios/capd.sock`, owner proven by `owner.secret` | `sios-broker`, Rust systemd system service, socket in `/run/sios`, caller identity from `SO_PEERCRED` instead of a secret file | D4, D20 |
-| Model | OpenAI Responses API, called only by brain-d | Router picks: llama.cpp locally for everyday work, cloud for hard tasks | D15, D19, D5 |
+| Broker: capabilities, checks, audit, undo | `capd`, Rust process, socket `~/.sios/capd.sock`, owner proven by `owner.secret` | v1: `capd` as the user service `sios-broker.service`, state `~/.local/share/sios`, socket `$XDG_RUNTIME_DIR/sios/broker.sock`, caller identity from SO_PEERCRED and program path (M3). v2: system service under `/run/sios` with a per-user executor | D4, D20, D31, D32 |
+| Model | OpenAI Responses API, called only by brain-d | The broker is the model gateway: Anthropic, OpenAI, OpenAI-compatible or Gemini with the owner's key, stored encrypted in the broker; brain-d asks with `model.complete` and never sees a key (M4). Later the router adds llama.cpp locally | D15, D33, D34, D5 |
 | File tools | Real files in `~/SIOS-sandbox` | The user's home folder | D7 |
-| System tools (theme, open app, show folder, notify, Wi-Fi) | capd allows; the page carries out the action | Broker-owned adapters: D-Bus to KWin, NetworkManager, xdg-desktop-portal | D7 |
+| System tools (theme, open app, show folder, notify, Wi-Fi) | capd allows; the page carries out the action | Broker adapters behind an `Executor`: `wpctl`, `org.kde.ScreenBrightness`, `plasma-apply-*`, `gdbus` to Notifications and ScreenSaver, `nmcli`, `kstart`, `kioclient`, KWin scripts, Flatpak; undo replays the old value (M6, M9) | D7, D38 |
 | Email | Outbox folder in `~/.sios/outbox` | MCP Gmail (or other) adapter owned by the broker; credentials never leave it | D6 |
 | Labels, trust, lineage | `~/.sios/meta.json` | Extended attributes plus an index in Vault | D8 |
 | Audit log | Hash-chained JSON lines, `~/.sios/audit.jsonl` | Same chain, signed, under `/var/lib/sios` | D4 |
 | Undo | Snapshots and move-backs kept in memory by capd | Btrfs snapshots managed by the broker, kept across restarts | |
 | Routines | `~/.sios/routines.json` | Vault | D8 |
-| Outside AIs | `brain-d mcp` (stdio MCP server) | Same server, launched per client; connections approved in the shell | D6 |
+| Outside AIs | `brain-d mcp` (stdio MCP server) | Same `brain-d mcp` server, now listing the full typed catalog for paired apps (session pass from their IAM roles, every call checked and approved); unpaired apps get only the goal tools; same computer only (M8) | D6, D35 |
 | Owner's own file actions (Files, Terminal) | Real changes through capd as "you": logged, undoable, no approval | The shell acts as the user directly; the broker still records and snapshots them | D4 |
 | Trash | Hidden `.Trash` folder in the home, put back through capd | The freedesktop Trash in the home, snapshotted | |
 | Test data | Test packs built into capd, Test lab in Settings, reset only for a marked sandbox | A developer and QA image feature, not in user builds | |

@@ -470,6 +470,8 @@ flowchart TB
 - **Gate:** `capd help` and `brain-d` run on the installed machine.
 
 ### Step 2. systemd units, accounts and sockets
+> 2026-10-14 (D31, proposed): for v1 the broker runs as a systemd **user** service (`~/.local/share/sios`, `$XDG_RUNTIME_DIR/sios`) so its adapters reach the session bus; the system service with its own account below becomes v2. Milestones M2 to M10 in `docs/phases/phase-2.md`.
+
 - `sios-broker.service`: a system service running capd as its own account (`sios-broker`), state in `/var/lib/sios` (0700), socket `/run/sios/broker.sock`.
 - `brain-d.service`: a user service, socket in `$XDG_RUNTIME_DIR/sios`.
 - Map today's `SIOS_STATE` and `SIOS_ROOT` to these folders, and the sandbox to the real home folder (first on a test account only).
@@ -477,6 +479,8 @@ flowchart TB
 - **Gate:** after a reboot both services are up; a `status` call works; the live-run harness passes against them on the VM.
 
 ### Step 3. Prove identity and add the trusted prompt
+> 2026-10-14 (D32, D37, proposed): identity is SO_PEERCRED plus the caller's program path in `/usr/bin`; the prompt is the native app `sios-approve`.
+
 - capd reads `SO_PEERCRED` on every connection: brain-d's user and unit, the trusted prompt's binary, outside AIs only through brain-d (D23).
 - Replace the page server's owner role with a small trusted approval agent (polkit-style) that alone may grant, approve and edit rules and IAM.
 - **Gate:** a process that reads no secret but connects to the socket cannot grant anything; the security tests are rerun against the service.
