@@ -22,6 +22,15 @@ Humans use the normal desktop. AI uses "the tunnel": typed tools that reach apps
 - Big design decisions happen in the owner's separate planning chat; plan updates pasted from it are merged here as above.
 - The owner's machine is an Apple Silicon Mac (arm64). Images build on GitHub Actions. Aurora is amd64 only, so test VMs need an x86_64 host (or slow emulation).
 
+## Training data for the SIOS model (llm/)
+We will fine-tune a small local model (about 7B, LoRA, D18) on SIOS's tools and rules. Build its data as we go:
+- After each build task, add a few examples to `llm/data/` for what the task added or changed (a tool, a rule, a refusal, an error). Follow `llm/README.md` (format, rules, hard cases).
+- Examples use only real tools with current names (`docs/plan/16-tool-catalog.md`, `capd catalog`) and never teach working around the broker.
+- When a tool or the planner prompt changes, update `llm/prompts/`, `llm/tools/` and the examples that use it.
+- Write assistant turns ourselves. Never paste raw hosted-model outputs (OpenAI, Anthropic, Google) as training answers.
+- No real personal data, keys or passwords in examples.
+- Mention the count of examples added in the end-of-session summary.
+
 ## Core design rules (never break these)
 1. The OS enforces, the model suggests. Memory lookup, snapshots, verification, permissions and valid tool names are enforced by code, never left to the model.
 2. The tunnel is the product. Tools are typed, coarse-grained and connected by shared types.
@@ -67,4 +76,5 @@ Justfile                          shortcut commands (just build, just build-iso,
 .github/workflows/build.yml       builds, pushes to ghcr.io/rhkrohan/aios, signs with cosign (SIGNING_SECRET); skips docs-only pushes
 .github/workflows/build-disk.yml  builds ISO and qcow2 from the pushed image (manual run)
 disk_config/                      installer (iso.toml) and disk image (disk.toml) settings
+llm/                              training data for the future SIOS model (see llm/README.md)
 cosign.pub                        public signing key (cosign.key is git-ignored, never commit it)

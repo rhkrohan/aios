@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: Owner asked to build fine-tuning data for a future ~7B SIOS model while we build (D18): new `llm/` folder (format, rules, prompts, tool catalog snapshot, 19 seed examples); CLAUDE.md asks every session to add examples after each task. `capd catalog` prints every tool with its schema.
 - 2026-10-14: D39 accepted (owner chose "password prompt"): owner actions are confirmed with your password through polkit, every time; checked on the VM that a user service can show the dialog.
 - 2026-10-14: D32 amended after a security review: the program check can be faked by a same-user process (copied connection plus exec), so no caller is the owner by program until the owner has an anchor an AI can't fake (decision needed before M4 key saving and M5 approvals). Risk added.
 - 2026-10-14: M2 and M3 built. D32 reworded: the image switches identity on with `SIOS_IDENTITY=peer` in the unit (not a build feature), and the brain is the service only as `/usr/bin/brain-d` in `sios-brain.service`. New risk: AT-SPI can drive owner windows (answer in M5).
