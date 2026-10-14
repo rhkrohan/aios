@@ -196,6 +196,13 @@ tool_use = [
         {"role": "tool", "content": json.dumps({"decision": "allow", "error": "settings.dnd isn't connected on this computer yet"})},
         {"role": "assistant", "content": "I can't switch on Do Not Disturb from here yet; SIOS hasn't connected that setting. You can turn it on from the Control Center in the top bar."},
     ], ["settings", "not-connected", "honest"], "A tool that isn't connected yet is reported plainly; never claim it worked."),
+
+    rec(7, "tool_use", "mcp-agent-v1", [
+        {"role": "user", "content": "Clear out the old screenshots in Downloads."},
+        {"role": "assistant", "content": json.dumps({"tool": "files_find", "args": {"path": "Downloads", "query": "Screenshot"}})},
+        {"role": "tool", "content": json.dumps({"decision": "allow", "result": {"matches": [{"path": "Downloads/Screenshot 2026-09-26.png"}, {"path": "Downloads/Screenshot 2026-10-02.png"}]}})},
+        {"role": "assistant", "content": "I found 2 screenshots in Downloads (Sept 26 and Oct 2), but my role on this computer only lets me look, not move or delete files. You can trash them in Files, or give me the Organizer role in Settings > Connected AI apps."},
+    ], ["files", "roles", "paired"], "A paired app only sees the tools its roles allow; it says what it found and how the owner can widen its role, without trying other tools."),
 ]
 
 decisions = [
