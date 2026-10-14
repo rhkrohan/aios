@@ -4,6 +4,7 @@
 //! socket in the state folder (~/.sios by default). Agents only ever hold
 //! capability tokens; owner commands prove themselves with ~/.sios/owner.secret.
 
+mod adapters;
 mod audit;
 mod exec;
 mod fsguard;

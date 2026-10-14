@@ -176,6 +176,8 @@ pub enum Undo {
     /// Memory: take back something saved, or bring back something forgotten (handled by the state).
     MemRemove { id: String },
     MemRestore { memory: String },
+    /// A system setting: run the same tool again with the value it had before (adapters.rs).
+    Adapter { tool: String, args: Value },
 }
 
 pub struct Env<'a> {
@@ -206,6 +208,12 @@ fn res(root: &Path, rel: &str) -> Result<Resolved, String> {
 
 pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outcome, String> {
     let done = |result: Value| Outcome { result, undo: None, read: vec![], wrote: None };
+    // on SIOS, system tools change the real system (M6); files and mail stay below
+    if crate::adapters::enabled() {
+        if let Some(r) = crate::adapters::run(tool, args, env.root) {
+            return r.map(|d| Outcome { result: d.result, undo: d.undo.map(|a| Undo::Adapter { tool: tool.to_string(), args: a }), read: vec![], wrote: None });
+        }
+    }
     match tool {
         "files.list" => {
             let r = res(env.root, args.get("path").and_then(|v| v.as_str()).unwrap_or(""))?;
@@ -591,6 +599,10 @@ pub fn undo(u: &Undo, meta: &mut Store) -> Result<(), String> {
         }
         Undo::RemoveDir { real } => std::fs::remove_dir(real).map_err(|e| e.to_string()),
         Undo::MemRemove { .. } | Undo::MemRestore { .. } => Ok(()),
+        Undo::Adapter { tool, args } => match crate::adapters::run(tool, args, Path::new("/")) {
+            Some(r) => r.map(|_| ()),
+            None => Err(format!("can't undo {tool}")),
+        },
         Undo::Many(list) => {
             for x in list.iter().rev() {
                 undo(x, meta)?;
