@@ -6,24 +6,28 @@ Window.SetBackgroundBottomColor(0, 0, 0);
 W = Window.GetWidth();
 H = Window.GetHeight();
 
-# the orb: 48 frames, played forward then back so it never jumps
-FRAMES = 48;
+# The same screen as the login splash (look-and-feel splash/Splash.qml): its pictures
+# are rendered from that QML by ui/render-boot.sh. The orb: 80 frames at 25 a
+# second, played forward then back so it never jumps.
+FRAMES = 80;
 for (i = 0; i < FRAMES; i++) {
     if (i < 10) name = "orb-0" + i + ".png"; else name = "orb-" + i + ".png";
     orb_image[i] = Image(name);
 }
 orb = Sprite(orb_image[0]);
-block = orb_image[0].GetHeight() + 70 + 40 + 3 + 30;
+word_image = Image("wordmark.png");
+track_image = Image("track.png");
+caption_h = Image("caption-image.png").GetHeight();
+# orb, wordmark (with its padding), 40 px, the bar, the caption (with its padding)
+block = orb_image[0].GetHeight() + word_image.GetHeight() + 40 + track_image.GetHeight() + caption_h;
 top = Math.Int((H - block) / 2) - 20;
 orb.SetX(Math.Int((W - orb_image[0].GetWidth()) / 2));
 orb.SetY(top);
 
-word_image = Image("wordmark.png");
 word = Sprite(word_image);
 word.SetX(Math.Int((W - word_image.GetWidth()) / 2));
 word.SetY(top + orb_image[0].GetHeight());
 
-track_image = Image("track.png");
 fill_image = Image("fill.png");
 bar_x = Math.Int((W - track_image.GetWidth()) / 2);
 bar_y = top + orb_image[0].GetHeight() + word_image.GetHeight() + 40;
@@ -36,7 +40,7 @@ fill.SetY(bar_y);
 fill.SetZ(2);
 
 caption = Sprite();
-caption_y = bar_y + 16;
+caption_y = bar_y + track_image.GetHeight();
 fun show_caption(name) {
     img = Image("caption-" + name + ".png");
     caption.SetImage(img);
