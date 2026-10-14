@@ -93,7 +93,8 @@ pub fn of(conn: &std::os::unix::net::UnixStream) -> Proc {
     let read = |f: &str| std::fs::read(format!("{dir}/{f}")).unwrap_or_default();
     let status = String::from_utf8_lossy(&read("status")).into_owned();
     let traced = status.lines().find_map(|l| l.strip_prefix("TracerPid:")).map(|v| v.trim() != "0").unwrap_or(true);
-    // environ is unreadable for programs that hide their memory; then only the program path counts
+    // a program that hides its memory (PR_SET_DUMPABLE 0) hides its path and environment
+    // too: it reads as no program at all, so SIOS's own windows must not do that
     let injected = read("environ").split(|b| *b == 0).any(injecting);
     Proc {
         same_user: cred.uid == me,

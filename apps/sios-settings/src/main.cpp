@@ -17,9 +17,6 @@
 #include <QQuickStyle>
 #include <QSvgRenderer>
 
-#ifdef Q_OS_LINUX
-#include <sys/prctl.h>
-#endif
 
 // the app's line icons in any colour: "image://icon/<name>/<rrggbb>"
 class IconProvider : public QQuickImageProvider
@@ -84,10 +81,10 @@ static void useDesktopIconTheme()
 
 int main(int argc, char *argv[])
 {
-#ifdef Q_OS_LINUX
-    // AI account keys are typed here: no other program may read this one's memory
-    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
-#endif
+    // Its memory is safe from other programs because the image sets
+    // kernel.yama.ptrace_scope=1 (60-sios-ptrace.conf). Don't hide it with
+    // PR_SET_DUMPABLE: that also hides /proc/<pid>/exe, and the broker then
+    // can't see that this is SIOS's own window (owner actions are refused).
     QApplication app(argc, argv);
     useDesktopIconTheme();
     app.setApplicationName(QStringLiteral("sios-settings"));

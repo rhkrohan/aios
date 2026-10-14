@@ -77,6 +77,7 @@ test -f /usr/share/applications/org.sios.settings.desktop
 
 ### Approvals: the window that asks before an AI acts (D37), started by the session bus
 test -x /usr/bin/sios-approve
+test -f /usr/lib/sysctl.d/60-sios-ptrace.conf
 test -f /usr/share/dbus-1/services/org.sios.Approve1.service
 
 ### The Ask bar: the orb and Meta+Space (apps, files, settings now)

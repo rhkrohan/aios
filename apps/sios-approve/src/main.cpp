@@ -17,9 +17,6 @@
 #include <QQuickStyle>
 #include <QSvgRenderer>
 
-#ifdef Q_OS_LINUX
-#include <sys/prctl.h>
-#endif
 
 // woken by the broker (through the session bus); carries nothing
 class Waker : public QObject
@@ -63,10 +60,10 @@ public:
 
 int main(int argc, char *argv[])
 {
-#ifdef Q_OS_LINUX
-    // no other program of this user may read or drive this one's memory
-    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
-#endif
+    // Its memory is safe from other programs because the image sets
+    // kernel.yama.ptrace_scope=1 (60-sios-ptrace.conf). Don't hide it with
+    // PR_SET_DUMPABLE: that also hides /proc/<pid>/exe, and the broker then
+    // can't see that this is SIOS's own window (owner actions are refused).
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("sios-approve"));
     app.setApplicationDisplayName(QStringLiteral("SIOS"));
