@@ -7,6 +7,10 @@ set -ouex pipefail
 cp -avf "/ctx/system_files"/. /
 # The SIOS native apps, built in the Containerfile's "apps" stage
 cp -avf "/ctx/apps_out"/. /
+# The broker and the assistant, built in the Containerfile's "rust" stage
+cp -avf "/ctx/rust_out"/. /
+test -x /usr/bin/capd
+test -x /usr/bin/brain-d
 
 ### SIOS look and layout (docs/plan/15-build-blueprint.md, Stage A)
 # Our fonts (Instrument Sans, Jost, JetBrains Mono; all SIL Open Font License)

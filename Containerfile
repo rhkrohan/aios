@@ -17,11 +17,26 @@ RUN for app in /apps/sios-*/; do \
       DESTDIR=/out cmake --install "/build/$(basename "$app")" || exit 1; \
     done
 
+# The broker (capd) and the assistant (brain-d), compiled on the same base so
+# they link against the image's own libraries. Every test must pass or the
+# image isn't built. Only the two binaries go into the image.
+FROM ${BASE_IMAGE} AS rust
+RUN dnf5 -y install cargo rust gcc
+COPY capd /src/capd
+COPY brain-d /src/brain-d
+RUN --mount=type=cache,dst=/root/.cargo/registry \
+    for c in capd brain-d; do \
+      cargo test --release --locked --manifest-path "/src/$c/Cargo.toml" && \
+      cargo build --release --locked --manifest-path "/src/$c/Cargo.toml" && \
+      install -Dm755 "/src/$c/target/release/$c" "/out/usr/bin/$c" || exit 1; \
+    done
+
 # Allow build scripts to be referenced without being copied into the final image
 FROM scratch AS ctx
 COPY build_files /
 COPY system_files /system_files
 COPY --from=apps /out /apps_out
+COPY --from=rust /out /rust_out
 
 # Base Image
 FROM ${BASE_IMAGE}

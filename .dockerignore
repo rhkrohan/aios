@@ -1,0 +1,10 @@
+# Kept out of the image build context (podman and docker read this file).
+# Local build output and the preview are big and never part of the image;
+# the signing key must never leave this machine.
+cosign.key
+**/target
+capd/runs
+build_concept_html
+apps/*/.bin
+.git
+apps/.rust-bin

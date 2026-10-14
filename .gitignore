@@ -8,3 +8,6 @@ _build-*/**
 
 # SIOS app builds
 apps/*/.bin
+
+# local arm64 Rust builds (apps/build-rust.sh)
+apps/.rust-bin

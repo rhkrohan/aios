@@ -1,0 +1,5 @@
+# Build environment for capd and brain-d, matching the image's Fedora 44.
+# Used by apps/build-rust.sh for local test builds; the image itself builds
+# them in the Containerfile's "rust" stage.
+FROM quay.io/fedora/fedora:44
+RUN dnf5 -y install cargo rust gcc && dnf5 clean all
