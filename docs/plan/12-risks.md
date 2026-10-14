@@ -20,6 +20,7 @@
 | Outside AI apps started without the runner keep full network and files | SIOS only sees what they send through the tunnel | Agent runner (D50); Settings labels unconfined apps; freeze kills the door |
 | A patient AI stays under the sentinel's thresholds | Misuse inside granted rights isn't caught | Leases, daily caps, roles and asks still bound it; owner-tunable thresholds (D46) |
 | Any process can press Stop | A nuisance stop of all AI work | Accepted: stopping is always safe; resume needs the password (D41) |
+| An AI starts `sios-approve` or `sios-settings` itself, as its child, and attaches to it (the kernel lets a parent do that even with `ptrace_scope=1`, and hiding memory doesn't remove a tracer that attached first). The window is then SIOS's by program but runs the AI's code | It could show the owner request A and send the password-confirmed approval for request B; or read a key typed into that window | S1: the broker starts SIOS's own windows itself (its parent is systemd, never an AI) and accepts owner calls only from the process IDs it started, with a clean environment. Until then: open Settings and approvals only from the desktop. Found by security review 2026-10-14 |
 
 ## Open questions
 - OS name (paused)

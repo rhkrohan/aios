@@ -88,7 +88,7 @@ flowchart LR
 | | What | Gate on the VM |
 | --- | --- | --- |
 | S0 | This document, D40 to D55, tasks | Docs merged |
-| S1 | Stop, process hardening (non-dumpable, `ptrace_scope=1`) | Shortcut stops Claude Code's next call; still stopped after a restart; resume needs the password; `gdb -p` on capd fails |
+| S1 | Stop, process hardening (`ptrace_scope=1`, capd non-dumpable, the broker starts SIOS's own windows and trusts only those) | Shortcut stops Claude Code's next call; still stopped after a restart; resume needs the password; `gdb -p` on capd fails |
 | S2 | Signed, versioned policy; roles absorb rules and shares | Edited file means Stop; rollback works; audit has anchors |
 | S3 | Instances and bound leases; state survives restart | Replayed token blocked; leases die with the app |
 | S4 | Sentinel and freeze | Escape drill: 5th block freezes in the same request |
