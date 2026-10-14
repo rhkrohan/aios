@@ -1,10 +1,12 @@
 /*
-    The SIOS Control Center, laid out like macOS's: the sliders icon in the
-    top bar opens one panel that holds everything the tray used to.
-      - a card with Network (Wi-Fi or Ethernet) and Bluetooth; Network opens
-        a page listing connections to join or leave
-      - square tiles: Focus (do not disturb) and Dark mode
-      - Display and Sound cards with sliders
+    The SIOS Control Center (owner's pick, 2026-10-14: "C2, pill toggles"): the
+    sliders icon in the top bar opens one panel that holds everything the tray
+    used to.
+      - pill toggles, name and state in each: Network (its chevron opens a page
+        of connections to join or leave), Bluetooth, Focus, Dark mode, Night
+        light, Airplane mode
+      - big sliders with the icon inside: brightness and volume
+      - the SIOS row: which AI SIOS thinks with, and requests waiting for you
       - Clipboard (when there's something) and Notifications
     On laptops the top-bar icon also shows the battery level.
     Everything is real: NetworkManager (KDE's PlasmaNM), bluetoothctl, KDE's
@@ -91,6 +93,11 @@ PlasmoidItem {
             else if (source === root.readVol) { const m = out.match(/([0-9.]+)/); if (m) root.volume = Math.round(parseFloat(m[1]) * 100); root.muted = out.indexOf("MUTED") >= 0; }
             else if (source === root.readBattery) { const b = parseInt(out); root.batteryPercent = isNaN(b) ? -1 : b; }
             else if (source === root.readBright) { const v = parseInt(out); if (!isNaN(v)) root.brightness = Math.round(v / 100); }
+            else if (source === root.readNight) root.nightOn = out === "true";
+            else if (source === root.readSios) {
+                try { const v = JSON.parse(out).ok; root.aiName = v.ai || ""; root.waiting = v.pending || 0; root.siosUp = true; }
+                catch (e) { root.siosUp = false; }
+            }
             disconnectSource(source);
         }
     }
@@ -102,7 +109,16 @@ PlasmoidItem {
     property int batteryPercent: -1
     Timer { interval: 60000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.run(root.readBattery) }
     readonly property string readBright: "qdbus-qt6 org.kde.ScreenBrightness /org/kde/ScreenBrightness/display0 org.freedesktop.DBus.Properties.Get org.kde.ScreenBrightness.Display Brightness"
-    function refresh() { run(readBt); run(readVol); run(readBright); }
+    readonly property string readNight: "kreadconfig6 --file kwinrc --group NightColor --key Active"
+    // the broker's public status: the AI in use and how many requests wait (never what)
+    readonly property string readSios: "capd status 2>/dev/null"
+    function refresh() { run(readBt); run(readVol); run(readBright); run(readNight); run(readSios); }
+    property bool nightOn: false
+    property bool siosUp: false
+    property string aiName: ""
+    property int waiting: 0
+    function setNight(on) { nightOn = on; run("kwriteconfig6 --file kwinrc --group NightColor --key Active " + on + " && qdbus-qt6 org.kde.KWin /KWin reconfigure"); }
+    readonly property bool airplane: PlasmaNM.Configuration.airplaneModeEnabled
     Connections { target: root; function onExpandedChanged() { if (root.expanded) root.refresh(); } }
 
     property bool btOn: false
@@ -157,6 +173,89 @@ PlasmoidItem {
     readonly property color card: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.78)
     readonly property color cardLine: dark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.07)
     readonly property color blue: "#3b74f0"
+
+    // pills: light blue when on (dark ink in dark mode, white ink in light mode)
+    readonly property color pillOn: dark ? "#a9c4ff" : "#3b74f0"
+    readonly property color pillOnInk: dark ? "#0d1b2e" : "#ffffff"
+    readonly property color pillOff: dark ? Qt.rgba(1, 1, 1, 0.07) : Qt.rgba(0, 0, 0, 0.05)
+    function onIcon(name) { return root.icon(name + (root.dark ? "" : "-white")); }
+
+    // one quick-settings pill: tap to switch; a chevron when there's a page behind it
+    component Pill: Rectangle {
+        id: pill
+        property string iconName
+        property string label
+        property string sub
+        property bool on
+        property bool more: false
+        signal toggled()
+        signal opened()
+        Layout.fillWidth: true
+        implicitHeight: 52
+        radius: 26
+        color: on ? root.pillOn : (pm.containsMouse ? (root.dark ? Qt.rgba(1, 1, 1, 0.11) : Qt.rgba(0, 0, 0, 0.08)) : root.pillOff)
+        Behavior on color { ColorAnimation { duration: 180 } }
+        MouseArea { id: pm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: pill.toggled() }
+        RowLayout {
+            anchors { fill: parent; leftMargin: 16; rightMargin: pill.more ? 6 : 14 }
+            spacing: 10
+            Kirigami.Icon { implicitWidth: 18; implicitHeight: 18; source: pill.on ? root.onIcon(pill.iconName) : root.icon(pill.iconName + root.ink) }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+                Text { Layout.fillWidth: true; text: pill.label; color: pill.on ? root.pillOnInk : root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; text: pill.sub; color: pill.on ? Qt.rgba(root.pillOnInk.r, root.pillOnInk.g, root.pillOnInk.b, 0.7) : root.fg2; font.family: root.ui; font.pixelSize: 11; elide: Text.ElideRight }
+            }
+            Rectangle {
+                visible: pill.more
+                implicitWidth: 30; implicitHeight: 30; radius: 15
+                color: mm.containsMouse ? (pill.on ? Qt.rgba(0, 0, 0, 0.08) : Qt.rgba(1, 1, 1, 0.08)) : "transparent"
+                Kirigami.Icon { anchors.centerIn: parent; width: 14; height: 14; source: pill.on ? root.onIcon("chevron-right") : root.icon("chevron-right" + root.ink); opacity: 0.8 }
+                MouseArea { id: mm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: pill.opened() }
+            }
+        }
+        Accessible.role: Accessible.CheckBox
+        Accessible.checked: on
+        Accessible.name: label
+    }
+
+    // a big slider: the whole bar is the track, filled from the left, icon inside
+    component BigSlider: Rectangle {
+        id: bs
+        property string iconName
+        property int value
+        property string label
+        signal moved(int v)
+        signal iconClicked()
+        Layout.fillWidth: true
+        implicitHeight: 44
+        radius: 22
+        color: root.pillOff
+        clip: true
+        Rectangle {
+            width: Math.max(bs.height, bs.width * bs.value / 100)
+            height: parent.height
+            radius: 22
+            color: root.pillOn
+            Behavior on width { enabled: !drag.pressed; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        }
+        Kirigami.Icon {
+            x: 14; anchors.verticalCenter: parent.verticalCenter
+            width: 18; height: 18
+            source: root.onIcon(bs.iconName)
+            MouseArea { anchors.fill: parent; anchors.margins: -6; cursorShape: Qt.PointingHandCursor; onClicked: bs.iconClicked() }
+        }
+        MouseArea {
+            id: drag
+            anchors { fill: parent; leftMargin: 44 }
+            cursorShape: Qt.PointingHandCursor
+            function set(x) { bs.moved(Math.max(0, Math.min(100, Math.round((x + 44) / bs.width * 100)))); }
+            onPressed: (e) => set(e.x)
+            onPositionChanged: (e) => { if (pressed) set(e.x); }
+        }
+        Accessible.role: Accessible.Slider
+        Accessible.name: label
+    }
 
     // a rounded module, like macOS's control center cards
     component Card: Rectangle {
@@ -301,66 +400,115 @@ PlasmoidItem {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 4 }
             spacing: 10
 
+            // quick settings, two to a row
             GridLayout {
                 Layout.fillWidth: true
                 columns: 2
-                columnSpacing: 10
-                rowSpacing: 10
-                Card {
-                    Layout.rowSpan: 2
-                    Layout.preferredWidth: 1
-                    Layout.fillHeight: true
-                    pad: 14
-                    ConnRow {
-                        iconName: root.wifiHere ? (nm.wirelessEnabled ? "wifi" : "wifi-off") : "ethernet-port"
-                        label: root.wifiHere ? "Wi-Fi" : "Network"
-                        sub: root.netUp ? root.netName : (root.wifiHere && !nm.wirelessEnabled ? "Off" : "Not connected")
-                        on: root.netUp && (!root.wifiHere || nm.wirelessEnabled)
-                        onToggled: if (root.wifiHere) nmHandler.enableWireless(!nm.wirelessEnabled); else root.page = "network"
-                        onOpened: root.page = "network"
-                    }
-                    ConnRow {
-                        Layout.topMargin: 4
-                        iconName: "bluetooth"
-                        label: "Bluetooth"
-                        sub: root.btOn ? "On" : "Off"
-                        on: root.btOn
-                        onToggled: { root.run("bluetoothctl power " + (root.btOn ? "off" : "on")); root.btOn = !root.btOn; }
-                        onOpened: { root.run("systemsettings kcm_bluetooth"); root.expanded = false; }
-                    }
+                columnSpacing: 8
+                rowSpacing: 8
+                Pill {
+                    iconName: root.wifiHere ? (nm.wirelessEnabled ? "wifi" : "wifi-off") : "ethernet-port"
+                    label: root.wifiHere ? "Wi-Fi" : "Network"
+                    sub: root.netUp ? root.netName : (root.wifiHere && !nm.wirelessEnabled ? "Off" : "Not connected")
+                    on: root.netUp && (!root.wifiHere || nm.wirelessEnabled)
+                    more: true
+                    onToggled: if (root.wifiHere) nmHandler.enableWireless(!nm.wirelessEnabled); else root.page = "network"
+                    onOpened: root.page = "network"
                 }
-                Square {
-                    Layout.preferredWidth: 1
-                    implicitHeight: 92
+                Pill {
+                    iconName: "bluetooth"
+                    label: "Bluetooth"
+                    sub: root.btOn ? "On" : "Off"
+                    on: root.btOn
+                    more: true
+                    onToggled: { root.run("bluetoothctl power " + (root.btOn ? "off" : "on")); root.btOn = !root.btOn; }
+                    onOpened: { root.run("systemsettings kcm_bluetooth"); root.expanded = false; }
+                }
+                Pill {
                     iconName: "moon"
                     label: "Focus"
                     sub: root.dnd ? "Do not disturb" : "Off"
                     on: root.dnd
                     onToggled: root.setDnd(!root.dnd)
                 }
-                Square {
-                    Layout.preferredWidth: 1
-                    implicitHeight: 92
+                Pill {
                     iconName: "contrast"
                     label: "Dark mode"
                     sub: root.darkLook ? "On" : "Off"
                     on: root.darkLook
                     onToggled: root.setDark(!root.darkLook)
                 }
+                Pill {
+                    iconName: "sun-moon"
+                    label: "Night light"
+                    sub: root.nightOn ? "On" : "Off"
+                    on: root.nightOn
+                    onToggled: root.setNight(!root.nightOn)
+                }
+                Pill {
+                    iconName: "plane"
+                    label: "Airplane"
+                    sub: root.airplane ? "On" : "Off"
+                    on: root.airplane
+                    onToggled: nmHandler.enableAirplaneMode(!root.airplane)
+                }
             }
 
-            LevelCard {
-                title: "Display"
+            BigSlider {
+                label: "Brightness"
                 iconName: "sun"
                 value: root.brightness
                 onMoved: (v) => { root.brightness = v; root.run("qdbus-qt6 org.kde.ScreenBrightness /org/kde/ScreenBrightness/display0 org.kde.ScreenBrightness.Display.SetBrightness " + Math.max(100, v * 100) + " 0"); }
             }
-            LevelCard {
-                title: "Sound"
+            BigSlider {
+                label: "Volume"
                 iconName: root.muted || root.volume === 0 ? "volume-x" : "volume"
-                value: root.volume
+                value: root.muted ? 0 : root.volume
                 onMoved: (v) => { root.volume = v; root.muted = false; root.run("wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (v / 100).toFixed(2) + " && wpctl set-mute @DEFAULT_AUDIO_SINK@ 0"); }
                 onIconClicked: { root.muted = !root.muted; root.run("wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (root.muted ? 1 : 0)); }
+            }
+
+            // SIOS: the AI it thinks with, and requests waiting for you
+            Rectangle {
+                visible: root.siosUp
+                Layout.fillWidth: true
+                implicitHeight: 54
+                radius: 16
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: Qt.rgba(111 / 255, 124 / 255, 1, root.dark ? 0.22 : 0.16) }
+                    GradientStop { position: 1; color: Qt.rgba(111 / 255, 124 / 255, 1, 0.05) }
+                }
+                border.width: 1
+                border.color: Qt.rgba(140 / 255, 150 / 255, 1, 0.25)
+                RowLayout {
+                    anchors { fill: parent; leftMargin: 8; rightMargin: 10 }
+                    spacing: 10
+                    Orb { implicitWidth: 38; implicitHeight: 38; width: 38; height: 38; strands: 14; lively: sr.containsMouse }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        Text { text: "SIOS"; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            text: (root.aiName ? root.aiName + " connected" : "No AI connected yet") + (root.waiting > 0 ? " · " + root.waiting + (root.waiting === 1 ? " request waiting" : " requests waiting") : "")
+                            color: root.fg2; font.family: root.ui; font.pixelSize: 12
+                        }
+                    }
+                    Rectangle {
+                        implicitWidth: btn.implicitWidth + 20; implicitHeight: 28; radius: 9
+                        color: root.blue
+                        Text { id: btn; anchors.centerIn: parent; text: root.waiting > 0 ? "Review" : (root.aiName ? "Brain" : "Set up"); color: "white"; font.family: root.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+                        MouseArea {
+                            id: sr
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { root.run(root.waiting > 0 ? "sios-approve" : "sios-settings --page brain"); root.expanded = false; }
+                        }
+                    }
+                }
             }
 
             // clipboard: only when there's something

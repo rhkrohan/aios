@@ -393,7 +393,8 @@ impl State {
                 r
             }
             "model.complete" | "model.test" => self.model_call(req, owner, service),
-            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count(), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
+            // what anyone may know: how many things wait (never what), and which AI SIOS uses
+            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
             m if m.starts_with("memory.") => self.memory_method(m, p),
             // test data for the live machine

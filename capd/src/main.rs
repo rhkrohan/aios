@@ -42,7 +42,18 @@ fn root_dir() -> PathBuf {
 
 /// Where the sockets live: $SIOS_RUNTIME on SIOS ($XDG_RUNTIME_DIR/sios), else the state folder.
 fn runtime_dir() -> PathBuf {
-    std::env::var("SIOS_RUNTIME").map(PathBuf::from).unwrap_or_else(|_| state_dir())
+    if let Ok(d) = std::env::var("SIOS_RUNTIME") {
+        return PathBuf::from(d);
+    }
+    // on SIOS the broker runs as a service with its sockets here; a CLI started from
+    // the desktop (the Control Center) finds it without being told
+    if let Ok(x) = std::env::var("XDG_RUNTIME_DIR") {
+        let d = PathBuf::from(x).join("sios");
+        if d.join("capd.sock").exists() {
+            return d;
+        }
+    }
+    state_dir()
 }
 
 fn socket() -> PathBuf {

@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 const L = new URL("../build_concept_html/node_modules/lucide-react/dist/esm/icons/", import.meta.url).pathname;
 const OUT = new URL("../system_files/usr/share/plasma/plasmoids/org.sios.control/contents/images/", import.meta.url).pathname;
-const NAMES = ["ethernet-port", "network", "chevron-right", "chevron-left", "lock", "volume-x", "settings", "clipboard", "wifi", "wifi-off", "bluetooth", "moon", "contrast", "sun", "volume-2", "check", "bell"];
+const NAMES = ["plane", "sun-moon", "ethernet-port", "network", "chevron-right", "chevron-left", "lock", "volume-x", "settings", "clipboard", "wifi", "wifi-off", "bluetooth", "moon", "contrast", "sun", "volume-2", "check", "bell"];
 const INKS = { "": "#1d1d1f", "-light": "#ececea", "-white": "#ffffff" };
 for (const n of NAMES) {
   const src = readFileSync(L + n + ".mjs", "utf8");
