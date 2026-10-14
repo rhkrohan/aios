@@ -16,7 +16,6 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.taskmanager as TaskManager
 import org.kde.kirigami as Kirigami
-import QtQuick.Effects
 
 PlasmoidItem {
     id: root
@@ -100,16 +99,11 @@ PlasmoidItem {
             source: btn.model.decoration
             implicitWidth: 46
             implicitHeight: 46
-            scale: mouse.containsMouse ? 1.12 : (mouse.pressed ? 0.94 : 1.0)
-            transform: Translate { y: mouse.containsMouse ? -4 : 0; Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } } }
-            Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowColor: Qt.rgba(10 / 255, 20 / 255, 40 / 255, 0.45)
-                shadowBlur: 0.6
-                shadowVerticalOffset: 5
-            }
+            scale: mouse.pressed ? 0.95 : (mouse.containsMouse ? 1.12 : 1.0)
+            transform: Translate { y: mouse.containsMouse ? -4 : 0; Behavior on y { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } } }
+            Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+            // the icons carry their own soft ground shadow, so nothing is redrawn while they move
+            smooth: true
         }
         // running: a small pill under the icon; the focused app's is longer
         Rectangle {
@@ -121,7 +115,7 @@ PlasmoidItem {
             radius: 2
             color: Qt.rgba(1, 1, 1, 0.92)
             visible: btn.running
-            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
         }
         // the name: Plasma's own tooltip, a small card above the dock in the SIOS style
         PlasmaCore.ToolTipArea {
@@ -168,8 +162,8 @@ PlasmoidItem {
                 width: 78
                 height: 78
                 lively: orbMouse.containsMouse
-                scale: orbMouse.containsMouse ? 1.08 : (orbMouse.pressed ? 0.95 : 1.0)
-                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+                scale: orbMouse.pressed ? 0.96 : (orbMouse.containsMouse ? 1.07 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 520; easing.type: Easing.OutQuint } }
             }
             PlasmaCore.ToolTipArea {
                 anchors.fill: parent

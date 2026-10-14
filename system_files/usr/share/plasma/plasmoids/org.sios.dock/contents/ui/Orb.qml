@@ -2,8 +2,9 @@
     The SIOS orb, ported from the preview's StringOrb.tsx: a ball of thin
     luminous strings. Each strand is a closed loop whose radius wobbles with two
     sine waves, squashed and rotated; together they weave a sphere. It drifts
-    slowly, and livens up under the pointer. About 20 frames a second, so it
-    stays cheap even without a GPU.
+    slowly, and livens up under the pointer. Drawn every screen frame and timed
+    by the real time between frames, so it moves evenly; the change to "lively"
+    eases in and out over 0.7 s.
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
@@ -20,7 +21,7 @@ Canvas {
     readonly property bool still: Kirigami.Units.longDuration === 0
     onStillChanged: requestPaint()
     property real live: lively ? 1 : 0
-    Behavior on live { NumberAnimation { duration: 400 } }
+    Behavior on live { NumberAnimation { duration: 700; easing.type: Easing.InOutSine } }
 
     readonly property var seeds: {
         const out = [];
@@ -34,11 +35,10 @@ Canvas {
         return out;
     }
 
-    Timer {
-        interval: 50
-        repeat: true
+    // one unit of t per second at full life, as before (0.05 every 50 ms)
+    FrameAnimation {
         running: orb.visible && !orb.still
-        onTriggered: { orb.t += 0.05 * (0.35 + orb.live * 0.75); orb.requestPaint(); }
+        onTriggered: { orb.t += Math.min(frameTime, 0.1) * (0.35 + orb.live * 0.75); orb.requestPaint(); }
     }
 
     function hsla(h, s, l, a) { return Qt.hsla((h % 360) / 360, s / 100, l / 100, a); }
