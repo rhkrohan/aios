@@ -10,8 +10,14 @@
 //! files are ignored, so an AI that can read them still can't approve itself.
 //! On the Mac (the preview) the secret files stay the proof.
 //!
-//! Limit (D31): this stops AIs and impersonating programs, not malware already
-//! running as the owner, which could rebuild its own copy of the whole setup.
+//! Limit: a process of the same user can open the socket, keep a copy of the
+//! connection, and then turn a child into one of these programs (exec), or move
+//! it into the brain's unit first. The kernel then names the trusted program
+//! while the copy writes the requests. So on its own this can't prove the OWNER:
+//! until the owner has an anchor an AI can't fake (M5: a password prompt through
+//! polkit, or the broker under its own account), no caller is the owner by
+//! program (OWNER_BY_PROGRAM). The service check is repeated on every request,
+//! which narrows the trick but doesn't close it (12-risks).
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Who {
@@ -36,11 +42,17 @@ pub struct Proc {
 }
 
 pub const OWNER_APPS: [&str; 2] = ["/usr/bin/sios-approve", "/usr/bin/sios-settings"];
+/// Off until the owner has an anchor an AI can't fake (see the limit above).
+pub const OWNER_BY_PROGRAM: bool = false;
 pub const SERVICE: (&str, &str) = ("/usr/bin/brain-d", "/sios-brain.service");
 
-/// Variables that make a program load code it wasn't shipped with.
+/// Variables that make a program load code it wasn't shipped with: whole families,
+/// so a new loader variable in a later release is caught too.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) const INJECTING: [&str; 6] = ["LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "QML_IMPORT_PATH"];
+pub(crate) fn injecting(var: &[u8]) -> bool {
+    let name = var.split(|b| *b == b'=').next().unwrap_or_default();
+    ["LD_", "QT_", "QML", "GCONV_PATH", "GIO_EXTRA_MODULES", "GTK_PATH", "PYTHONPATH", "KDE_FORK_SLAVES"].iter().any(|p| name.starts_with(p.as_bytes()))
+}
 
 pub fn enabled() -> bool {
     std::env::var("SIOS_IDENTITY").is_ok_and(|v| v == "peer")
@@ -50,7 +62,7 @@ pub fn classify(p: &Proc, owners: &[&str], service: Option<(&str, &str)>) -> Who
     if !p.same_user || p.traced || p.injected {
         return Who::Agent;
     }
-    if owners.contains(&p.exe.as_str()) {
+    if OWNER_BY_PROGRAM && owners.contains(&p.exe.as_str()) {
         return Who::Owner;
     }
     if let Some((exe, unit)) = service {
@@ -78,7 +90,7 @@ pub fn of(conn: &std::os::unix::net::UnixStream) -> Proc {
     let status = String::from_utf8_lossy(&read("status")).into_owned();
     let traced = status.lines().find_map(|l| l.strip_prefix("TracerPid:")).map(|v| v.trim() != "0").unwrap_or(true);
     // environ is unreadable for programs that hide their memory; then only the program path counts
-    let injected = read("environ").split(|b| *b == 0).any(|kv| INJECTING.iter().any(|k| kv.starts_with(format!("{k}=").as_bytes())));
+    let injected = read("environ").split(|b| *b == 0).any(injecting);
     Proc {
         same_user: cred.uid == me,
         exe: std::fs::read_link(format!("{dir}/exe")).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -104,7 +116,8 @@ mod tests {
     #[test]
     fn programs_in_the_image_are_who_they_say() {
         let user = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.sios.settings-2.scope";
-        assert_eq!(classify(&p("/usr/bin/sios-settings", user), &OWNER_APPS, Some(SERVICE)), Who::Owner);
+        // the owner is never proven by program alone (see the limit at the top)
+        assert_eq!(classify(&p("/usr/bin/sios-settings", user), &OWNER_APPS, Some(SERVICE)), if OWNER_BY_PROGRAM { Who::Owner } else { Who::Agent });
         let brain = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/sios-brain.service";
         assert_eq!(classify(&p("/usr/bin/brain-d", brain), &OWNER_APPS, Some(SERVICE)), Who::Service);
     }
@@ -121,6 +134,9 @@ mod tests {
         assert_eq!(classify(&Proc { traced: true, ..p("/usr/bin/sios-settings", shell) }, &OWNER_APPS, Some(SERVICE)), Who::Agent);
         assert_eq!(classify(&Proc { injected: true, ..p("/usr/bin/sios-settings", shell) }, &OWNER_APPS, Some(SERVICE)), Who::Agent);
         assert_eq!(classify(&Proc { same_user: false, ..p("/usr/bin/sios-settings", shell) }, &OWNER_APPS, Some(SERVICE)), Who::Agent);
+        // loader variables, whole families
+        assert!(injecting(b"LD_PRELOAD=/tmp/x.so") && injecting(b"LD_AUDIT=x") && injecting(b"QT_QPA_PLATFORM_PLUGIN_PATH=/tmp") && injecting(b"QML_XHR_ALLOW_FILE_READ=1") && injecting(b"GCONV_PATH=/tmp"));
+        assert!(!injecting(b"HOME=/home/rohan") && !injecting(b"LANG=en_US.UTF-8") && !injecting(b"XDG_RUNTIME_DIR=/run/user/1000"));
         // nothing known (no kernel answer)
         assert_eq!(classify(&Proc::default(), &OWNER_APPS, Some(SERVICE)), Who::Agent);
     }

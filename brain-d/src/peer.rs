@@ -33,10 +33,15 @@ pub struct Proc {
 
 /// The owner's shell on brain.sock: the Ask bar, Monitor and Settings.
 pub const OWNER_APPS: [&str; 3] = ["/usr/bin/sios-ask", "/usr/bin/sios-monitor", "/usr/bin/sios-settings"];
+/// Off for the same reason as capd's (capd/src/peer.rs): a copied connection can pose as the shell.
+pub const OWNER_BY_PROGRAM: bool = false;
 
-/// Variables that make a program load code it wasn't shipped with.
+/// Variables that make a program load code it wasn't shipped with (whole families).
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) const INJECTING: [&str; 6] = ["LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "QML_IMPORT_PATH"];
+pub(crate) fn injecting(var: &[u8]) -> bool {
+    let name = var.split(|b| *b == b'=').next().unwrap_or_default();
+    ["LD_", "QT_", "QML", "GCONV_PATH", "GIO_EXTRA_MODULES", "GTK_PATH", "PYTHONPATH", "KDE_FORK_SLAVES"].iter().any(|p| name.starts_with(p.as_bytes()))
+}
 
 pub fn enabled() -> bool {
     std::env::var("SIOS_IDENTITY").is_ok_and(|v| v == "peer")
@@ -46,7 +51,7 @@ pub fn classify(p: &Proc, owners: &[&str], service: Option<(&str, &str)>) -> Who
     if !p.same_user || p.traced || p.injected {
         return Who::Agent;
     }
-    if owners.contains(&p.exe.as_str()) {
+    if OWNER_BY_PROGRAM && owners.contains(&p.exe.as_str()) {
         return Who::Owner;
     }
     if let Some((exe, unit)) = service {
@@ -74,7 +79,7 @@ pub fn of(conn: &std::os::unix::net::UnixStream) -> Proc {
     let status = String::from_utf8_lossy(&read("status")).into_owned();
     let traced = status.lines().find_map(|l| l.strip_prefix("TracerPid:")).map(|v| v.trim() != "0").unwrap_or(true);
     // environ is unreadable for programs that hide their memory; then only the program path counts
-    let injected = read("environ").split(|b| *b == 0).any(|kv| INJECTING.iter().any(|k| kv.starts_with(format!("{k}=").as_bytes())));
+    let injected = read("environ").split(|b| *b == 0).any(injecting);
     Proc {
         same_user: cred.uid == me,
         exe: std::fs::read_link(format!("{dir}/exe")).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -99,7 +104,7 @@ mod tests {
 
     #[test]
     fn only_the_shell_is_the_owner() {
-        assert_eq!(classify(&p("/usr/bin/sios-ask"), &OWNER_APPS, None), Who::Owner);
+        assert_eq!(classify(&p("/usr/bin/sios-ask"), &OWNER_APPS, None), if OWNER_BY_PROGRAM { Who::Owner } else { Who::Agent });
         assert_eq!(classify(&p("/usr/bin/brain-d"), &OWNER_APPS, None), Who::Agent, "an MCP door isn't the owner");
         assert_eq!(classify(&p("/usr/bin/python3"), &OWNER_APPS, None), Who::Agent);
         assert_eq!(classify(&Proc { traced: true, ..p("/usr/bin/sios-ask") }, &OWNER_APPS, None), Who::Agent);

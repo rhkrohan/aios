@@ -217,15 +217,13 @@ fn serve() {
     for conn in listener.incoming() {
         let Ok(conn) = conn else { continue };
         let st = Arc::clone(&st);
-        // asked once, when it connects: the kernel's answer can't change for this connection
-        let who = by_peer.then(|| {
-            let p = peer::of(&conn);
-            let w = peer::classify(&p, &peer::OWNER_APPS, Some(peer::SERVICE));
-            if w != peer::Who::Agent {
-                println!("{w:?} connected: {}", p.exe);
-            }
-            w
-        });
+        // who connected, by the kernel; asked again before every request, since a
+        // process can change its program (exec) after connecting
+        let ask = move |conn: &UnixStream| by_peer.then(|| peer::classify(&peer::of(conn), &peer::OWNER_APPS, Some(peer::SERVICE)));
+        let first = ask(&conn);
+        if let Some(w) = first.filter(|w| *w != peer::Who::Agent) {
+            println!("{w:?} connected");
+        }
         std::thread::spawn(move || {
             let mut writer = match conn.try_clone() {
                 Ok(w) => w,
@@ -238,6 +236,12 @@ fn serve() {
                 }
                 let resp = match serde_json::from_str::<Value>(&line) {
                     Ok(req) => {
+                        // the strictest of what it was when it connected and what it is now
+                        let who = match (first, ask(&writer)) {
+                            (Some(a), Some(b)) if a == b => Some(a),
+                            (Some(_), Some(_)) => Some(peer::Who::Agent),
+                            _ => None,
+                        };
                         // one bad request must never take capd down for everyone after it
                         let mut guard = st.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                         let resp = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| guard.handle_as(&req, who)))
