@@ -23,7 +23,7 @@ UX
 
 AI OS layer (2026-10-14 plan, D31 to D38; one milestone at a time, each checked on the arm64 VM)
 - [x] M0 Plan: decisions, changelog, tasks
-- [ ] M1 Rename tools to files / apps / settings / network / system, old names as aliases (D36)
+- [x] M1 Rename tools to files / apps / settings / network / system, old names as aliases (D36)
 - [ ] M2 capd and brain-d built into the image, `cargo test` gates the build (D38)
 - [ ] M3 `sios-broker` and `sios-brain` user services; caller identity by SO_PEERCRED and program path; dot-folders blocked (D31, D32)
 - [ ] M4 Model gateway in the broker (Anthropic, OpenAI, OpenAI-compatible, Gemini); encrypted keys; Settings > Brain (D33, D34)
@@ -41,3 +41,4 @@ AI OS layer (2026-10-14 plan, D31 to D38; one milestone at a time, each checked 
 - [ ] Undo restores an organized folder from the timeline
 
 ## Learned
+- 2026-10-14 (M1): Tools renamed in capd, brain-d, the harness and the preview (one scripted swap of exact names, then prefix patterns like `fs.*` by hand). Old names stay accepted through `tools::ALIASES`: `manifest::canonical()` maps them on calls, and passes, standing rules (`rules.json`) and saved roles (`iam.json`) are rewritten on load, so the owner's existing files keep working. An old area pattern becomes exactly the new names its tools moved to (`sys.*` never grows to cover installs). Area names must never contain `_`, because wire names split at the first `_`; a test enforces it. `apps.close` is now a change, not a read (unsaved work). capd 75 tests and brain-d 8 tests pass; the live run with GPT passed summarize, tidy and email (approved) with the audit chain intact. The harness goals pointed at files the seed no longer has (`Q3 board notes.txt`, `Projects/README.md`); fixed to the seed's names. The preview's browser confusion test was not rerun; it type-checks and lints clean. Catalog written up in `docs/plan/16-tool-catalog.md`.

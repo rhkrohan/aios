@@ -66,3 +66,5 @@ Adapters map service-specific data into these types, so outputs of one tool plug
 - MCP client: brain-d calls connected services and custom servers added by URL.
 - MCP server: brain-d exposes the tool catalog so external AIs (Claude desktop, ChatGPT, custom UIs) can drive the OS under the same broker rules.
 - Third-party MCP servers get wrapper adapters: better descriptions and mapping to shared types.
+
+The tools as built (names, risk, status, image backend) are listed in `16-tool-catalog.md`.
