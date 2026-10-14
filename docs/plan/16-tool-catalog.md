@@ -40,8 +40,8 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `files.trash` | path | Change | Real | Moves to the Trash | The freedesktop Trash, shared with SIOS Files and Dolphin (M9) |
 | `files.restore` | path | Change | Real | Puts something back from the Trash where it came from | Same (M9) |
 | `files.delete` | path | Always asks | Real | Deletes for good, and only from the Trash | Same |
-| `files.show` | path | Read | Shell | Opens a folder for the owner in Files | `kioclient exec`, which opens SIOS Files (M6) |
-| `files.preview` | path | Read | Shell | Shows the owner a preview of a file | `kioclient exec` (M6) |
+| `files.show` | path | Read | Shell | Opens a folder for the owner in Files (folders only) | `kioclient exec` on the folder, which opens SIOS Files (M6) |
+| `files.preview` | path | Read | Shell | Shows the owner where a file is: opens its folder in Files. The file itself is never opened, so a launcher or script an AI wrote can't run | `kioclient exec` on the parent folder (M6) |
 
 ## apps: programs and windows
 
