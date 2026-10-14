@@ -1869,6 +1869,11 @@ mod tests {
         r.st.gateway.cfg.providers.push(mock("here", "http://localhost:11434/v1"));
         r.st.gateway.cfg.providers.last_mut().unwrap().kind = "compat".into();
         assert!(!r.st.gateway.cfg.providers.last().unwrap().online());
+        // addresses that only look local are refused: plain http only to this computer
+        for bad in ["http://127.0.0.1@evil.example/v1", "http://localhost.evil.example/v1", "ftp://x/v1"] {
+            assert!(r.owner("model.configure", json!({ "id": "custom", "base_url": bad }))["error"].is_string(), "{bad}");
+        }
+        assert!(r.owner("model.configure", json!({ "id": "custom", "base_url": "http://localhost:8080/v1" }))["ok"].is_object());
         // the daily limit
         r.owner("model.configure", json!({ "max_calls_per_day": 1 }));
         assert!(complete(&mut r, None)["error"].as_str().unwrap().contains("limit"));

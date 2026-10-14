@@ -35,12 +35,32 @@ pub struct Provider {
     pub consent: bool,
 }
 
+/// (scheme, host) of a base address, or None if it isn't a plain one. Refuses
+/// "user@host" forms, which can make an address look local while going elsewhere.
+pub fn parse_base(url: &str) -> Option<(String, String)> {
+    let (scheme, rest) = url.trim().split_once("://")?;
+    let scheme = scheme.to_ascii_lowercase();
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if authority.is_empty() || authority.contains('@') || authority.chars().any(|c| c.is_whitespace() || c.is_control() || c == '\\') {
+        return None;
+    }
+    let host = if let Some(v6) = authority.strip_prefix('[') {
+        v6.split_once(']')?.0.to_string()
+    } else {
+        authority.rsplit_once(':').map(|(h, port)| if port.chars().all(|c| c.is_ascii_digit()) { h } else { authority }).unwrap_or(authority).to_string()
+    };
+    (!host.is_empty()).then(|| (scheme, host.to_ascii_lowercase()))
+}
+
+/// Only "localhost" or a loopback address is this computer.
+pub fn is_local_host(host: &str) -> bool {
+    host == "localhost" || host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+}
+
 impl Provider {
     /// A provider on this computer gets no internet traffic; Sensitive data may go to it.
     pub fn online(&self) -> bool {
-        let u = self.base_url.to_lowercase();
-        let host = u.split("://").nth(1).unwrap_or("").split(['/', ':']).next().unwrap_or("");
-        !(self.kind == "compat" && (host == "localhost" || host.starts_with("127.") || host == "[::1]"))
+        !(self.kind == "compat" && parse_base(&self.base_url).is_some_and(|(_, h)| is_local_host(&h)))
     }
 
     fn needs_key(&self) -> bool {
@@ -179,9 +199,13 @@ impl Gateway {
                     return Err("a model name has no spaces".into());
                 }
             }
-            if let Some(b) = &base {
-                if !(b.is_empty() || b.starts_with("https://") || b.starts_with("http://localhost") || b.starts_with("http://127.")) {
-                    return Err("the address must start with https:// (or be on this computer)".into());
+            if let Some(b) = base.as_ref().filter(|b| !b.is_empty()) {
+                let ok = match parse_base(b) {
+                    Some((scheme, host)) => scheme == "https" || (scheme == "http" && is_local_host(&host)),
+                    None => false,
+                };
+                if !ok {
+                    return Err("the address must be https://, or http:// on this computer (localhost)".into());
                 }
             }
             let q = self.cfg.providers.iter_mut().find(|x| x.id == id).unwrap();
@@ -264,6 +288,24 @@ impl Gateway {
         }
         self.cfg.calls_today += 1;
         self.save();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_real_loopback_addresses_count_as_this_computer() {
+        let p = |url: &str| Provider { id: "x".into(), kind: "compat".into(), label: "x".into(), model: "m".into(), base_url: url.into(), consent: true };
+        for local in ["http://localhost:11434/v1", "http://127.0.0.1:8080/v1", "http://[::1]:11434/v1", "http://LOCALHOST/v1"] {
+            assert!(!p(local).online(), "{local}");
+        }
+        for remote in ["http://127.0.0.1@evil.example/v1", "http://localhost.evil.example/v1", "http://localhost@evil.example", "https://openrouter.ai/api/v1", "http://127.evil.example/v1", "", "localhost:11434"] {
+            assert!(p(remote).online(), "{remote}");
+        }
+        assert_eq!(parse_base("https://api.example.com:8443/v1"), Some(("https".into(), "api.example.com".into())));
+        assert_eq!(parse_base("http://user:pw@host/"), None);
     }
 }
 
