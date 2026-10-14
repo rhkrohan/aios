@@ -168,6 +168,8 @@ flowchart LR
   Pass["Pass for one goal<br/>(slice of the roles)"] -.-> P
 ```
 
+- **Extended 2026-10-14:** D42 to D45 (instances, bound leases, one signed policy, roles absorb rules and shares). See `17-security-engine.md`.
+
 ### D23. Proving who is calling (proposed)
 - **Choice:**
   - Outside AIs prove their identity with a pairing token that the owner issues; the name a client reports is not enough.

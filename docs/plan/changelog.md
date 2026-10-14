@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: Security engine and agent IAM planned (17-security-engine.md, D40 to D55, milestones S0 to S9), built on the lessons of the 2026 OpenAI / Hugging Face incident. Owner chose all four parts for the first release and auto-freeze on anomalies. Comes before the next image.
 - 2026-10-14: M7 built (Ask SIOS in the Ask bar). Risk recorded: an AI posing as the Ask bar could start goals in the owner's name; passes still need the password.
 - 2026-10-14: M8 built (typed tools for paired apps over MCP, Settings > Connected AI apps). First image with capd and brain-d built and tested on GitHub.
 - 2026-10-14: M6 batch 1 built and checked on the VM (real volume, brightness, theme, wallpaper, notify, open app, show folder, state; undo restores). llm/: 2 tool-use examples (read state first; a tool not connected yet is reported plainly).

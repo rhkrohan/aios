@@ -43,3 +43,9 @@ Readable log of every AI action: who asked, which model, which tools, what chang
 | Model makes a destructive mistake | Approvals, snapshots, trash-first, undo |
 | Stolen credentials via model output | Credentials never in model context |
 | Malicious external AI connected via MCP | Same broker rules as local assistant, per-client permissions |
+| AI escapes its box through a path that is only configured closed | Stop, bound leases, sentinel freeze, Unix-socket-only units, egress proxy (D40 to D50) |
+| Downloaded data runs as code | Quarantine; untrusted data never becomes routines, memory, executables or instructions (D51) |
+| Leaked or stale credential reused | Leases bound to the calling process; keys never leave the broker (D33, D43) |
+| AIs leave notes for each other | Writer recorded; cross-AI handoff asks then freezes; private scratch (D52) |
+
+Full design: `17-security-engine.md`.

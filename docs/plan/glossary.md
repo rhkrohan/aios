@@ -37,3 +37,10 @@ The restaurant analogy: your computer is a restaurant.
 | Vault | Local memory | Notebook of regulars |
 | LoRA | Cheap fine-tuning add-on | Short training course for the waiter |
 | Prompt injection | Text pretending to be instructions | A fake note slipped onto the ticket rail |
+| Lease | A short pass (10 minutes) tied to one running program, renewed only by it | A visitor badge that only works on the person it was printed for |
+| Instance | One running copy of an AI | One shift of a worker, not the worker's name |
+| Stop | One switch that cuts every AI channel at once | The big red emergency button |
+| Freeze | SIOS pauses one AI and everything it started, until the owner looks | Security holds someone at the door |
+| Sentinel | Rules in the broker that spot odd AI behaviour on every call | A guard who never blinks |
+| Egress proxy | The only door out to the internet for SIOS-launched AIs, with a list of allowed places | A front desk that only calls numbers on the approved list |
+| Quarantine | Downloaded or untrusted content kept as data, never run | Mail from strangers goes in a tray, not straight to the kitchen |

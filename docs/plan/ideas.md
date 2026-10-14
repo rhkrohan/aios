@@ -36,3 +36,8 @@ New ideas land here first. Status: Exploring, Accepted, Parked. When accepted, l
 Premium: Sovereign, Halcyon, Atrium, Vesper, Aurum, Sable, Meridian
 Soft: Serein, Oriel, Calla, Selene, Elowen
 Other: Cairn, Zehn, Keel, Orrery, Hearth
+| Root netguard (`sios-netguard`) | A fixed-function root service that matches AI units by cgroup in nftables, for apps that ignore the proxy | v2 with the root broker (D54) | Parked |
+| TPM-anchored audit | Seal the audit and policy heads with the TPM so tampering shows even to a root attacker | After S9 (D55) | Exploring |
+| One user account per AI | Each confined AI runs under its own uid, so file permissions apply between AIs | v2 broker split (D31) | Exploring |
+| Trust levels from the sentinel | An AI's sentinel score over time sets its trust level (Unknown to Trusted), earned and lost | After S4 (D46) | Exploring |
+| Stop in the panel | A Plasma panel widget with the Stop button and frozen count | After S8 | Exploring |

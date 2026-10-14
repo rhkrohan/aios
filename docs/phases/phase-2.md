@@ -35,6 +35,18 @@ AI OS layer (2026-10-14 plan, D31 to D38; one milestone at a time, each checked 
 - [ ] M10 Broker state survives a restart (passes, approvals, undo journal)
 - [ ] M11 Settings > Permissions and live Monitor Goals
 
+Security track (2026-10-14 plan, D40 to D55, `docs/plan/17-security-engine.md`; before the next image)
+- [x] S0 Plan: security engine doc, decisions, tasks
+- [ ] S1 Stop: one switch cuts every AI channel; capd and brain-d non-dumpable; `ptrace_scope=1`
+- [ ] S2 One signed, versioned policy; roles absorb standing rules and memory shares; all owner changes audited
+- [ ] S3 Instances and 10 minute leases bound to the calling process; broker state survives a restart (part of M10)
+- [ ] S4 Sentinel and freeze (machine-speed anomaly rules, freeze the chain, owner resumes)
+- [ ] S5 Egress proxy, named destinations, `web.fetch` into quarantine
+- [ ] S6 `sios-goal@` and `sios-agent@` units with Landlock; confined pairings
+- [ ] S7 Data never runs as code; writer recorded; cross-AI handoff asks then freezes; private scratch
+- [ ] S8 Security Center app `sios-security`
+- [ ] S9 `capd drill` replays the incident; exportable signed heads
+
 ## Gate
 - [ ] Voice or command bar: "connect to Wi-Fi", "dim the screen", "organize my Downloads" all succeed
 - [ ] Approval shown at the right times; blocked actions stay blocked

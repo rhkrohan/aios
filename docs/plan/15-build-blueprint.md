@@ -168,6 +168,8 @@ flowchart TB
 
 Dry runs (`dry_run: true`) go through the same checks but run nothing, log nothing and spend nothing. brain-d dry-runs every step of a plan before asking for a pass.
 
+**Security track (2026-10-14):** the check order gains stop, lease, frozen, rate, egress destination and handoff, and a sentinel watches every decision. See `17-security-engine.md`.
+
 ### 3b. Capability tokens (passes)
 
 ```mermaid
