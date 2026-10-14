@@ -82,20 +82,6 @@ PlasmoidItem {
         virtualDesktop: desktopInfo.currentDesktop
     }
 
-    component Tip: Rectangle {
-        property string text
-        property bool show
-        visible: show
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.top
-        anchors.bottomMargin: 8
-        width: tipText.implicitWidth + 20
-        height: 24
-        radius: 8
-        color: Qt.rgba(27 / 255, 32 / 255, 39 / 255, 0.92)
-        Text { id: tipText; anchors.centerIn: parent; text: parent.text; color: "white"; font.family: "Instrument Sans"; font.pixelSize: 12; font.weight: Font.Medium }
-    }
-
     component AppButton: Item {
         id: btn
         required property int index
@@ -106,16 +92,17 @@ PlasmoidItem {
         implicitWidth: 62
         implicitHeight: 62
 
-        // the icon floats on the desktop: its own soft shadow, no tile behind it
+        // the icon floats on the desktop: its own soft shadow, no tile behind it.
+        // Hover scales and lifts it (a transform, so nothing around it moves).
         Kirigami.Icon {
             id: icon
             anchors.centerIn: parent
-            anchors.verticalCenterOffset: mouse.containsMouse ? -3 : 0
             source: btn.model.decoration
-            implicitWidth: mouse.containsMouse ? 50 : 46
-            implicitHeight: implicitWidth
-            Behavior on implicitWidth { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-            Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            implicitWidth: 46
+            implicitHeight: 46
+            scale: mouse.containsMouse ? 1.12 : (mouse.pressed ? 0.94 : 1.0)
+            transform: Translate { y: mouse.containsMouse ? -4 : 0; Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } } }
+            Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true
@@ -134,19 +121,24 @@ PlasmoidItem {
             radius: 2
             color: Qt.rgba(1, 1, 1, 0.92)
             visible: btn.running
-            Behavior on width { NumberAnimation { duration: 160 } }
+            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
         }
-        Tip { show: mouse.containsMouse; text: btn.model.AppName || btn.model.display || "" }
-        MouseArea {
-            id: mouse
+        // the name: Plasma's own tooltip, a small card above the dock in the SIOS style
+        PlasmaCore.ToolTipArea {
             anchors.fill: parent
-            hoverEnabled: true
-            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-            onClicked: (e) => {
-                const i = tasks.makeModelIndex(btn.index);
-                if (e.button === Qt.MiddleButton || btn.model.IsLauncher) tasks.requestNewInstance(i);
-                else if (btn.active) tasks.requestToggleMinimized(i);
-                else tasks.requestActivate(i);
+            mainText: btn.model.AppName || btn.model.display || ""
+            location: PlasmaCore.Types.BottomEdge
+            MouseArea {
+                id: mouse
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+                onClicked: (e) => {
+                    const i = tasks.makeModelIndex(btn.index);
+                    if (e.button === Qt.MiddleButton || btn.model.IsLauncher) tasks.requestNewInstance(i);
+                    else if (btn.active) tasks.requestToggleMinimized(i);
+                    else tasks.requestActivate(i);
+                }
             }
         }
         Accessible.role: Accessible.Button
@@ -173,17 +165,23 @@ PlasmoidItem {
             implicitHeight: 84
             Orb {
                 anchors.centerIn: parent
-                width: orbMouse.containsMouse ? 84 : 78
-                height: width
+                width: 78
+                height: 78
                 lively: orbMouse.containsMouse
-                Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                scale: orbMouse.containsMouse ? 1.08 : (orbMouse.pressed ? 0.95 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
             }
-            Tip { show: orbMouse.containsMouse; text: "Ask SIOS   Meta+Space" }
-            MouseArea {
-                id: orbMouse
+            PlasmaCore.ToolTipArea {
                 anchors.fill: parent
-                hoverEnabled: true
-                onClicked: run.connectSource("sios-ask || qdbus-qt6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay")
+                mainText: "Ask SIOS"
+                subText: "Meta+Space"
+                location: PlasmaCore.Types.BottomEdge
+                MouseArea {
+                    id: orbMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: run.connectSource("sios-ask || qdbus-qt6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay")
+                }
             }
             Accessible.role: Accessible.Button
             Accessible.name: "Search"
