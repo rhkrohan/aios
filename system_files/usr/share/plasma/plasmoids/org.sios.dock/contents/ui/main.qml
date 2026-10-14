@@ -1,8 +1,9 @@
 /*
-    The SIOS dock, like the preview's Dock.tsx:
-      Files  Browser  Mail  |  orb  |  Store  Activity  Settings  [other open apps]
-    Each app's own icon (Files is the SIOS disc), a soft highlight on the focused app,
-    a dot under running apps, a tooltip above. It is a real task manager: it
+    The SIOS dock (owner's pick, 2026-10-14: "D5, no bar"):
+      Files  Browser  Mail   orb   Store  Activity  Settings  [other open apps]
+    No bar behind it: the icons float on the desktop with their own soft shadows,
+    a small pill marks running apps (longer for the focused one), and the orb is
+    the one larger item. A tooltip above. It is a real task manager: it
     uses KDE's TasksModel, so clicking starts, focuses or minimizes the app.
     The orb opens the Ask bar (apps, files, settings now; the assistant in Stage B).
     SPDX-License-Identifier: GPL-2.0-or-later
@@ -15,6 +16,7 @@ import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.taskmanager as TaskManager
 import org.kde.kirigami as Kirigami
+import QtQuick.Effects
 
 PlasmoidItem {
     id: root
@@ -94,15 +96,6 @@ PlasmoidItem {
         Text { id: tipText; anchors.centerIn: parent; text: parent.text; color: "white"; font.family: "Instrument Sans"; font.pixelSize: 12; font.weight: Font.Medium }
     }
 
-    component Separator: Rectangle {
-        Layout.alignment: Qt.AlignVCenter
-        Layout.leftMargin: 4
-        Layout.rightMargin: 4
-        implicitWidth: 1
-        implicitHeight: 32
-        color: root.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(29 / 255, 29 / 255, 31 / 255, 0.1)
-    }
-
     component AppButton: Item {
         id: btn
         required property int index
@@ -110,33 +103,38 @@ PlasmoidItem {
         readonly property bool active: !!model.IsActive && !model.IsLauncher
         readonly property bool running: !model.IsLauncher || !!model.IsStartup
         Layout.alignment: Qt.AlignVCenter
-        implicitWidth: 58
-        implicitHeight: 58
+        implicitWidth: 62
+        implicitHeight: 62
 
-        Rectangle {
-            anchors.fill: parent
-            radius: 16
-            visible: btn.active
-            color: root.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.85)
-            border.width: root.dark ? 0 : 1
-            border.color: Qt.rgba(1, 1, 1, 0.9)
-        }
+        // the icon floats on the desktop: its own soft shadow, no tile behind it
         Kirigami.Icon {
+            id: icon
             anchors.centerIn: parent
+            anchors.verticalCenterOffset: mouse.containsMouse ? -3 : 0
             source: btn.model.decoration
-            implicitWidth: mouse.containsMouse ? 46 : 42
+            implicitWidth: mouse.containsMouse ? 50 : 46
             implicitHeight: implicitWidth
             Behavior on implicitWidth { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(10 / 255, 20 / 255, 40 / 255, 0.45)
+                shadowBlur: 0.6
+                shadowVerticalOffset: 5
+            }
         }
+        // running: a small pill under the icon; the focused app's is longer
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.bottom
-            anchors.topMargin: 1
-            width: 5
-            height: 5
-            radius: 2.5
-            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.5)
+            anchors.topMargin: -1
+            width: btn.active ? 18 : 10
+            height: 4
+            radius: 2
+            color: Qt.rgba(1, 1, 1, 0.92)
             visible: btn.running
+            Behavior on width { NumberAnimation { duration: 160 } }
         }
         Tip { show: mouse.containsMouse; text: btn.model.AppName || btn.model.display || "" }
         MouseArea {
@@ -156,7 +154,7 @@ PlasmoidItem {
     }
 
     fullRepresentation: RowLayout {
-        spacing: 4
+        spacing: 8
         Layout.minimumWidth: implicitWidth
         Layout.preferredWidth: implicitWidth
 
@@ -165,27 +163,20 @@ PlasmoidItem {
             delegate: AppButton { visible: root.onLeft(model) }
         }
 
-        Separator {}
-
-        // the orb
+        // the orb: the one larger item, nothing behind it
         Item {
             id: orbSlot
             Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: 6
+            Layout.rightMargin: 6
             implicitWidth: 84
             implicitHeight: 84
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: 3
-                radius: width / 2
-                color: root.dark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.7)
-                border.width: 1
-                border.color: root.dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.9)
-            }
             Orb {
                 anchors.centerIn: parent
-                width: 63
-                height: 63
+                width: orbMouse.containsMouse ? 84 : 78
+                height: width
                 lively: orbMouse.containsMouse
+                Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             }
             Tip { show: orbMouse.containsMouse; text: "Ask SIOS   Meta+Space" }
             MouseArea {
@@ -197,8 +188,6 @@ PlasmoidItem {
             Accessible.role: Accessible.Button
             Accessible.name: "Search"
         }
-
-        Separator {}
 
         Repeater {
             model: tasks

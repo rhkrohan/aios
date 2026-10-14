@@ -8,6 +8,8 @@ top.location = "top";
 top.height = 36;
 top.floating = false;
 top.hiding = "none";
+// the top bar keeps its card; only the dock is see-through (the theme's translucent panel is empty)
+top.opacity = "opaque";
 
 top.addWidget("org.sios.logo");
 top.addWidget("org.sios.menus");
@@ -32,7 +34,7 @@ clock.writeConfig("fontWeight", 500);
 clock.writeConfig("fontSize", 10);
 clock.reloadConfig();
 
-// ---- dock: floating, only as wide as its apps, with the orb in the middle
+// ---- dock: floating icons, no bar, only as wide as its apps, with the orb in the middle
 const dock = new Panel;
 dock.location = "bottom";
 dock.height = 92;
@@ -40,6 +42,8 @@ dock.floating = true;
 dock.hiding = "none";
 dock.lengthMode = "fit";
 dock.alignment = "center";
+// no bar behind the icons (owner's pick "D5"): the translucent panel style is empty
+dock.opacity = "translucent";
 dock.addWidget("org.sios.dock");
 
 // ---- the desktop: folder discs on the left, SIOS in the middle, today on the right
