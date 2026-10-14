@@ -173,6 +173,12 @@ impl Brain {
     /// `owner`: the caller proved it is the owner's shell (brain.secret; on SIOS,
     /// the shell's identity over D-Bus). Without it, only what an outside AI may do.
     pub fn handle(&self, req: &Value, owner: bool) -> Value {
+        self.handle_from(req, owner, false)
+    }
+
+    /// `shell`: the caller is the owner's Ask bar, known by its program. Its goals
+    /// run in the owner's name; every pass still waits for the owner's password.
+    pub fn handle_from(&self, req: &Value, owner: bool, shell: bool) -> Value {
         let p = &req["params"];
         let method = req["method"].as_str().unwrap_or("");
         const OWNER_ONLY: [&str; 9] = ["state.update", "routines.clear", "helpers.add", "helpers.update", "helpers.remove", "helpers.run_now", "watch.add", "watch.remove", "goals.recent"];
@@ -184,7 +190,7 @@ impl Brain {
             "briefing" => Ok(json!({ "text": briefing::build(&self.ctx.root, &self.ctx.state, p["request"].as_str().unwrap_or("")).text })),
             "goal.start" => match p["request"].as_str().map(str::trim).filter(|s| !s.is_empty()) {
                 // "principal" is attribution (who asked); the broker still needs the owner's grant
-                Some(r) => match self.requester(p, owner) {
+                Some(r) => match self.requester(p, owner || shell) {
                     // the owner's shell, or an outside AI through the MCP door (never "own")
                     Ok((principal, own)) => {
                         let (goal, thread) = self.start(&r.chars().take(2000).collect::<String>(), &principal, own, p["thread"].as_str());
@@ -314,8 +320,11 @@ fn serve() {
     helpers::spawn(brain.clone());
     for conn in listener.incoming().flatten() {
         let (brain, secret) = (brain.clone(), secret.clone());
-        // on SIOS the owner's shell is known by its program, asked once when it connects
-        let shell = by_peer.then(|| peer::classify(&peer::of(&conn), &peer::OWNER_APPS, None) == peer::Who::Owner);
+        // on SIOS the owner's shell is known by its program, asked once when it connects:
+        // it may start goals in the owner's name; the owner's controls stay with brain.secret
+        let who = by_peer.then(|| peer::classify(&peer::of(&conn), &peer::OWNER_APPS, None));
+        let shell = who.map(|w| w == peer::Who::Owner);
+        let asks_for_owner = who.is_some_and(|w| w == peer::Who::Owner || w == peer::Who::OwnerApp);
         std::thread::spawn(move || {
             let Ok(mut w) = conn.try_clone() else { return };
             for line in BufReader::new(conn).lines().map_while(Result::ok) {
@@ -334,7 +343,7 @@ fn serve() {
                                 None => json!({ "error": "that helper is busy or doesn't exist" }),
                             }
                         } else {
-                            brain.handle(&r, owner)
+                            brain.handle_from(&r, owner, asks_for_owner)
                         }
                     })
                     .unwrap_or_else(|e| json!({ "error": format!("not JSON: {e}") }));

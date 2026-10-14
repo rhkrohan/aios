@@ -12,6 +12,9 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Who {
     Owner,
+    /// The owner's shell, known by its program: may start goals in the owner's name
+    /// (each pass still needs the owner's password), not the owner's controls.
+    OwnerApp,
     Service,
     Agent,
 }
@@ -51,8 +54,8 @@ pub fn classify(p: &Proc, owners: &[&str], service: Option<(&str, &str)>) -> Who
     if !p.same_user || p.traced || p.injected {
         return Who::Agent;
     }
-    if OWNER_BY_PROGRAM && owners.contains(&p.exe.as_str()) {
-        return Who::Owner;
+    if owners.contains(&p.exe.as_str()) {
+        return if OWNER_BY_PROGRAM { Who::Owner } else { Who::OwnerApp };
     }
     if let Some((exe, unit)) = service {
         if p.exe == exe && p.cgroup.lines().any(|l| l.ends_with(unit)) {
@@ -104,7 +107,7 @@ mod tests {
 
     #[test]
     fn only_the_shell_is_the_owner() {
-        assert_eq!(classify(&p("/usr/bin/sios-ask"), &OWNER_APPS, None), if OWNER_BY_PROGRAM { Who::Owner } else { Who::Agent });
+        assert_eq!(classify(&p("/usr/bin/sios-ask"), &OWNER_APPS, None), if OWNER_BY_PROGRAM { Who::Owner } else { Who::OwnerApp });
         assert_eq!(classify(&p("/usr/bin/brain-d"), &OWNER_APPS, None), Who::Agent, "an MCP door isn't the owner");
         assert_eq!(classify(&p("/usr/bin/python3"), &OWNER_APPS, None), Who::Agent);
         assert_eq!(classify(&Proc { traced: true, ..p("/usr/bin/sios-ask") }, &OWNER_APPS, None), Who::Agent);

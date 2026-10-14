@@ -1,6 +1,7 @@
 // The SIOS Ask bar: one copy waits in the background after login (started
 // with --background), so the orb or Meta+Space shows it at once. Running
 // sios-ask again tells that copy to show or hide (over D-Bus, org.sios.Ask).
+#include "assistant.h"
 #include "search.h"
 
 #include <QApplication>
@@ -107,9 +108,11 @@ int main(int argc, char *argv[])
     bus.registerObject(QStringLiteral("/Ask"), &toggle, QDBusConnection::ExportScriptableSlots);
 
     Search search;
+    Assistant assistant;
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new Icons);
     engine.rootContext()->setContextProperty(QStringLiteral("search"), &search);
+    engine.rootContext()->setContextProperty(QStringLiteral("assistant"), &assistant);
     engine.rootContext()->setContextProperty(QStringLiteral("toggler"), &toggle);
     engine.rootContext()->setContextProperty(QStringLiteral("startHidden"), args.isSet(QStringLiteral("background")));
     engine.rootContext()->setContextProperty(QStringLiteral("startApps"), args.isSet(QStringLiteral("apps")));

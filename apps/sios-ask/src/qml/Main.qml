@@ -22,11 +22,12 @@ Window {
     LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityOnDemand
     LayerShell.Window.exclusionZone: -1
 
-    property string mode: startApps ? "apps" : "search"   // search | apps (all apps, A to Z)
+    property string mode: startApps ? "apps" : "search"   // search | apps (all apps, A to Z) | assistant
     property var apps: []
     property var results: []
     property int current: 0
-    readonly property var rows: input.text.trim() === "" ? search.suggestions : results
+    // typed text: "Ask SIOS" first, then what the search finds
+    readonly property var rows: input.text.trim() === "" ? search.suggestions : [{ kind: "ask", title: "Ask SIOS: \u201c" + input.text.trim() + "\u201d", sub: "Plan it, check it, and do it after your OK", icon: "sparkles" }].concat(results)
 
     function showApps() {
         open();
@@ -46,8 +47,31 @@ Window {
     function go(i) {
         const item = rows[i];
         if (!item) return;
+        if (item.kind === "ask") { askNow(input.text); return; }
         search.run(item);
         close();
+    }
+    function askNow(text) {
+        if (!text.trim()) return;
+        mode = "assistant";
+        assistant.ask(text);
+        input.text = "";
+    }
+    // one goal's events in plain words, for the assistant view
+    function say(e) {
+        switch (e.t) {
+        case "plan": return ["sparkles", e.understanding || "Planned it."];
+        case "question": return ["info", e.text];
+        case "review": return ["shield-check", "Waiting for your OK in the approval window."];
+        case "granted": return ["check", e.rule ? "Allowed by your rule: " + e.rule : "You allowed it."];
+        case "ask": return ["shield-check", "Step " + e.n + " needs your OK: " + (e.reason || "")];
+        case "step": return [e.decision === "allow" && !e.error ? "check" : "x", (e.kind === "compose" ? "Wrote the text" : (e.tool || "")) + (e.error ? ": " + e.error : e.decision !== "allow" ? ": " + (e.reason || e.decision) : "")];
+        case "replan": return ["refresh-cw", "Adjusting the plan."];
+        case "undo": return ["rotate-ccw", "Undid the last change."];
+        case "done": return ["check", e.text];
+        case "error": return ["x", e.message];
+        default: return null;
+        }
     }
 
     Connections {
@@ -55,7 +79,8 @@ Window {
         function onToggled() { bar.visible ? bar.close() : bar.open(); }
         function onAppsRequested() { bar.visible && bar.mode === "apps" ? bar.close() : bar.showApps(); }
     }
-    onActiveChanged: if (!active && visible) close()
+    // the approval window takes focus while SIOS works; stay open for it then
+    onActiveChanged: if (!active && visible && mode !== "assistant") close()
     Component.onCompleted: if (visible) { if (startApps) showApps(); else open(); }
 
     // a soft shadow, drawn as faint rings so it needs no GPU
@@ -133,13 +158,36 @@ Window {
                 }
             }
 
+            // ---- the assistant at work: what you asked, then each event in plain words
+            ColumnLayout {
+                visible: bar.mode === "assistant"
+                Layout.fillWidth: true
+                Layout.leftMargin: 28
+                Layout.rightMargin: 28
+                Layout.topMargin: 20
+                Layout.bottomMargin: 12
+                spacing: 10
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: assistant.request; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.Medium }
+                Repeater {
+                    model: assistant.events.map(e => bar.say(e)).filter(x => x && x[1])
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Icon { name: modelData[0]; size: 16; color: modelData[0] === "x" ? Theme.danger : Theme.aiInk; Layout.alignment: Qt.AlignTop; Layout.topMargin: 2 }
+                        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: modelData[1]; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14 }
+                    }
+                }
+                Text { visible: assistant.running; text: "Working…"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
+            }
+
             // ---- suggestions or results
             Text {
                 visible: bar.mode === "search"
                 Layout.leftMargin: 28
                 Layout.topMargin: 20
                 Layout.bottomMargin: 8
-                text: input.text.trim() === "" ? "Try one, or type anything" : bar.results.length ? "Best matches" : "Nothing matches “" + input.text.trim() + "”"
+                text: input.text.trim() === "" ? "Try one, or type anything" : bar.results.length ? "Best matches" : "Ask SIOS, or nothing else matches"
                 color: Theme.fg2
                 font.family: Theme.ui
                 font.pixelSize: 15
@@ -204,7 +252,7 @@ Window {
                 Icon { name: "cpu"; size: 16; color: Theme.ok }
                 Text {
                     Layout.fillWidth: true
-                    text: bar.mode === "apps" ? "Every app on this computer, A to Z." : "Finds apps, files and settings. Asking SIOS arrives with the assistant."
+                    text: bar.mode === "apps" ? "Every app on this computer, A to Z." : bar.mode === "assistant" ? "Type a follow-up, or esc to close. Nothing runs without your OK." : "Finds apps, files and settings, or asks SIOS to do it."
                     color: Theme.fg2
                     font.family: Theme.ui
                     font.pixelSize: 13
@@ -245,8 +293,9 @@ Window {
                     background: null
                     padding: 0
                     focus: true
-                    placeholderText: bar.mode === "apps" ? "Find an app…" : "Search apps, files and settings…"
+                    placeholderText: bar.mode === "apps" ? "Find an app…" : bar.mode === "assistant" ? "Ask a follow-up…" : "Ask SIOS, or search apps, files and settings…"
                     onTextChanged: {
+                        if (bar.mode === "assistant") return;
                         if (bar.mode === "apps") bar.apps = search.allApps(text);
                         else bar.results = text.trim() ? search.find(text) : [];
                         bar.current = 0;
@@ -258,8 +307,8 @@ Window {
                     Keys.onUpPressed: bar.current = Math.max(0, bar.current - step)
                     Keys.onRightPressed: (e) => { if (bar.mode === "apps") bar.current = Math.min(count - 1, bar.current + 1); else e.accepted = false; }
                     Keys.onLeftPressed: (e) => { if (bar.mode === "apps") bar.current = Math.max(0, bar.current - 1); else e.accepted = false; }
-                    Keys.onReturnPressed: bar.mode === "apps" ? (bar.apps[bar.current] && (search.run(bar.apps[bar.current]), bar.close())) : bar.go(bar.current)
-                    Keys.onEnterPressed: bar.mode === "apps" ? (bar.apps[bar.current] && (search.run(bar.apps[bar.current]), bar.close())) : bar.go(bar.current)
+                    Keys.onReturnPressed: bar.mode === "assistant" ? bar.askNow(text) : bar.mode === "apps" ? (bar.apps[bar.current] && (search.run(bar.apps[bar.current]), bar.close())) : bar.go(bar.current)
+                    Keys.onEnterPressed: bar.mode === "assistant" ? bar.askNow(text) : bar.mode === "apps" ? (bar.apps[bar.current] && (search.run(bar.apps[bar.current]), bar.close())) : bar.go(bar.current)
                 }
                 Rectangle {
                     implicitWidth: 40; implicitHeight: 34; radius: 10

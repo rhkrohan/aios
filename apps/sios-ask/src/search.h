@@ -1,6 +1,6 @@
 // What the Ask bar finds as you type: apps (KDE's app list), settings pages,
 // actions (lock, sleep, dark mode, ...) and files (KDE's file index, Baloo).
-// Asking the assistant itself arrives with brain-d (Stage B).
+// Asking the assistant is assistant.h (brain-d).
 #pragma once
 
 #include <QObject>
