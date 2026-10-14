@@ -1,15 +1,13 @@
 [Icon Theme]
 Name=SIOS
-Comment=SIOS: blue folders in the sidebar; everything else is Breeze (apps keep their own icons)
+Comment=SIOS: warm folders with a sign for what's inside; everything else is Breeze (apps keep their own icons)
 Inherits=breeze,hicolor
-Directories=places/22
+Directories=places/scalable
 
-# The preview's blue folders in the Files sidebar (small sizes). Breeze draws
-# these as grey outlines below 32px; these are Breeze's own colour folders
-# (LGPL-3.0, KDE breeze-icons), copied into places/22.
-[places/22]
-Size=22
+# SIOS folders at every size, drawn by ui/make-folders.py (owner's pick, 2026-10-14)
+[places/scalable]
+Size=64
 MinSize=16
-MaxSize=24
+MaxSize=512
 Type=Scalable
 Context=Places

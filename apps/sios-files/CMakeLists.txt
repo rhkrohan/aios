@@ -58,6 +58,8 @@ qt_add_qml_module(sios-files
         src/icons/house.svg src/icons/file-text.svg src/icons/download.svg src/icons/code-xml.svg
         src/icons/image.svg src/icons/clock.svg src/icons/globe.svg src/icons/trash-2.svg
         src/icons/git-branch.svg src/icons/sparkles.svg src/icons/lock.svg src/icons/folder.svg
+        src/folders/folder.svg src/folders/projects.svg src/folders/documents.svg src/folders/downloads.svg
+        src/folders/pictures.svg src/folders/music.svg src/folders/videos.svg src/folders/desktop.svg src/folders/home.svg
 )
 
 target_link_libraries(sios-files PRIVATE

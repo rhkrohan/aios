@@ -1,9 +1,6 @@
 /*
-    One folder as a disc, like the preview's FolderDisc
-    (build_concept_html/src/components/icons/FolderDisc.tsx):
-      outer ring  what kinds of files are inside, sized by how many
-      core        the folder's emblem, or a photo for Pictures
-    The rings come from the real folder, read with FolderListModel.
+    One folder on the desktop: the SIOS folder for its kind, its name, and what's
+    inside (read from the real folder with FolderListModel; shown on hover).
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
@@ -70,7 +67,7 @@ Item {
         segments = Object.keys(counts).map(k => ({ kind: k, n: counts[k] })).sort((a, b) => b.n - a.n);
         total = files.count;
         newestPicture = pic;
-        ring.requestPaint();
+
     }
 
     function summary() {
@@ -78,7 +75,8 @@ Item {
         return segments.slice(0, 3).map(g => g.n + " " + (g.n === 1 ? plural[g.kind].replace(/s$/, "") : plural[g.kind])).join(", ");
     }
 
-    // the disc
+    // the folder: the SIOS folder for this kind (ui/make-folders.py, owner's pick
+    // 2026-10-14), lifting a little under the pointer
     Item {
         id: body
         width: 74
@@ -86,122 +84,13 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: 6
-
-        Canvas {
-            id: ring
-            anchors.fill: parent
-            antialiasing: true
-            renderStrategy: Canvas.Cooperative
-            property real grow: disc.hovered ? 1.03 : 1.0
-            Behavior on grow { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
-            onGrowChanged: requestPaint()
-            readonly property string photoUrl: disc.photo ? (disc.newestPicture || "file:///usr/share/wallpapers/SIOS-Lake/contents/images/2880x1920.jpg") : ""
-            property bool photoReady: false
-            onPhotoUrlChanged: { photoReady = false; if (photoUrl) loadImage(photoUrl); }
-            onImageLoaded: { photoReady = true; requestPaint(); }
-            Component.onCompleted: if (photoUrl) loadImage(photoUrl)
-
-            onPaint: {
-                const ctx = getContext("2d");
-                const k = width / 100;
-                ctx.reset();
-                ctx.scale(k, k);
-                const TAU = Math.PI * 2;
-
-                const arc = (r, a0, a1) => ctx.arc(50, 50, r, a0 - Math.PI / 2, a1 - Math.PI / 2, false);
-
-                // the preview's FolderDisc, layer by layer (FolderDisc.tsx, tone
-                // "glass"). Its frosted blur needs a GPU, so the glass here is a
-                // light wash over the wallpaper plus the same soft drop shadow.
-                const sh = ctx.createRadialGradient(50, 56, 34, 50, 56, 44);
-                sh.addColorStop(0, "rgba(10,20,40,0.5)");
-                sh.addColorStop(1, "rgba(10,20,40,0)");
-                ctx.fillStyle = sh;
-                ctx.beginPath(); ctx.arc(50, 56, 44, 0, TAU); ctx.fill();
-
-                // body: clear glass lit from the top
-                const body = ctx.createRadialGradient(50, 38, 0, 50, 38, 65);
-                body.addColorStop(0, "rgba(236,242,255,0.52)");
-                body.addColorStop(1, "rgba(214,224,246,0.30)");
-                ctx.fillStyle = body;
-                ctx.beginPath(); ctx.arc(50, 50, 48, 0, TAU); ctx.fill();
-                // rim: white, with a faint dark line just under it
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = "rgba(10,20,40,0.18)";
-                ctx.beginPath(); ctx.arc(50, 51, 48, 0, TAU); ctx.stroke();
-                ctx.lineWidth = 1.2;
-                ctx.strokeStyle = "rgba(255,255,255,0.7)";
-                ctx.beginPath(); ctx.arc(50, 50, 48, 0, TAU); ctx.stroke();
-
-                // outer ring: what's inside, one colour per kind (folders white)
-                ctx.save();
-                ctx.translate(50, 50); ctx.scale(grow, grow); ctx.translate(-50, -50);
-                ctx.lineWidth = 6;
-                ctx.strokeStyle = "rgba(255,255,255,0.3)";
-                ctx.beginPath(); ctx.arc(50, 50, 41, 0, TAU); ctx.stroke();
-                const segs = disc.segments;
-                const gap = segs.length > 1 ? 0.07 : 0;
-                ctx.lineCap = segs.length > 1 ? "round" : "butt";
-                for (const pass of disc.hovered ? ["glow", "ring"] : ["ring"]) {
-                    let start = 0;
-                    for (const sg of segs) {
-                        const span = sg.n / Math.max(1, disc.total) * TAU;
-                        ctx.strokeStyle = disc.colors[sg.kind];
-                        // hovered: a soft halo under each segment (the preview's glow)
-                        ctx.lineWidth = pass === "glow" ? 11 : 6;
-                        ctx.globalAlpha = pass === "glow" ? 0.22 : (disc.hovered ? 1 : 0.88);
-                        ctx.beginPath();
-                        if (span >= TAU - 1e-3) ctx.arc(50, 50, 41, 0, TAU);
-                        else arc(41, start + gap / 2, start + span - gap / 2);
-                        ctx.stroke();
-                        start += span;
-                    }
-                }
-                ctx.globalAlpha = 1;
-                ctx.restore();
-
-                // groove, then the inner ring
-                ctx.lineWidth = 0.6;
-                ctx.strokeStyle = "rgba(255,255,255,0.5)";
-                ctx.beginPath(); ctx.arc(50, 50, 34.5, 0, TAU); ctx.stroke();
-                ctx.save();
-                const shrink = disc.hovered ? 0.97 : 1;
-                ctx.translate(50, 50); ctx.scale(shrink, shrink); ctx.translate(-50, -50);
-                ctx.lineWidth = 2.2;
-                ctx.strokeStyle = "rgba(255,255,255,0.4)";
-                ctx.beginPath(); ctx.arc(50, 50, 29, 0, TAU); ctx.stroke();
-                ctx.restore();
-
-                // core: a soft shadow so it sits above the glass, then white
-                const cs = ctx.createRadialGradient(50, 51.5, 14, 50, 51.5, 24);
-                cs.addColorStop(0, "rgba(10,20,40,0.2)");
-                cs.addColorStop(1, "rgba(10,20,40,0)");
-                ctx.fillStyle = cs;
-                ctx.beginPath(); ctx.arc(50, 51.5, 24, 0, TAU); ctx.fill();
-                const c = ctx.createRadialGradient(50, 40, 0, 50, 40, 22.8);
-                c.addColorStop(0, "#ffffff");
-                c.addColorStop(1, "#f4f7fb");
-                ctx.fillStyle = c;
-                ctx.beginPath(); ctx.arc(50, 50, 19, 0, TAU); ctx.fill();
-                if (photoUrl && isImageLoaded(photoUrl)) {
-                    ctx.save();
-                    ctx.beginPath(); ctx.arc(50, 50, 19, 0, TAU); ctx.clip();
-                    ctx.drawImage(photoUrl, 31, 31, 38, 38);
-                    ctx.restore();
-                }
-                ctx.lineWidth = 0.8;
-                ctx.strokeStyle = "#ffffff";
-                ctx.beginPath(); ctx.arc(50, 50, 19, 0, TAU); ctx.stroke();
-            }
-        }
-
         Image {
-            visible: !disc.photo || !ring.photoReady
-            anchors.centerIn: parent
-            width: 15
-            height: 15
-            sourceSize: Qt.size(45, 45)
-            source: Qt.resolvedUrl("../images/" + disc.emblem + ".svg")
+            anchors.fill: parent
+            sourceSize: Qt.size(148, 148)
+            source: Qt.resolvedUrl("../images/" + (disc.emblem || "folder") + ".svg")
+            smooth: true
+            scale: disc.hovered ? 1.06 : 1.0
+            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         }
     }
 
