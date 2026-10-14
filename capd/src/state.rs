@@ -346,6 +346,11 @@ impl State {
     pub fn handle_as(&mut self, req: &Value, who: Option<crate::peer::Who>) -> Value {
         let method = req["method"].as_str().unwrap_or("");
         let p = &req["params"];
+        // SIOS's own windows may see what waits for the owner and say no (M5)
+        let viewer = match who {
+            Some(w) => w == crate::peer::Who::Owner || w == crate::peer::Who::OwnerApp,
+            None => self.is_owner_secret(req),
+        };
         let (owner, service) = match who {
             Some(w) => (w == crate::peer::Who::Owner, w == crate::peer::Who::Service),
             None => (
@@ -488,10 +493,11 @@ impl State {
                 .filter(|(_, x)| x.answer.is_none())
                 .map(|(id, x)| json!({ "id": id, "principal": x.cap.principal, "goal": x.cap.goal, "tool": x.tool, "args": x.args, "reason": x.reason, "checks": x.checks }))
                 .collect::<Vec<_>>() })),
-            // what's waiting for the owner, in plain terms, for the approval window;
-            // readable by any program of this user (the socket is theirs alone)
+            // what's waiting for the owner, in plain terms, for the approval window only:
+            // it holds other AIs' goals and arguments (email bodies...)
+            "pending.list" | "decline" if !viewer => Err("only SIOS's approval window can see or answer requests".into()),
             "pending.list" => Ok(self.pending_list()),
-            // anyone may say no to something waiting: a no can't do harm. Yes is the owner's (D39)
+            // the approval window may say no without a password: a no can't do harm. Yes is the owner's (D39)
             "decline" => {
                 let id = p["id"].as_str().unwrap_or("").to_string();
                 if self.ungranted.contains(&id) {
@@ -1935,26 +1941,32 @@ mod tests {
     }
 
     #[test]
-    fn the_approval_window_sees_what_waits_and_anyone_can_say_no() {
+    fn the_approval_window_sees_what_waits_and_can_say_no() {
         let mut r = rig();
         let v = r.agent("request_pass", json!({ "principal": "sios", "goal": "tidy Downloads", "tools": ["files.organize"], "paths": ["Downloads"], "ttl": 600, "uses": 4 }))["ok"].clone();
         let id = v["id"].as_str().unwrap().to_string();
-        let list = r.agent("pending.list", json!({}))["ok"].clone();
+        // other AIs and scripts can't read what waits (goals, email bodies) or answer it
+        assert!(r.agent("pending.list", json!({}))["error"].is_string());
+        assert!(r.st.handle_as(&json!({ "method": "pending.list", "params": {} }), Some(crate::peer::Who::Agent))["error"].is_string());
+        let window = |r: &mut Rig, m: &str, p: Value| r.st.handle_as(&json!({ "method": m, "params": p }), Some(crate::peer::Who::OwnerApp));
+        let list = window(&mut r, "pending.list", json!({}))["ok"].clone();
         let p = &list["passes"][0];
         assert_eq!((p["id"].as_str(), p["goal"].as_str(), p["tools"][0]["name"].as_str(), p["tools"][0]["level"].as_str()), (Some(id.as_str()), Some("tidy Downloads"), Some("files.organize"), Some("reversible")));
         assert_eq!(p["paths"][0], "Downloads");
         // saying yes is the owner's; saying no is anyone's
         assert!(r.agent("grant", json!({ "id": id }))["error"].is_string());
-        assert_eq!(r.agent("decline", json!({ "id": id }))["ok"]["declined"], id);
-        assert!(r.agent("pending.list", json!({}))["ok"]["passes"].as_array().unwrap().is_empty());
+        assert!(r.agent("decline", json!({ "id": id }))["error"].is_string(), "an agent can't decline");
+        assert!(window(&mut r, "grant", json!({ "id": id }))["error"].is_string(), "the window alone can't say yes");
+        assert_eq!(window(&mut r, "decline", json!({ "id": id }))["ok"]["declined"], id);
+        assert!(window(&mut r, "pending.list", json!({}))["ok"]["passes"].as_array().unwrap().is_empty());
         assert_eq!(r.st.pass_state(v["token"].as_str().unwrap()), "revoked");
-        assert!(r.agent("decline", json!({ "id": "nope" }))["error"].is_string());
+        assert!(window(&mut r, "decline", json!({ "id": "nope" }))["error"].is_string());
         // a waiting call shows its tool, why it asks, and arguments cut short
         let t = r.mint(json!({ "principal": "a", "goal": "send notes", "tools": ["mail.send"] }));
         let long = "x".repeat(1000);
         let c = r.call(&t, "mail.send", json!({ "to": ["sara.okafor@example.com"], "subject": "Notes", "body": long }));
         assert_eq!(decision(&c), "ask");
-        let list = r.agent("pending.list", json!({}))["ok"].clone();
+        let list = window(&mut r, "pending.list", json!({}))["ok"].clone();
         let call = &list["calls"][0];
         assert_eq!(call["tool"]["name"], "mail.send");
         assert!(call["args"]["body"].as_str().unwrap().chars().count() <= 300);

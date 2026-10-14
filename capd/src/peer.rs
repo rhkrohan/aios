@@ -22,6 +22,10 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Who {
     Owner,
+    /// One of SIOS's own window apps (Approve, Settings), known by its program.
+    /// Not proof of the owner (see the limit above), so it may only look at what
+    /// waits for the owner and say no; anything else still needs the password.
+    OwnerApp,
     Service,
     Agent,
 }
@@ -62,8 +66,8 @@ pub fn classify(p: &Proc, owners: &[&str], service: Option<(&str, &str)>) -> Who
     if !p.same_user || p.traced || p.injected {
         return Who::Agent;
     }
-    if OWNER_BY_PROGRAM && owners.contains(&p.exe.as_str()) {
-        return Who::Owner;
+    if owners.contains(&p.exe.as_str()) {
+        return if OWNER_BY_PROGRAM { Who::Owner } else { Who::OwnerApp };
     }
     if let Some((exe, unit)) = service {
         if p.exe == exe && p.cgroup.lines().any(|l| l.ends_with(unit)) {
@@ -117,7 +121,7 @@ mod tests {
     fn programs_in_the_image_are_who_they_say() {
         let user = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-org.sios.settings-2.scope";
         // the owner is never proven by program alone (see the limit at the top)
-        assert_eq!(classify(&p("/usr/bin/sios-settings", user), &OWNER_APPS, Some(SERVICE)), if OWNER_BY_PROGRAM { Who::Owner } else { Who::Agent });
+        assert_eq!(classify(&p("/usr/bin/sios-settings", user), &OWNER_APPS, Some(SERVICE)), if OWNER_BY_PROGRAM { Who::Owner } else { Who::OwnerApp });
         let brain = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/sios-brain.service";
         assert_eq!(classify(&p("/usr/bin/brain-d", brain), &OWNER_APPS, Some(SERVICE)), Who::Service);
     }
