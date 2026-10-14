@@ -39,7 +39,8 @@ PlasmoidItem {
     // reduced motion (KDE animation speed set to Instant): no bouncing, blinking or floating z's
     readonly property bool still: Kirigami.Units.longDuration === 0
     readonly property int box: 112          // the window around it, room for the strands and the bounce
-    property string mood: "idle"            // idle | happy | sleeping
+    // idle | listen | think | work | ask | happy | proud | surprised | confused | sad | sleeping
+    property string mood: "idle"
     property string bubble: ""
     property real lastActivity: Date.now()
     property point eye: Qt.point(0, 0)
@@ -201,101 +202,95 @@ PlasmoidItem {
                     lively: true
                 }
 
-                // eyes (drawn for a 58px pet in the preview; scaled)
-                Item {
-                    id: face
-                    anchors.fill: parent
-                    readonly property real k: root.size / 58
+                // the face (owner's pick, 2026-10-14: glossy eyes, no blush), drawn on the
+                // same 100-unit grid as the design board, in front of the orb's centre.
+                // Moods: idle listen think work ask happy proud surprised confused sad sleeping
+                Canvas {
+                    id: faceCanvas
+                    anchors.centerIn: parent
+                    width: Math.round(root.size * 1.28)
+                    height: width
+                    property string m: root.mood
+                    property real blink: 1
+                    property real ex: root.eye.x
+                    property real ey: root.eye.y
+                    onMChanged: requestPaint()
+                    onBlinkChanged: requestPaint()
+                    onExChanged: requestPaint()
+                    onEyChanged: requestPaint()
+                    Behavior on ex { NumberAnimation { duration: 140 } }
+                    Behavior on ey { NumberAnimation { duration: 140 } }
+                    SequentialAnimation on blink {
+                        loops: Animation.Infinite
+                        running: pet.visible && !root.still
+                        PauseAnimation { duration: 3900 }
+                        NumberAnimation { to: 0.1; duration: 80 }
+                        NumberAnimation { to: 1; duration: 90 }
+                    }
+                    readonly property color ink: "#1a1640"
+                    onPaint: {
+                        const c = getContext("2d");
+                        c.reset();
+                        c.scale(width / 100, height / 100);
+                        const ink = "#1a1640";
+                        const L = 39 + ex * 0.5, R = 61 + ex * 0.5, Y = 50 + ey * 0.5;
+                        // a glossy eye: dark oval, a big shine and a small one
+                        function eye(x, y, ry) {
+                            ry = ry * blink;
+                            c.fillStyle = ink;
+                            c.beginPath(); c.ellipse(x - 5.4, y - ry, 10.8, ry * 2); c.fill();
+                            if (blink < 0.5) return;
+                            c.fillStyle = "#ffffff";
+                            c.beginPath(); c.arc(x + 1.9, y - ry * 0.42, 2.1, 0, Math.PI * 2); c.fill();
+                            c.globalAlpha = 0.8;
+                            c.beginPath(); c.arc(x - 1.6, y + ry * 0.45, 1, 0, Math.PI * 2); c.fill();
+                            c.globalAlpha = 1;
+                        }
+                        function stroke(w) { c.strokeStyle = ink; c.lineWidth = w; c.lineCap = "round"; c.lineJoin = "round"; c.stroke(); }
+                        function arcUp(x, y, w) { c.beginPath(); c.moveTo(x - w / 2, y + 1.5); c.quadraticCurveTo(x, y - w * 0.8, x + w / 2, y + 1.5); stroke(2.6); }
+                        function arcDown(x, y, w) { c.beginPath(); c.moveTo(x - w / 2, y - 1); c.quadraticCurveTo(x, y + w * 0.6, x + w / 2, y - 1); stroke(2.6); }
+                        function bar(x, y, w) { c.beginPath(); c.moveTo(x - w / 2, y); c.lineTo(x + w / 2, y); stroke(2.6); }
+                        function brow(x, y, deg) {
+                            const a = deg * Math.PI / 180, dx = 4 * Math.cos(a), dy = 4 * Math.sin(a);
+                            c.beginPath(); c.moveTo(x - dx, y - dy); c.lineTo(x + dx, y + dy); stroke(2.2);
+                        }
+                        function mouth(kind) {
+                            c.beginPath();
+                            if (kind === "smile") { c.moveTo(46, 60); c.quadraticCurveTo(50, 64, 54, 60); stroke(2); }
+                            else if (kind === "big") { c.moveTo(44, 59); c.quadraticCurveTo(50, 66, 56, 59); c.closePath(); c.fillStyle = ink; c.fill(); }
+                            else if (kind === "o") { c.ellipse(47.2, 57.6, 5.6, 6.8); c.fillStyle = ink; c.fill(); }
+                            else if (kind === "O") { c.ellipse(46.4, 57.4, 7.2, 9.2); c.fillStyle = ink; c.fill(); }
+                            else if (kind === "flat") { c.moveTo(47, 61); c.lineTo(53, 61); stroke(2); }
+                            else if (kind === "wavy") { c.moveTo(45, 61); c.quadraticCurveTo(47.5, 59, 50, 61); c.quadraticCurveTo(52.5, 63, 55, 61); stroke(2); }
+                            else if (kind === "frown") { c.moveTo(46, 62); c.quadraticCurveTo(50, 58, 54, 62); stroke(2); }
+                        }
+                        switch (m) {
+                        case "listen": eye(L, Y, 7.1); eye(R, Y, 7.1); brow(39, 40, -8); brow(61, 40, 8); mouth("o"); break;
+                        case "think": eye(L - 1, Y - 3, 6.6); eye(R - 1, Y - 3, 6.6); brow(39, 40, -12); brow(61, 39, 0); mouth("flat"); break;
+                        case "work": bar(39, 50, 8); bar(61, 50, 8); brow(39, 42, 10); brow(61, 42, -10); mouth("flat"); break;
+                        case "ask": eye(L, Y, 7.9); eye(R, Y, 7.9); brow(39, 38, -14); brow(61, 38, 14); mouth("o"); break;
+                        case "happy": arcUp(39, 50, 9); arcUp(61, 50, 9); mouth("big"); break;
+                        case "proud": arcUp(39, 49, 9); arcUp(61, 49, 9); mouth("smile"); break;
+                        case "surprised": eye(L, Y, 8.6); eye(R, Y, 8.6); brow(39, 36, 0); brow(61, 36, 0); mouth("O"); break;
+                        case "confused": eye(L, Y, 5.9); eye(R, Y, 7.3); brow(39, 40, -15); brow(61, 38, 12); mouth("wavy"); break;
+                        case "sad": eye(L, Y + 2, 6.3); eye(R, Y + 2, 6.3); brow(39, 41, 18); brow(61, 41, -18); mouth("frown"); break;
+                        case "sleeping": arcDown(39, 51, 8); arcDown(61, 51, 8); mouth("smile"); break;
+                        default: eye(L, Y, 6.6); eye(R, Y, 6.6); mouth("smile");
+                        }
+                    }
+                }
 
-                    Row {
-                        visible: root.mood === "idle"
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: parent.height * 0.30
-                        spacing: 7 * face.k
-                        Repeater {
-                            model: 2
-                            Rectangle {
-                                id: eyeWhite
-                                width: 11 * face.k
-                                height: 14 * face.k
-                                radius: width / 2
-                                color: "white"
-                                clip: true
-                                property real blink: 1
-                                transform: Scale { origin.y: eyeWhite.height / 2; yScale: eyeWhite.blink }
-                                SequentialAnimation on blink {
-                                    loops: Animation.Infinite
-                                    running: pet.visible && !root.still
-                                    PauseAnimation { duration: 3900 }
-                                    NumberAnimation { to: 0.1; duration: 80 }
-                                    NumberAnimation { to: 1; duration: 90 }
-                                }
-                                Rectangle {
-                                    width: 6 * face.k
-                                    height: width
-                                    radius: width / 2
-                                    color: "#1a1d3a"
-                                    x: (parent.width - width) / 2 + root.eye.x * face.k
-                                    y: (parent.height - height) / 2 + root.eye.y * face.k
-                                    Behavior on x { NumberAnimation { duration: 120 } }
-                                    Behavior on y { NumberAnimation { duration: 120 } }
-                                }
-                            }
-                        }
-                    }
-                    // happy: closed upturned eyes
-                    Row {
-                        visible: root.mood === "happy"
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: parent.height * 0.34
-                        spacing: 8 * face.k
-                        Repeater {
-                            model: 2
-                            Canvas {
-                                width: 11 * face.k
-                                height: 7 * face.k
-                                onPaint: {
-                                    const c = getContext("2d"); const k = face.k;
-                                    c.reset(); c.scale(k, k);
-                                    c.strokeStyle = "#1a1d3a"; c.lineWidth = 2.2; c.lineCap = "round";
-                                    c.beginPath(); c.moveTo(1, 6); c.quadraticCurveTo(5.5, 0, 10, 6); c.stroke();
-                                }
-                            }
-                        }
-                    }
-                    // asleep: closed lines
-                    Row {
-                        visible: root.mood === "sleeping"
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: parent.height * 0.38
-                        spacing: 9 * face.k
-                        Repeater { model: 2; Rectangle { width: 9 * face.k; height: 2.5 * face.k; radius: height / 2; color: "#1a1d3a" } }
-                    }
-
-                    // mouth
-                    Canvas {
-                        id: mouth
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: parent.height * 0.57
-                        width: 12 * face.k
-                        height: 8 * face.k
-                        property string m: root.mood
-                        onMChanged: requestPaint()
-                        onPaint: {
-                            const c = getContext("2d"); const k = face.k;
-                            c.reset(); c.scale(k, k);
-                            c.strokeStyle = "#1a1d3a"; c.lineWidth = 1.8; c.lineCap = "round"; c.lineJoin = "round";
-                            if (m === "sleeping") {
-                                c.fillStyle = "rgba(26,29,58,0.8)";
-                                c.beginPath(); c.ellipse(3, 1, 6, 5); c.fill();
-                            } else {
-                                c.beginPath();
-                                if (m === "happy") { c.moveTo(1.5, 1.5); c.quadraticCurveTo(6, 7.5, 10.5, 1.5); c.fillStyle = "#ff7a9a"; c.fill(); }
-                                else { c.moveTo(2.5, 2); c.quadraticCurveTo(6, 5.5, 9.5, 2); }
-                                c.stroke();
-                            }
-                        }
-                    }
+                // a few moods carry a small sign: thinking dots, a question mark, sparkles
+                Text {
+                    visible: root.mood === "confused" || root.mood === "think" || root.mood === "proud"
+                    x: faceCanvas.x + faceCanvas.width * 0.70
+                    y: faceCanvas.y + faceCanvas.height * 0.12
+                    text: root.mood === "confused" ? "?" : root.mood === "think" ? "\u2026" : "\u2726"
+                    color: root.mood === "proud" ? "#ffe08a" : "white"
+                    font.pixelSize: Math.round(root.size * 0.2)
+                    font.weight: Font.Bold
+                    style: Text.Raised
+                    styleColor: Qt.rgba(0, 0, 0, 0.35)
                 }
 
                 // a ripple of the orb's light when you tap it
@@ -399,6 +394,22 @@ PlasmoidItem {
         }
     }
     signal tapped()
+
+    // something is waiting for the owner's OK: look up, wide-eyed, until it's answered
+    property int waiting: 0
+    P5Support.DataSource {
+        id: status
+        engine: "executable"
+        onNewData: (source, data) => {
+            try { root.waiting = JSON.parse(String(data.stdout)).ok.pending || 0; } catch (e) { root.waiting = 0; }
+            disconnectSource(source);
+        }
+    }
+    Timer { interval: 4000; running: true; repeat: true; triggeredOnStart: true; onTriggered: status.connectSource("capd status 2>/dev/null") }
+    onWaitingChanged: {
+        if (waiting > 0 && (mood === "idle" || mood === "sleeping")) { mood = "ask"; lastActivity = Date.now(); }
+        else if (waiting === 0 && mood === "ask") mood = "idle";
+    }
 
     // ---- speech bubble, in its own small window above the buddy
     PlasmaCore.Dialog {
