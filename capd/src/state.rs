@@ -495,6 +495,12 @@ impl State {
                 .collect::<Vec<_>>() })),
             // what's waiting for the owner, in plain terms, for the approval window only:
             // it holds other AIs' goals and arguments (email bodies...)
+            // the apps the owner paired and what they may do, for Settings (no secrets)
+            "iam.apps" if viewer => Ok(json!({
+                "apps": self.iam.identities.iter().filter(|i| i.kind == "app").map(|i| json!({ "id": i.id, "name": i.name, "roles": i.roles, "paused": self.iam.is_paused(&i.id), "since": i.since })).collect::<Vec<_>>(),
+                "roles": self.iam.roles.iter().filter(|r| !r.global).map(|r| json!({ "id": r.id, "name": r.name, "about": r.about })).collect::<Vec<_>>(),
+            })),
+            "iam.apps" => Err("only SIOS's own windows can list paired apps".into()),
             "pending.list" | "decline" if !viewer => Err("only SIOS's approval window can see or answer requests".into()),
             "pending.list" => Ok(self.pending_list()),
             // the approval window may say no without a password: a no can't do harm. Yes is the owner's (D39)

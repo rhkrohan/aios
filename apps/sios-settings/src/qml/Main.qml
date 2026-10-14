@@ -89,9 +89,10 @@ QQC2.ApplicationWindow {
         property string title
         property string sub
         spacing: 2
+        Layout.fillWidth: true
         Layout.bottomMargin: 8
         Text { text: parent.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold }
-        Text { text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
+        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
     }
     component Soon: Rectangle {
         property string text
@@ -182,6 +183,7 @@ QQC2.ApplicationWindow {
                     Connections {
                         target: broker
                         function onDone(tag, ok, error) {
+                            if (["key", "remove", "consent", "configure", "use", "test"].indexOf(tag) < 0) return;
                             brainPage.waiting = "";
                             if (error) toast.show(error, false, true);
                             else toast.show(tag === "test" ? "Connected: the AI answered." : "Saved.", false, false);
@@ -304,13 +306,134 @@ QQC2.ApplicationWindow {
                     Soon { text: "Every action the assistant takes passes the permission broker. Your standing rules and what you've allowed for a session show here once it runs." }
                 }
 
-                // Connected AI apps (Stage B)
+                // Connected AI apps: outside AIs that use this computer through SIOS's
+                // door (MCP), each with the roles you give it (M8, D35). Every change
+                // asks for your password; a pairing token is shown once.
                 ColumnLayout {
+                    id: appsPage
                     visible: win.page === "connections"
                     Layout.fillWidth: true
                     spacing: 18
-                    PageTitle { title: "Connected AI apps"; sub: "Other AIs that can use this computer through SIOS." }
-                    Soon { text: "Apps like Claude Desktop connect through SIOS's door (MCP) and get only the roles you give them. They show here once the assistant runs." }
+                    property var apps: []
+                    property var roles: []
+                    property string token: ""
+                    property string tokenFor: ""
+                    property var picked: ["reader"]
+                    function load() { broker.request("iam.apps", {}, "apps"); }
+                    onVisibleChanged: if (visible) load()
+                    Connections {
+                        target: broker
+                        function onDone(tag, ok, error) {
+                            if (tag === "apps") {
+                                if (!error) { appsPage.apps = ok.apps; appsPage.roles = ok.roles; }
+                                return;
+                            }
+                            if (!tag.startsWith("app-")) return;
+                            if (error) { toast.show(error, false, true); return; }
+                            if (tag === "app-pair") { appsPage.token = ok.token; appsPage.tokenFor = ok.id; }
+                            else toast.show("Saved.", false, false);
+                            appsPage.load();
+                        }
+                    }
+                    function roleName(id) { const r = roles.filter(x => x.id === id)[0]; return r ? r.name : id; }
+
+                    PageTitle { title: "Connected AI apps"; sub: "Other AIs on this computer (Claude Code, Claude Desktop, ...) that use it through SIOS, with only the roles you give them." }
+
+                    // pair a new app
+                    Card {
+                        Text { text: "Pair a new app"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                        RowLayout {
+                            spacing: 8
+                            Field { id: appName; placeholder: "App name, e.g. Claude Code" }
+                        }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: appsPage.roles
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    readonly property bool on: appsPage.picked.indexOf(modelData.id) >= 0
+                                    implicitWidth: rl.implicitWidth + 24; implicitHeight: 30; radius: 15
+                                    color: on ? Theme.accentSoft : Theme.surface
+                                    border.width: 1; border.color: on ? Theme.accent : Theme.line
+                                    Text { id: rl; anchors.centerIn: parent; text: modelData.name; color: parent.on ? Theme.accent : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            const p = appsPage.picked.slice(); const i = p.indexOf(modelData.id);
+                                            if (i >= 0) p.splice(i, 1); else p.push(modelData.id);
+                                            appsPage.picked = p;
+                                        }
+                                    }
+                                    QQC2.ToolTip.visible: hov.hovered
+                                    QQC2.ToolTip.text: modelData.about
+                                    HoverHandler { id: hov }
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Anything that can't be undone still asks you every time, whatever the roles."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                            Button {
+                                text: "Pair"
+                                onClicked: if (appName.text.trim()) broker.request("iam.pair", { name: appName.text.trim(), roles: appsPage.picked }, "app-pair")
+                            }
+                        }
+                    }
+
+                    // the token, once
+                    Card {
+                        visible: appsPage.token !== ""
+                        Text { text: "Paired " + appsPage.tokenFor + ". Copy this now; it isn't shown again."; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                        Text { text: "For Claude Code, run this in a terminal:"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: cmd.implicitHeight + 20; radius: 8
+                            color: Theme.surface2; border.width: 1; border.color: Theme.line
+                            TextEdit {
+                                id: cmd
+                                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 10 }
+                                readOnly: true; selectByMouse: true; wrapMode: TextEdit.WrapAnywhere
+                                text: "claude mcp add --scope user sios --env SIOS_PAIR_TOKEN=" + appsPage.token + " -- /usr/bin/brain-d mcp"
+                                color: Theme.fg; font.family: "JetBrains Mono"; font.pixelSize: 12
+                            }
+                        }
+                        Text { text: "Other apps: an MCP server with command /usr/bin/brain-d, argument mcp, and the environment variable SIOS_PAIR_TOKEN set to the token above."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                        RowLayout {
+                            Item { Layout.fillWidth: true }
+                            Button { text: "Copy"; kind: "plain"; onClicked: { cmd.selectAll(); cmd.copy(); cmd.deselect(); toast.show("Copied.", false, false); } }
+                            Button { text: "Done"; onClicked: { appsPage.token = ""; appName.text = ""; } }
+                        }
+                    }
+
+                    Soon {
+                        visible: appsPage.apps.length === 0 && broker.reachable
+                        text: "No apps paired yet. Unpaired apps can still hand SIOS whole goals (sios_do), which you approve; paired apps can use SIOS's tools directly."
+                    }
+                    Repeater {
+                        model: appsPage.apps
+                        delegate: Card {
+                            id: ac
+                            required property var modelData
+                            RowLayout {
+                                spacing: 10
+                                Rectangle { implicitWidth: 34; implicitHeight: 34; radius: 10; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "plug"; size: 16; color: Theme.aiInk } }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text { text: ac.modelData.name + (ac.modelData.paused ? "  (paused)" : ""); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                    Text {
+                                        Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                        text: ac.modelData.roles.length ? "Roles: " + ac.modelData.roles.map(r => appsPage.roleName(r)).join(", ") : "No roles: it can only hand SIOS whole goals."
+                                        color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                                    }
+                                }
+                                Button { text: ac.modelData.paused ? "Resume" : "Pause"; kind: "plain"; onClicked: broker.request(ac.modelData.paused ? "resume" : "pause", { principal: ac.modelData.id }, "app-pause") }
+                                Button { text: "Use picked roles"; kind: "plain"; onClicked: broker.request("iam.set_roles", { id: ac.modelData.id, roles: appsPage.picked }, "app-roles") }
+                                Button { text: "Remove"; kind: "danger"; onClicked: broker.request("iam.remove", { id: ac.modelData.id }, "app-remove") }
+                            }
+                        }
+                    }
                 }
 
                 // Appearance (real)
