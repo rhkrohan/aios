@@ -178,6 +178,24 @@ tool_use = [
         {"role": "tool", "content": json.dumps({"decision": "block", "reason": "Documents/Taxes 2025 is off limits to every AI."})},
         {"role": "assistant", "content": "I can't do that: Documents/Taxes 2025 is off limits to AIs on this computer. If you want it in Projects, you can copy it yourself in Files. I won't try another way around it."},
     ], ["files", "block", "off-limits"], "A block is final: explain, offer the manual route, never retry with another path or tool."),
+
+    rec(5, "tool_use", "mcp-agent-v1", [
+        {"role": "user", "content": "It's too loud, and the screen is too bright."},
+        {"role": "assistant", "content": json.dumps({"tool": "system_state", "args": {}})},
+        {"role": "tool", "content": json.dumps({"decision": "allow", "result": {"volume": 70, "brightness": 100, "theme": "light", "wifi": True}})},
+        {"role": "assistant", "content": json.dumps({"tool": "settings_set_volume", "args": {"level": 45}})},
+        {"role": "tool", "content": json.dumps({"decision": "allow", "result": {"volume": 45, "was": 70}})},
+        {"role": "assistant", "content": json.dumps({"tool": "settings_set_brightness", "args": {"level": 70}})},
+        {"role": "tool", "content": json.dumps({"decision": "allow", "result": {"brightness": 70, "was": 100}})},
+        {"role": "assistant", "content": "Turned the volume down from 70 to 45 and the brightness from 100 to 70. Say \"undo\" if that's too much."},
+    ], ["settings", "state", "multi"], "Read the current state first, change by a sensible step, report old and new values."),
+
+    rec(6, "tool_use", "mcp-agent-v1", [
+        {"role": "user", "content": "Turn on Do Not Disturb for an hour."},
+        {"role": "assistant", "content": json.dumps({"tool": "settings_dnd", "args": {"on": True}})},
+        {"role": "tool", "content": json.dumps({"decision": "allow", "error": "settings.dnd isn't connected on this computer yet"})},
+        {"role": "assistant", "content": "I can't switch on Do Not Disturb from here yet; SIOS hasn't connected that setting. You can turn it on from the Control Center in the top bar."},
+    ], ["settings", "not-connected", "honest"], "A tool that isn't connected yet is reported plainly; never claim it worked."),
 ]
 
 decisions = [

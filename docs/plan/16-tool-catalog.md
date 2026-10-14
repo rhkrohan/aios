@@ -20,7 +20,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 
 **Status** says how far each tool has got.
 - **Real**: does the job today on real files or real data.
-- **Shell**: the broker approves the call and returns an `effect`, but the desktop shell carries it out. Today that's the preview; on the image it becomes a real adapter (M6, M9).
+- **Shell**: on the Mac preview the broker returns an `effect` that the page carries out. On the image, the tools marked (M6) are real adapters since 2026-10-14; the ones marked (M9) answer "isn't connected on this computer yet" until then.
 - **Not yet**: the name is reserved and the broker refuses the call until the adapter lands.
 
 **Wire name**: tools travel as `area_verb` (for example `settings_set_volume`), because models only accept letters, digits, `_` and `-`.

@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: M6 batch 1 built and checked on the VM (real volume, brightness, theme, wallpaper, notify, open app, show folder, state; undo restores). llm/: 2 tool-use examples (read state first; a tool not connected yet is reported plainly).
 - 2026-10-14: M5 built (approval window). Only SIOS's own window apps may list waiting requests or decline them (tightened after a security review); Allow always needs the password (D39), which also answers the AT-SPI risk. llm/: 1 example (a denied request ends the goal).
 - 2026-10-14: M4 built (model gateway, Settings > Brain). D39 detail: polkit refuses dialog details from unprivileged callers, so owner actions use three polkit actions with their own wording instead. llm/: 3 decision examples for the gateway's refusals.
 - 2026-10-14: Owner asked to build fine-tuning data for a future ~7B SIOS model while we build (D18): new `llm/` folder (format, rules, prompts, tool catalog snapshot, 19 seed examples); CLAUDE.md asks every session to add examples after each task. `capd catalog` prints every tool with its schema.
