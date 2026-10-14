@@ -69,6 +69,8 @@ APPS = {"files": "files", "store": "store", "monitor": "monitor", "settings": "s
 out = ROOT / "system_files/usr/share/icons/hicolor/scalable/apps"
 out.mkdir(parents=True, exist_ok=True)
 for app, key in APPS.items():
-    icon = P1(key, "").replace('width="80" height="80"', 'width="128" height="128"').replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1)
+    # fill the square: the dock and app grid show icons at a fixed size, so margin reads as small
+    icon = (P1(key, "").replace('<ellipse cx="40" cy="70" rx="24" ry="4"', '<ellipse cx="40" cy="66.5" rx="22" ry="2.6"')
+            .replace('translate(6 4) scale(1.42)', 'translate(1 1) scale(1.62)').replace('viewBox="0 0 80 80"', 'viewBox="11 9 58 58"')).replace('width="80" height="80"', 'width="128" height="128"').replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1)
     (out / f"org.sios.{app}.svg").write_text(icon + "\n")
 print(f"{len(APPS)} app icons in {out.relative_to(ROOT)}")

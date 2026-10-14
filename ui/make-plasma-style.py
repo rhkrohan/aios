@@ -143,7 +143,11 @@ panel = dict(radius=20, margin=6, shadow=20, shadow_alpha=0.26, shadow_dy=8)
 write("widgets/panel-background.svgz", frame(opacity=1.0, **panel))
 # the translucent panel is the dock (owner's pick "D5, no bar"): nothing at all behind
 # the icons. The top bar is set opaque in the layout, so it keeps the card above.
-write("translucent/widgets/panel-background.svgz", frame(radius=20, margin=6, shadow=20, opacity=0.0, edge_opacity=0.0, outline=0.0, shadow_alpha=0.0))
+# No mask (KWin would blur and darken behind it) and no shadow pieces either.
+import re as _re
+empty = frame(radius=20, margin=6, shadow=20, opacity=0.0, edge_opacity=0.0, outline=0.0, shadow_alpha=0.0)
+empty = _re.sub(r'<g id="(mask|shadow)-[a-z]+"[^>]*>.*?</g>(?=<g id=|<rect id=|</svg>)', "", empty, flags=_re.S)
+write("translucent/widgets/panel-background.svgz", empty)
 write("solid/widgets/panel-background.svgz", frame(opacity=1.0, **panel))
 
 json.dump({
@@ -159,5 +163,7 @@ json.dump({
     },
     "X-Plasma-API": "5.0",
 }, open(os.path.join(OUT, "metadata.json"), "w"), indent=4)
-open(os.path.join(OUT, "plasmarc"), "w").write("[AdaptiveTransparency]\nenabled=true\n")
+# No blur or darkening behind SIOS surfaces: popups and the top bar are solid cards
+# already, and the dock has no bar at all (KWin would otherwise darken a slab there).
+open(os.path.join(OUT, "plasmarc"), "w").write("[AdaptiveTransparency]\nenabled=true\n\n[BlurBehindEffect]\nenabled=false\n\n[ContrastEffect]\nenabled=false\n")
 print("wrote", OUT)
