@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: D32 amended after a security review: the program check can be faked by a same-user process (copied connection plus exec), so no caller is the owner by program until the owner has an anchor an AI can't fake (decision needed before M4 key saving and M5 approvals). Risk added.
 - 2026-10-14: M2 and M3 built. D32 reworded: the image switches identity on with `SIOS_IDENTITY=peer` in the unit (not a build feature), and the brain is the service only as `/usr/bin/brain-d` in `sios-brain.service`. New risk: AT-SPI can drive owner windows (answer in M5).
 - 2026-10-14: D36 accepted (owner approved the M1 plan): tools renamed to files, apps, settings, network, system, with old names as aliases until M8. Added 16-tool-catalog.md, the list of system abstractions with risk, status and the image backend for each.
 - 2026-10-14: AI OS layer plan (milestones M0 to M11 in phase-2): D33 to D35 accepted by the owner (broker holds API keys and makes model calls; Anthropic, OpenAI, OpenAI-compatible and Gemini; full typed tool catalog over local MCP). D31, D32, D36, D37, D38 proposed (user-service broker for v1, caller identity by SO_PEERCRED and program path, tool rename, native approval prompt, CLI adapters and a Rust image stage). D19's key handling superseded once the gateway lands.
