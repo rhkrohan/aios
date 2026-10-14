@@ -14,6 +14,8 @@ RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
 UMask=0077
 NoNewPrivileges=yes
+# brain-d never talks to the internet: model calls go through the broker (D33)
+RestrictAddressFamilies=AF_UNIX
 Restart=on-failure
 RestartSec=2
 

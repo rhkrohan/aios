@@ -197,6 +197,8 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
             json!({ "principal": ai, "goal": r.request, "tools": tools, "paths": paths, "ttl": 900, "uses": n * 4 + 4, "budget": n * 4 + 4, "no_egress": !egress, "whole_home": paths.iter().any(|p| p.is_empty()), "own": r.own }),
         )?;
         let token = pass["token"].as_str().unwrap_or_default().to_string();
+        // model calls from here on carry the pass, so the broker knows what this goal has read
+        r.model.cap = Some(token.clone());
         let pass_id = pass["id"].as_str().unwrap_or_default().to_string();
         let by_rule = pass["rule"].as_str().map(String::from);
         let (review, blocked) = dry_run(r, &plan, &token)?;

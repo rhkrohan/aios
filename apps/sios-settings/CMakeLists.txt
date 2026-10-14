@@ -8,13 +8,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Svg)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Svg Network)
 find_package(KF6Config REQUIRED)
 find_package(KF6CoreAddons REQUIRED)
 
 qt_standard_project_setup(REQUIRES 6.6)
 
-qt_add_executable(sios-settings src/main.cpp src/system.cpp src/system.h)
+qt_add_executable(sios-settings src/main.cpp src/system.cpp src/system.h src/broker.cpp src/broker.h)
 
 # the QML lives in src/qml but belongs at the module's top level
 set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -34,7 +34,7 @@ qt_add_qml_module(sios-settings
 )
 
 target_link_libraries(sios-settings PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg KF6::ConfigCore KF6::CoreAddons
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network KF6::ConfigCore KF6::CoreAddons
 )
 
 install(TARGETS sios-settings RUNTIME DESTINATION bin)

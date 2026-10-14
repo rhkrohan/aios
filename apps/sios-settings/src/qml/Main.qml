@@ -68,6 +68,23 @@ QQC2.ApplicationWindow {
         Accessible.role: Accessible.CheckBox
         Accessible.checked: on
     }
+    component Field: Rectangle {
+        property alias text: tf.text
+        property alias placeholder: tf.placeholderText
+        property alias secret: tf.echoMode
+        property alias field: tf
+        signal accepted()
+        Layout.fillWidth: true
+        implicitHeight: 32; radius: 8
+        color: Theme.surface; border.width: 1; border.color: tf.activeFocus ? Theme.accent : Theme.line
+        QQC2.TextField {
+            id: tf
+            anchors.fill: parent; anchors.leftMargin: 10
+            placeholderTextColor: Theme.fg3; color: Theme.fg; background: null
+            font.family: Theme.ui; font.pixelSize: 13
+            onAccepted: parent.accepted()
+        }
+    }
     component PageTitle: ColumnLayout {
         property string title
         property string sub
@@ -150,26 +167,128 @@ QQC2.ApplicationWindow {
                 width: Math.min(680, body.width - 80)
                 spacing: 18
 
-                // Brain (Stage B)
+                // Brain: which AI SIOS thinks with. Keys live in the broker, sealed;
+                // every change asks for your password (D33, D39)
                 ColumnLayout {
+                    id: brainPage
                     visible: win.page === "brain"
                     Layout.fillWidth: true
                     spacing: 18
-                    PageTitle { title: "Brain"; sub: "Where SIOS thinks, and what it may share." }
-                    Soon { text: "These settings arrive with the assistant, which runs on this computer in the next stage." }
-                    Repeater {
-                        model: [["cpu", "On this computer", "Handles everyday tasks. Private, and works without internet."], ["cloud", "Online AI for hard tasks", "Long writing, research and complex plans: Claude, ChatGPT or Gemini, or none."], ["lock", "What online AI may see", "Nothing personal, only what the task needs, or full context. Personal details are swapped for placeholders and put back on this computer."]]
-                        delegate: Card {
-                            required property var modelData
-                            opacity: 0.6
-                            RowLayout {
-                                spacing: 12
-                                Rectangle { implicitWidth: 36; implicitHeight: 36; radius: 10; color: Theme.accentSoft; Icon { anchors.centerIn: parent; name: modelData[0]; size: 17; color: Theme.accent } }
-                                ColumnLayout {
+                    readonly property var ai: broker.ai
+                    readonly property var providers: ai.providers || []
+                    readonly property var active: providers.filter(p => p.active)[0]
+                    property string waiting: ""
+                    onVisibleChanged: if (visible) broker.refresh()
+                    Connections {
+                        target: broker
+                        function onDone(tag, ok, error) {
+                            brainPage.waiting = "";
+                            if (error) toast.show(error, false, true);
+                            else toast.show(tag === "test" ? "Connected: the AI answered." : "Saved.", false, false);
+                        }
+                    }
+                    function ask(method, params, tag) { waiting = tag + ":" + (params.id || ""); broker.request(method, params, tag); }
+
+                    PageTitle { title: "Brain"; sub: "The AI SIOS thinks with. Your keys stay sealed in SIOS's broker; no app or AI ever sees them." }
+                    Soon {
+                        visible: !broker.reachable
+                        text: "SIOS's broker isn't running, so AI settings can't be changed right now."
+                    }
+                    Card {
+                        visible: broker.reachable
+                        RowLayout {
+                            spacing: 12
+                            Rectangle { implicitWidth: 36; implicitHeight: 36; radius: 10; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "brain"; size: 17; color: Theme.aiInk } }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Text { text: brainPage.active ? "SIOS uses " + brainPage.active.label : "No AI connected yet"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                Text {
                                     Layout.fillWidth: true
-                                    spacing: 2
-                                    Text { text: modelData[1]; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                    Text { Layout.fillWidth: true; text: modelData[2]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; wrapMode: Text.WordWrap }
+                                    wrapMode: Text.WordWrap
+                                    color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                                    text: (brainPage.active ? "Model " + brainPage.active.model + ". " : "Add a key below, allow it, and choose it. ")
+                                          + (brainPage.ai.calls_today || 0) + " of " + (brainPage.ai.max_calls_per_day || 0) + " requests used today. Each change asks for your password."
+                                }
+                            }
+                        }
+                    }
+                    Repeater {
+                        model: broker.reachable ? brainPage.providers : []
+                        delegate: Card {
+                            id: pc
+                            required property var modelData
+                            readonly property bool compat: modelData.kind === "compat"
+                            readonly property bool busy: brainPage.waiting.endsWith(":" + modelData.id)
+                            RowLayout {
+                                spacing: 10
+                                Text { Layout.fillWidth: true; text: pc.modelData.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                                Repeater {
+                                    model: [
+                                        [pc.modelData.online ? "Online" : "On this computer", Theme.fg2],
+                                        [pc.modelData.has_key ? "Key saved" : (pc.modelData.online ? "No key" : "No key needed"), pc.modelData.has_key ? Theme.ok : Theme.fg3],
+                                        [pc.modelData.consent ? "Allowed" : "Not allowed", pc.modelData.consent ? Theme.ok : Theme.fg3],
+                                    ]
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        implicitWidth: chip.implicitWidth + 16; implicitHeight: 22; radius: 11
+                                        color: Theme.surface2; border.width: 1; border.color: Theme.line
+                                        Text { id: chip; anchors.centerIn: parent; text: modelData[0]; color: modelData[1]; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
+                                    }
+                                }
+                            }
+                            RowLayout {
+                                spacing: 8
+                                Text { text: "Model"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 64 }
+                                Field { id: modelField; text: pc.modelData.model; placeholder: "Model name, e.g. from the provider's docs" }
+                                Field { id: urlField; visible: pc.compat; text: pc.modelData.base_url; placeholder: "https://... or http://localhost:11434/v1" }
+                                Button {
+                                    text: "Save"; kind: "plain"
+                                    onClicked: {
+                                        const p = { id: pc.modelData.id, model: modelField.text };
+                                        if (pc.compat) p.base_url = urlField.text;
+                                        brainPage.ask("model.configure", p, "configure");
+                                    }
+                                }
+                            }
+                            RowLayout {
+                                spacing: 8
+                                visible: pc.modelData.online || pc.compat
+                                Text { text: "Key"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 64 }
+                                Field {
+                                    id: keyField
+                                    secret: TextInput.Password
+                                    placeholder: pc.modelData.has_key ? "A key is saved. Paste a new one to replace it." : "Paste your API key"
+                                    onAccepted: saveKey.clicked()
+                                }
+                                Button {
+                                    id: saveKey
+                                    text: "Save key"
+                                    busy: pc.busy && brainPage.waiting.startsWith("key:")
+                                    onClicked: {
+                                        if (!keyField.text) return;
+                                        brainPage.ask("model.set_key", { id: pc.modelData.id, key: keyField.text }, "key");
+                                        keyField.text = "";   // the key is gone from this window once sent
+                                    }
+                                }
+                                Button { visible: pc.modelData.has_key; text: "Remove"; kind: "danger"; onClicked: brainPage.ask("model.remove_key", { id: pc.modelData.id }, "remove") }
+                            }
+                            RowLayout {
+                                spacing: 10
+                                Toggle {
+                                    on: pc.modelData.consent
+                                    onToggled: brainPage.ask("model.consent", { id: pc.modelData.id, on: !pc.modelData.consent }, "consent")
+                                }
+                                Text {
+                                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                    text: pc.modelData.online ? "Allow SIOS to send requests to " + pc.modelData.label + ". Files marked Sensitive are never sent." : "Allow SIOS to use this model."
+                                    color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                                }
+                                Button { text: "Test"; kind: "plain"; busy: pc.busy && brainPage.waiting.startsWith("test:"); onClicked: brainPage.ask("model.test", { id: pc.modelData.id }, "test") }
+                                Button {
+                                    text: pc.modelData.active ? "In use" : "Use this one"
+                                    kind: pc.modelData.active ? "plain" : "primary"
+                                    onClicked: if (!pc.modelData.active) brainPage.ask("model.configure", { id: pc.modelData.id, active: true }, "use")
                                 }
                             }
                         }

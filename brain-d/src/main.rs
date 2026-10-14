@@ -68,6 +68,11 @@ pub fn runtime_dir() -> PathBuf {
     std::env::var("SIOS_RUNTIME").map(PathBuf::from).unwrap_or_else(|_| state_dir())
 }
 
+/// The broker, where this brain-d finds it.
+pub fn capd_link() -> capd::Capd {
+    capd::Capd { sock: runtime_dir().join("capd.sock"), state: state_dir() }
+}
+
 pub fn root_dir() -> PathBuf {
     std::env::var("SIOS_ROOT").map(PathBuf::from).unwrap_or_else(|_| home().join("SIOS-sandbox"))
 }
@@ -100,7 +105,7 @@ impl Brain {
             ctx: Arc::new(goal::Ctx {
                 root: root_dir(),
                 state: state.clone(),
-                capd: capd::Capd { sock: runtime_dir().join("capd.sock"), state: state.clone() },
+                capd: capd_link(),
                 routines: Arc::new(Mutex::new(routines::Routines::open(&state.join("routines.json")))),
                 system: Arc::new(Mutex::new(Value::Null)),
             }),

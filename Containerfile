@@ -21,10 +21,12 @@ RUN for app in /apps/sios-*/; do \
 # they link against the image's own libraries. Every test must pass or the
 # image isn't built. Only the two binaries go into the image.
 FROM ${BASE_IMAGE} AS rust
+# /root is a link into /var on atomic bases, which doesn't exist while building
+ENV CARGO_HOME=/cargo
 RUN dnf5 -y install cargo rust gcc
 COPY capd /src/capd
 COPY brain-d /src/brain-d
-RUN --mount=type=cache,dst=/root/.cargo/registry \
+RUN --mount=type=cache,dst=/cargo/registry \
     for c in capd brain-d; do \
       cargo test --release --locked --manifest-path "/src/$c/Cargo.toml" && \
       cargo build --release --locked --manifest-path "/src/$c/Cargo.toml" && \

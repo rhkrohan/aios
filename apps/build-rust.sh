@@ -21,7 +21,10 @@ docker run --rm --platform linux/arm64 \
       cp /target/$c/release/$c /out/
     done'
 if [ -n "$VM" ]; then
+  # copy beside, then rename over: replacing a running program's file in place fails ("text file busy")
   ssh "$VM" "mkdir -p ~/.local/bin"
-  scp -q "$OUT/capd" "$OUT/brain-d" "$VM:.local/bin/"
+  scp -q "$OUT/capd" "$VM:.local/bin/capd.new"
+  scp -q "$OUT/brain-d" "$VM:.local/bin/brain-d.new"
+  ssh "$VM" "mv -f ~/.local/bin/capd.new ~/.local/bin/capd && mv -f ~/.local/bin/brain-d.new ~/.local/bin/brain-d"
 fi
 echo "built capd and brain-d (arm64) in $OUT"

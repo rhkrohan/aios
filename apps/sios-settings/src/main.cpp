@@ -1,5 +1,6 @@
 // SIOS Settings: start the app and hand the QML the real machine (look,
 // Wi-Fi, updates, about) and the icon service.
+#include "broker.h"
 #include "system.h"
 
 #include <QApplication>
@@ -15,6 +16,10 @@
 #include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QSvgRenderer>
+
+#ifdef Q_OS_LINUX
+#include <sys/prctl.h>
+#endif
 
 // the app's line icons in any colour: "image://icon/<name>/<rrggbb>"
 class IconProvider : public QQuickImageProvider
@@ -79,6 +84,10 @@ static void useDesktopIconTheme()
 
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_LINUX
+    // AI account keys are typed here: no other program may read this one's memory
+    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+#endif
     QApplication app(argc, argv);
     useDesktopIconTheme();
     app.setApplicationName(QStringLiteral("sios-settings"));
@@ -93,10 +102,12 @@ int main(int argc, char *argv[])
     args.process(app);
 
     System system;
+    Broker broker;
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
     engine.addImageProvider(QStringLiteral("theme"), new ThemeIconProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("system"), &system);
+    engine.rootContext()->setContextProperty(QStringLiteral("broker"), &broker);
     engine.rootContext()->setContextProperty(QStringLiteral("startPage"), args.value(QStringLiteral("page")));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("org.sios.settings", "Main");

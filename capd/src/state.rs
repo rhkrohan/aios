@@ -17,6 +17,19 @@ use crate::policy::{evaluate, Decision, Facts};
 use crate::token::{self, Cap};
 use crate::tools::{self, Undo};
 
+/// Methods only the owner may call. On SIOS each one is confirmed with the owner's
+/// password through polkit first (D39, main.rs); on the Mac, owner.secret proves it.
+pub const OWNER_METHODS: &[&str] = &[
+    "rules", "rule_add", "rule_remove", "mint", "grant", "revoke", "approve", "deny", "pending", "undo", "pause", "resume", "audit", "label", "block", "packs", "load_pack", "create_file", "owner_do", "owner_undo", "outbox",
+    "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
+    "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
+    "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
+];
+
+pub fn is_owner_method(m: &str) -> bool {
+    OWNER_METHODS.contains(&m)
+}
+
 /// "The AI may move files within Downloads": passes fully inside a rule need no approval.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Rule {
@@ -99,6 +112,8 @@ pub struct State {
     log: Log,
     pub meta: Store,
     pub memory: crate::memory::MemStore,
+    /// AI providers and their sealed keys (D33).
+    pub gateway: crate::gateway::Gateway,
     /// What each forget_about removed, so the owner can put it back.
     forgotten: Vec<(String, Vec<crate::memory::Memory>)>,
 }
@@ -168,6 +183,7 @@ impl State {
                 }
                 m
             },
+            gateway: crate::gateway::Gateway::open(dir).map_err(std::io::Error::other)?,
         })
     }
 
@@ -284,6 +300,14 @@ impl State {
         self.handle_as(req, None)
     }
 
+    pub fn is_owner_secret(&self, req: &Value) -> bool {
+        req["owner"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), self.owner_secret.as_bytes()))
+    }
+
+    pub fn is_service_secret(&self, req: &Value) -> bool {
+        req["service"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), self.service_secret.as_bytes()))
+    }
+
     /// `who`: what the kernel says about the caller (SIOS, D32). Then the secret
     /// files prove nothing; without it (the Mac preview) they're the proof.
     pub fn handle_as(&mut self, req: &Value, who: Option<crate::peer::Who>) -> Value {
@@ -299,15 +323,38 @@ impl State {
         if method.starts_with("memory.") && !service && !owner {
             return json!({ "error": "only SIOS's own brain or the owner can do that" });
         }
-        const OWNER_MEMORY: [&str; 9] = ["memory.list", "memory.add", "memory.edit", "memory.delete", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share"];
-        if OWNER_MEMORY.contains(&method) && !owner {
-            return json!({ "error": "only the owner can do that" });
-        }
-        let owner_only = ["rules", "rule_add", "rule_remove", "mint", "grant", "revoke", "approve", "deny", "pending", "undo", "pause", "resume", "audit", "label", "block", "packs", "load_pack", "create_file", "owner_do", "owner_undo", "outbox"];
-        if owner_only.contains(&method) && !owner {
+        if is_owner_method(method) && !owner {
             return json!({ "error": "only the owner can do that" });
         }
         let r = match method {
+            // the model gateway (D33): what's set up is open to all, never a key
+            "model.providers" => Ok(self.gateway.list()),
+            "model.set_key" => {
+                let id = p["id"].as_str().unwrap_or("");
+                let r = self.gateway.set_key(id, p["key"].as_str().unwrap_or(""));
+                if r.is_ok() {
+                    self.record(&Self::owner_cap(), "model.set_key", id, "you", "saved an AI account key (sealed; never shown)", &json!([]));
+                }
+                r
+            }
+            "model.remove_key" => {
+                let id = p["id"].as_str().unwrap_or("");
+                let r = self.gateway.remove_key(id);
+                self.record(&Self::owner_cap(), "model.remove_key", id, "you", "removed an AI account key", &json!([]));
+                r
+            }
+            "model.consent" => {
+                let (id, on) = (p["id"].as_str().unwrap_or(""), p["on"].as_bool().unwrap_or(false));
+                let r = self.gateway.consent(id, on);
+                self.record(&Self::owner_cap(), "model.consent", id, "you", if on { "allowed SIOS to send requests here" } else { "stopped SIOS sending requests here" }, &json!([]));
+                r
+            }
+            "model.configure" => {
+                let r = self.gateway.configure(p);
+                self.record(&Self::owner_cap(), "model.configure", p["id"].as_str().unwrap_or(""), "you", "changed AI settings", &json!([]));
+                r
+            }
+            "model.complete" | "model.test" => self.model_call(req, owner, service),
             "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count(), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
             m if m.starts_with("memory.") => self.memory_method(m, p),
@@ -998,6 +1045,62 @@ impl State {
 
     fn save_rules(&self) {
         let _ = std::fs::write(self.dir.join("rules.json"), serde_json::to_vec_pretty(&self.rules).unwrap_or_default());
+    }
+
+    /// Check a model call and gather what it needs (under the lock). The call
+    /// itself is made by the caller without the lock (main.rs), then `model_done`.
+    pub fn model_prepare(&self, req: &Value, owner: bool, service: bool) -> Result<crate::gateway::Prepared, String> {
+        let p = &req["params"];
+        match req["method"].as_str().unwrap_or("") {
+            "model.complete" => {
+                if !service {
+                    return Err("only SIOS's own brain uses the AI connection".into());
+                }
+                // the goal's pass tells what it has read; Sensitive never goes online (D21)
+                let (sensitive, goal) = match p["cap"].as_str().filter(|c| !c.is_empty()) {
+                    Some(t) => {
+                        let cap = self.check_token_any(t)?;
+                        let read = self.sessions.get(&self.session_of(&cap)).map(|s| s.read.clone()).unwrap_or_default();
+                        (read.iter().any(|(_, labels, _)| labels.iter().any(|l| l == "Sensitive")), cap.goal)
+                    }
+                    None => (false, p["purpose"].as_str().unwrap_or("").to_string()),
+                };
+                self.gateway.prepare(p, None, sensitive, &goal, now(), false)
+            }
+            "model.test" => {
+                if !owner {
+                    return Err("only the owner can do that".into());
+                }
+                let probe = json!({ "purpose": "test", "system": "You are being tested by SIOS.", "input": "Reply with the single word OK.", "max_tokens": 64 });
+                self.gateway.prepare(&probe, Some(p["id"].as_str().unwrap_or("")), false, "connection test", now(), true)
+            }
+            m => Err(format!("{m} isn't a model call")),
+        }
+    }
+
+    /// Count and log a model call that went out: provider, model, sizes; never contents.
+    pub fn model_done(&mut self, prep: &crate::gateway::Prepared, out: &Result<Value, String>) -> Value {
+        self.gateway.counted(now());
+        let target = format!("{}/{}", prep.provider.id, prep.provider.model);
+        let size = |v: &Value| v.to_string().len();
+        let reason = match out {
+            Ok(v) => format!("{}: sent {} characters, got {} back", prep.purpose, prep.system.len() + prep.input.len(), size(v)),
+            Err(e) => format!("{}: failed ({})", prep.purpose, e.chars().take(120).collect::<String>()),
+        };
+        let cap = Cap { principal: "sios".into(), goal: prep.goal.clone(), ..Self::owner_cap() };
+        self.record(&cap, "model.complete", &target, if out.is_ok() { "allow" } else { "error" }, &reason, &json!([]));
+        match out {
+            Ok(v) => json!({ "ok": v }),
+            Err(e) => json!({ "error": e }),
+        }
+    }
+
+    /// Both steps under one lock: for tests and the Mac preview's short calls.
+    fn model_call(&mut self, req: &Value, owner: bool, service: bool) -> Result<Value, String> {
+        let prep = self.model_prepare(req, owner, service)?;
+        let out = crate::gateway::send(&prep);
+        let v = self.model_done(&prep, &out);
+        v.get("ok").cloned().ok_or_else(|| v["error"].as_str().unwrap_or("failed").to_string())
     }
 
     fn owner_cap() -> Cap {
@@ -1727,6 +1830,48 @@ mod tests {
         assert!(v["ok"]["token"].is_string(), "{v}");
         // and the service still isn't the owner
         assert!(r.st.handle_as(&json!({ "method": "pending", "params": {} }), Some(Who::Service))["error"].is_string());
+    }
+
+    #[test]
+    fn the_gateway_holds_keys_and_checks_every_call() {
+        let mut r = rig();
+        let mock = |id: &str, url: &str| crate::gateway::Provider { id: id.into(), kind: "mock".into(), label: id.into(), model: "m1".into(), base_url: url.into(), consent: false };
+        r.st.gateway.cfg.providers.push(mock("online", ""));
+        let svc = r.st.service_secret.clone();
+        let complete = |r: &mut Rig, cap: Option<&str>| {
+            let mut p = json!({ "purpose": "plan", "system": "s", "input": "hello" });
+            if let Some(c) = cap { p["cap"] = json!(c); }
+            r.st.handle(&json!({ "method": "model.complete", "params": p, "service": svc }))
+        };
+        // nothing chosen, then no consent, then no key: each says where to fix it
+        assert!(complete(&mut r, None)["error"].as_str().unwrap().contains("Settings > Brain"));
+        assert!(r.agent("model.set_key", json!({ "id": "online", "key": "sk-live-abcdef123456" }))["error"].is_string(), "agents can't save keys");
+        r.owner("model.configure", json!({ "id": "online", "active": true }));
+        assert!(complete(&mut r, None)["error"].as_str().unwrap().contains("allowed"));
+        r.owner("model.consent", json!({ "id": "online", "on": true }));
+        assert!(complete(&mut r, None)["error"].as_str().unwrap().contains("no key"));
+        r.owner("model.set_key", json!({ "id": "online", "key": "sk-live-abcdef123456" }));
+        // the key is never shown back, in the list, the audit log or files in plain text
+        let list = r.agent("model.providers", json!({}));
+        assert!(list.to_string().contains("\"has_key\":true") && !list.to_string().contains("abcdef"));
+        let v = complete(&mut r, None);
+        assert_eq!(v["ok"]["text"], "echo: hello", "{v}");
+        let audit = std::fs::read_to_string(r.st.dir.join("audit.jsonl")).unwrap();
+        assert!(audit.contains("model.complete") && audit.contains("online/m1") && !audit.contains("abcdef") && !audit.contains("hello"));
+        // only SIOS's brain may use it
+        assert!(r.agent("model.complete", json!({ "system": "s", "input": "x" }))["error"].is_string());
+        // a goal that read a Sensitive file can't send to an online AI...
+        r.st.meta.files.insert("Projects/notes.md".into(), crate::meta::FileMeta { labels: vec!["Sensitive".into()], ..Default::default() });
+        let t = r.mint(json!({ "principal": "sios", "goal": "summarize", "tools": ["files.read"] }));
+        assert_eq!(decision(&r.call(&t, "files.read", json!({ "path": "Projects/notes.md" }))), "allow");
+        assert!(complete(&mut r, Some(&t))["error"].as_str().unwrap().contains("Sensitive"));
+        // ...but may use a model on this computer
+        r.st.gateway.cfg.providers.push(mock("here", "http://localhost:11434/v1"));
+        r.st.gateway.cfg.providers.last_mut().unwrap().kind = "compat".into();
+        assert!(!r.st.gateway.cfg.providers.last().unwrap().online());
+        // the daily limit
+        r.owner("model.configure", json!({ "max_calls_per_day": 1 }));
+        assert!(complete(&mut r, None)["error"].as_str().unwrap().contains("limit"));
     }
 
     #[test]

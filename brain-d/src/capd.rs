@@ -19,8 +19,17 @@ pub struct Capd {
 
 impl Capd {
     pub fn call(&self, method: &str, params: Value) -> Result<Value, String> {
+        self.call_within(method, params, Duration::from_secs(20))
+    }
+
+    /// For calls that wait on something slow: a model answering, or the owner's password.
+    pub fn call_slow(&self, method: &str, params: Value) -> Result<Value, String> {
+        self.call_within(method, params, Duration::from_secs(180))
+    }
+
+    fn call_within(&self, method: &str, params: Value, wait: Duration) -> Result<Value, String> {
         let mut s = UnixStream::connect(&self.sock).map_err(|e| format!("can't reach capd: {e}"))?;
-        s.set_read_timeout(Some(Duration::from_secs(20))).ok();
+        s.set_read_timeout(Some(wait)).ok();
         // brain-d proves who it is with the service secret capd made (on SIOS: SO_PEERCRED)
         let service = std::fs::read_to_string(self.state.join("service.secret")).unwrap_or_default();
         writeln!(s, "{}", json!({ "method": method, "params": params, "service": service.trim() })).map_err(|e| e.to_string())?;

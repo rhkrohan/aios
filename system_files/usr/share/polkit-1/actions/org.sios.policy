@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- SIOS owner actions (D39). The broker (capd) asks for one of these before it
+     does anything only the owner may do, and KDE's dialog asks for the owner's
+     own password every time (auth_self, never _keep: nothing is remembered, so
+     an AI can't ride on an earlier answer). polkit lets only privileged callers
+     add details to the dialog, so each kind of change has its own action and
+     wording instead. -->
+<policyconfig>
+  <vendor>SIOS</vendor>
+  <action id="org.sios.owner.keys">
+    <description>Save or remove an AI account key</description>
+    <message>SIOS is about to save or remove one of your AI account keys. Confirm with your password only if you just did this in Settings.</message>
+    <icon_name>sios-logo</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
+  <action id="org.sios.owner.ai">
+    <description>Change which AI SIOS uses</description>
+    <message>SIOS is about to change which AI it uses or what it may send to it. Confirm with your password only if you just did this in Settings.</message>
+    <icon_name>sios-logo</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
+  <action id="org.sios.owner">
+    <description>Decide what AIs may do on this computer</description>
+    <message>SIOS needs your OK for something only you can decide, such as approving what an AI asked to do. Confirm with your password only if you just asked for this.</message>
+    <icon_name>sios-logo</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

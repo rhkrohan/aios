@@ -16,6 +16,8 @@ test -f /usr/lib/systemd/user/sios-broker.service
 test -f /usr/lib/systemd/user/sios-brain.service
 systemctl --global enable sios-broker.service sios-brain.service
 test -f /usr/lib/sysctl.d/60-sios.conf
+# owner actions are confirmed with the owner's password (D39)
+python3 -c "import xml.dom.minidom,sys; xml.dom.minidom.parse(sys.argv[1])" /usr/share/polkit-1/actions/org.sios.policy
 
 ### SIOS look and layout (docs/plan/15-build-blueprint.md, Stage A)
 # Our fonts (Instrument Sans, Jost, JetBrains Mono; all SIL Open Font License)

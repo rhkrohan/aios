@@ -5,13 +5,16 @@
 //! capability tokens; owner commands prove themselves with ~/.sios/owner.secret.
 
 mod audit;
+mod exec;
 mod fsguard;
+mod gateway;
 mod iam;
 mod manifest;
 mod memory;
 mod memsim;
 mod packs;
 mod meta;
+mod owner;
 mod peer;
 mod policy;
 mod state;
@@ -258,11 +261,59 @@ fn serve() {
                 let resp = match serde_json::from_str::<Value>(&line) {
                     Ok(req) => {
                         // the strictest of what it was when it connected and what it is now
-                        let who = match (first, ask(&writer)) {
+                        let mut who = match (first, ask(&writer)) {
                             (Some(a), Some(b)) if a == b => Some(a),
                             (Some(_), Some(_)) => Some(peer::Who::Agent),
                             _ => None,
                         };
+                        let method = req["method"].as_str().unwrap_or("");
+                        // an owner action on SIOS: the owner's password, through polkit, every time (D39)
+                        if let (Some(w), Some(action)) = (who, owner::action_for(method)) {
+                            if w != peer::Who::Owner {
+                                match owner::confirm(action) {
+                                    Ok(true) => who = Some(peer::Who::Owner),
+                                    Ok(false) => {
+                                        let resp = json!({ "error": "not confirmed: the owner's password wasn't given" });
+                                        log_line(&req, &resp);
+                                        if writeln!(writer, "{resp}").is_err() {
+                                            break;
+                                        }
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        let resp = json!({ "error": e });
+                                        log_line(&req, &resp);
+                                        if writeln!(writer, "{resp}").is_err() {
+                                            break;
+                                        }
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        // a model call: checked under the lock, sent without it, logged under it
+                        if method == "model.complete" || method == "model.test" {
+                            let (o, s) = match who {
+                                Some(w) => (w == peer::Who::Owner, w == peer::Who::Service),
+                                None => {
+                                    let g = st.lock().unwrap_or_else(|p| p.into_inner());
+                                    (g.is_owner_secret(&req), g.is_service_secret(&req))
+                                }
+                            };
+                            let prep = st.lock().unwrap_or_else(|p| p.into_inner()).model_prepare(&req, o, s);
+                            let resp = match prep {
+                                Err(e) => json!({ "error": e }),
+                                Ok(prep) => {
+                                    let out = gateway::send(&prep);
+                                    st.lock().unwrap_or_else(|p| p.into_inner()).model_done(&prep, &out)
+                                }
+                            };
+                            log_line(&req, &resp);
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
                         // one bad request must never take capd down for everyone after it
                         let mut guard = st.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                         let resp = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| guard.handle_as(&req, who)))
