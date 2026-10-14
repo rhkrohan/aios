@@ -13,6 +13,7 @@ pub enum PathError {
     Absolute,
     ParentDir,
     Escapes,
+    Hidden,
     Io(String),
 }
 
@@ -22,6 +23,7 @@ impl std::fmt::Display for PathError {
             PathError::Absolute => write!(f, "absolute paths aren't allowed; name files relative to the sandbox"),
             PathError::ParentDir => write!(f, "\"..\" isn't allowed in paths"),
             PathError::Escapes => write!(f, "that path leads outside the sandbox (through a link)"),
+            PathError::Hidden => write!(f, "hidden folders and files (names starting with \".\") are off limits to every AI; only the Trash is allowed"),
             PathError::Io(e) => write!(f, "{e}"),
         }
     }
@@ -53,6 +55,7 @@ pub fn normalize(rel: &str) -> Result<String, PathError> {
 /// nearest existing ancestor is what gets checked.
 pub fn resolve(root: &Path, rel: &str) -> Result<Resolved, PathError> {
     let rel = normalize(rel)?;
+    check_visible(&rel)?;
     let root_real = root.canonicalize().map_err(|e| PathError::Io(e.to_string()))?;
     let target = root_real.join(&rel);
 
@@ -85,7 +88,19 @@ pub fn resolve(root: &Path, rel: &str) -> Result<Resolved, PathError> {
     // Name the file by where it really is, not by the name it was asked for:
     // a link inside the sandbox must not disguise a blocked or out-of-slice place.
     let rel = real.strip_prefix(&root_real).map_err(|_| PathError::Escapes)?.to_string_lossy().replace('\\', "/");
+    check_visible(&rel)?;
     Ok(Resolved { real, rel })
+}
+
+/// Hidden places (.ssh, .config, capd's own state...) are never reachable by name or
+/// through a link. The Trash at the top of the root is the one exception.
+fn check_visible(rel: &str) -> Result<(), PathError> {
+    for (i, part) in rel.split('/').enumerate() {
+        if part.starts_with('.') && !(i == 0 && part == crate::tools::TRASH) {
+            return Err(PathError::Hidden);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -117,6 +132,22 @@ mod tests {
         std::fs::create_dir(dir.path().join("Projects")).unwrap();
         std::os::unix::fs::symlink(dir.path().join("Documents/Taxes"), dir.path().join("Projects/link")).unwrap();
         assert_eq!(resolve(dir.path(), "Projects/link/return.txt").unwrap().rel, "Documents/Taxes/return.txt");
+    }
+
+    #[test]
+    fn hidden_places_are_off_limits_but_the_trash_is_not() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ssh")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".Trash")).unwrap();
+        std::fs::create_dir(dir.path().join("Projects")).unwrap();
+        assert_eq!(resolve(dir.path(), ".ssh/id_ed25519").unwrap_err(), PathError::Hidden);
+        assert_eq!(resolve(dir.path(), ".local/share/sios/capd.key").unwrap_err(), PathError::Hidden);
+        assert_eq!(resolve(dir.path(), "Projects/.env").unwrap_err(), PathError::Hidden);
+        assert_eq!(resolve(dir.path(), "Projects/.Trash/x").unwrap_err(), PathError::Hidden);
+        assert!(resolve(dir.path(), ".Trash/old.txt").is_ok());
+        // a visible link into a hidden place is named by where it leads, and refused
+        std::os::unix::fs::symlink(dir.path().join(".ssh"), dir.path().join("Projects/keys")).unwrap();
+        assert_eq!(resolve(dir.path(), "Projects/keys/id").unwrap_err(), PathError::Hidden);
     }
 
     #[test]

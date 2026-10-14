@@ -12,6 +12,9 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct Capd {
     pub sock: PathBuf,
+    /// capd's state folder, where it keeps service.secret (the Mac preview's proof;
+    /// on SIOS capd knows brain-d by its program and unit, and ignores the file).
+    pub state: PathBuf,
 }
 
 impl Capd {
@@ -19,7 +22,7 @@ impl Capd {
         let mut s = UnixStream::connect(&self.sock).map_err(|e| format!("can't reach capd: {e}"))?;
         s.set_read_timeout(Some(Duration::from_secs(20))).ok();
         // brain-d proves who it is with the service secret capd made (on SIOS: SO_PEERCRED)
-        let service = std::fs::read_to_string(self.sock.with_file_name("service.secret")).unwrap_or_default();
+        let service = std::fs::read_to_string(self.state.join("service.secret")).unwrap_or_default();
         writeln!(s, "{}", json!({ "method": method, "params": params, "service": service.trim() })).map_err(|e| e.to_string())?;
         let mut line = String::new();
         BufReader::new(s).read_line(&mut line).map_err(|e| e.to_string())?;

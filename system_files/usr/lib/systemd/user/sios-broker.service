@@ -1,0 +1,26 @@
+# SIOS broker (capd): every AI action is checked here (D4, D20, D31).
+# A user service for now, so its system tools can reach this session's desktop;
+# a system service with its own account later. Callers are known by their
+# program, not by secret files (SIOS_IDENTITY=peer, D32).
+[Unit]
+Description=SIOS broker: checks every AI action
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# State is private (0700) in the home; AIs can never name a hidden folder.
+# AIs work in ~/SIOS-test until the real home is switched on (M9).
+Environment=SIOS_STATE=%h/.local/share/sios SIOS_ROOT=%h/SIOS-test SIOS_RUNTIME=%t/sios SIOS_IDENTITY=peer
+ExecStartPre=/usr/bin/mkdir -p %h/SIOS-test
+ExecStart=/usr/bin/capd serve
+RuntimeDirectory=sios
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0077
+NoNewPrivileges=yes
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

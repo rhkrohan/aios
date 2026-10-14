@@ -129,7 +129,10 @@ impl State {
         std::fs::create_dir_all(root)?;
         // The key and secrets must be out of every AI's reach: never inside the sandbox.
         let (d, r) = (dir.canonicalize()?, root.canonicalize()?);
-        if d.starts_with(&r) {
+        // ...unless it's in a hidden folder of the root (~/.local/share/sios when the root is the
+        // home): AIs can never name a hidden folder (fsguard), so it's still out of reach
+        let hidden = d.strip_prefix(&r).ok().and_then(|x| x.components().next()).is_some_and(|c| c.as_os_str().to_string_lossy().starts_with('.'));
+        if d.starts_with(&r) && !hidden {
             return Err(std::io::Error::other(format!("capd's state folder {} is inside the folder AIs can reach ({}); set SIOS_ROOT to a folder that doesn't contain it", d.display(), r.display())));
         }
         let key = hex::decode(load_or_create(&dir.join("capd.key"), || random_hex(32))?).map_err(|e| std::io::Error::other(e.to_string()))?;
@@ -276,11 +279,23 @@ impl State {
         let _ = self.log.append(e);
     }
 
+    #[cfg(test)]
     pub fn handle(&mut self, req: &Value) -> Value {
+        self.handle_as(req, None)
+    }
+
+    /// `who`: what the kernel says about the caller (SIOS, D32). Then the secret
+    /// files prove nothing; without it (the Mac preview) they're the proof.
+    pub fn handle_as(&mut self, req: &Value, who: Option<crate::peer::Who>) -> Value {
         let method = req["method"].as_str().unwrap_or("");
         let p = &req["params"];
-        let owner = req["owner"].as_str().map(|g| ct_eq(g.as_bytes(), self.owner_secret.as_bytes())).unwrap_or(false);
-        let service = req["service"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), self.service_secret.as_bytes()));
+        let (owner, service) = match who {
+            Some(w) => (w == crate::peer::Who::Owner, w == crate::peer::Who::Service),
+            None => (
+                req["owner"].as_str().map(|g| ct_eq(g.as_bytes(), self.owner_secret.as_bytes())).unwrap_or(false),
+                req["service"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), self.service_secret.as_bytes())),
+            ),
+        };
         if method.starts_with("memory.") && !service && !owner {
             return json!({ "error": "only SIOS's own brain or the owner can do that" });
         }
@@ -324,7 +339,7 @@ impl State {
             "outbox" => Ok(self.outbox()),
             // a service (brain-d) asks for a pass; it stays ungranted until the owner says yes
             // only a known service (brain-d) may ask for passes
-            "request_pass" if !req["service"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), self.service_secret.as_bytes())) => Err("only SIOS's own brain may request passes".into()),
+            "request_pass" if !service => Err("only SIOS's own brain may request passes".into()),
             // the whole home only when the request says so plainly (it's shown to the owner that way)
             "request_pass" if p["whole_home"].as_bool() != Some(true) && p["paths"].as_array().is_none_or(|a| a.iter().any(|x| x.as_str().is_none_or(|s| crate::fsguard::normalize(s).map(|n| n.is_empty()).unwrap_or(true)))) => {
                 Err("a requested pass must name its folders; the whole home has to be asked for explicitly".into())
@@ -1683,7 +1698,9 @@ mod tests {
     #[test]
     fn state_inside_the_sandbox_or_an_empty_secret_refuses_to_start() {
         let r = tempfile::tempdir().unwrap();
-        assert!(State::open(&r.path().join(".sios"), r.path()).is_err());
+        assert!(State::open(&r.path().join("sios"), r.path()).is_err(), "a visible folder AIs can reach");
+        // a hidden folder inside the root is fine: no AI can ever name it (fsguard)
+        assert!(State::open(&r.path().join(".local/share/sios"), r.path()).is_ok());
         let d = tempfile::tempdir().unwrap();
         {
             use std::os::unix::fs::OpenOptionsExt;
@@ -1691,6 +1708,25 @@ mod tests {
         }
         assert!(State::open(d.path(), &tempfile::tempdir().unwrap().path().join("home")).is_err());
         assert!(!ct_eq(b"", b""));
+    }
+
+    #[test]
+    fn with_kernel_identity_secret_files_prove_nothing() {
+        use crate::peer::Who;
+        let mut r = rig();
+        let owner = r.st.owner_secret().to_string();
+        let service = r.st.service_secret.clone();
+        // an agent that read the owner's secret file still can't approve or mint
+        let v = r.st.handle_as(&json!({ "method": "pending", "params": {}, "owner": owner }), Some(Who::Agent));
+        assert!(v["error"].as_str().unwrap().contains("only the owner"), "{v}");
+        let v = r.st.handle_as(&json!({ "method": "request_pass", "params": { "principal": "sios", "tools": ["files.list"], "paths": ["Downloads"] }, "service": service }), Some(Who::Agent));
+        assert!(v["error"].is_string(), "{v}");
+        // the owner's own window and the brain's service, known by their program, need no secret
+        assert!(r.st.handle_as(&json!({ "method": "pending", "params": {} }), Some(Who::Owner))["ok"]["passes"].is_array());
+        let v = r.st.handle_as(&json!({ "method": "request_pass", "params": { "principal": "sios", "tools": ["files.list"], "paths": ["Downloads"] } }), Some(Who::Service));
+        assert!(v["ok"]["token"].is_string(), "{v}");
+        // and the service still isn't the owner
+        assert!(r.st.handle_as(&json!({ "method": "pending", "params": {} }), Some(Who::Service))["error"].is_string());
     }
 
     #[test]

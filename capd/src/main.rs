@@ -12,6 +12,7 @@ mod memory;
 mod memsim;
 mod packs;
 mod meta;
+mod peer;
 mod policy;
 mod state;
 mod token;
@@ -35,8 +36,13 @@ fn root_dir() -> PathBuf {
     std::env::var("SIOS_ROOT").map(PathBuf::from).unwrap_or_else(|_| home().join("SIOS-sandbox"))
 }
 
+/// Where the sockets live: $SIOS_RUNTIME on SIOS ($XDG_RUNTIME_DIR/sios), else the state folder.
+fn runtime_dir() -> PathBuf {
+    std::env::var("SIOS_RUNTIME").map(PathBuf::from).unwrap_or_else(|_| state_dir())
+}
+
 fn socket() -> PathBuf {
-    state_dir().join("capd.sock")
+    runtime_dir().join("capd.sock")
 }
 
 const HELP: &str = "capd: SIOS capability daemon
@@ -57,7 +63,9 @@ const HELP: &str = "capd: SIOS capability daemon
   capd memsim [--days 180] [--seed 7] [--ai] [--out DIR]
                                   run months of made-up life through the memory store
 
-Folders: state in $SIOS_STATE (~/.sios), sandbox in $SIOS_ROOT (~/SIOS-sandbox).";
+Folders: state in $SIOS_STATE (~/.sios), sandbox in $SIOS_ROOT (~/SIOS-sandbox),
+sockets in $SIOS_RUNTIME (the state folder). SIOS_IDENTITY=peer: callers are
+known by their program, not by secret files (SIOS sets this).";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -71,7 +79,7 @@ fn main() {
                 seed: num(&args, "--seed").unwrap_or(7),
                 ai: args.iter().any(|a| a == "--ai"),
                 out: flag(&args, "--out").map(PathBuf::from).unwrap_or_else(|| state_dir().join("memsim")),
-                brain_sock: state_dir().join("brain.sock"),
+                brain_sock: runtime_dir().join("brain.sock"),
                 start: 0,
             };
             let o = memsim::Options { start: (state::now() / 86400).saturating_sub(o.days) * 86400 + 9 * 3600, ..o };
@@ -197,11 +205,27 @@ fn serve() {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&sock, std::fs::Permissions::from_mode(0o600));
     }
-    println!("capd listening on {}\nsandbox: {}\nstate:   {}", sock.display(), st.root.display(), dir.display());
+    let by_peer = peer::enabled();
+    println!(
+        "capd listening on {}\nsandbox: {}\nstate:   {}\ncallers: {}",
+        sock.display(),
+        st.root.display(),
+        dir.display(),
+        if by_peer { "known by their program (SIOS_IDENTITY=peer)" } else { "prove themselves with secret files" }
+    );
     let st = Arc::new(Mutex::new(st));
     for conn in listener.incoming() {
         let Ok(conn) = conn else { continue };
         let st = Arc::clone(&st);
+        // asked once, when it connects: the kernel's answer can't change for this connection
+        let who = by_peer.then(|| {
+            let p = peer::of(&conn);
+            let w = peer::classify(&p, &peer::OWNER_APPS, Some(peer::SERVICE));
+            if w != peer::Who::Agent {
+                println!("{w:?} connected: {}", p.exe);
+            }
+            w
+        });
         std::thread::spawn(move || {
             let mut writer = match conn.try_clone() {
                 Ok(w) => w,
@@ -216,7 +240,7 @@ fn serve() {
                     Ok(req) => {
                         // one bad request must never take capd down for everyone after it
                         let mut guard = st.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-                        let resp = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| guard.handle(&req)))
+                        let resp = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| guard.handle_as(&req, who)))
                             .unwrap_or_else(|_| json!({ "error": "capd hit an internal error on that request; nothing was changed by it" }));
                         drop(guard);
                         log_line(&req, &resp);

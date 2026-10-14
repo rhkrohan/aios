@@ -11,6 +11,11 @@ cp -avf "/ctx/apps_out"/. /
 cp -avf "/ctx/rust_out"/. /
 test -x /usr/bin/capd
 test -x /usr/bin/brain-d
+# both start with every desktop session (sios-brain needs sios-broker)
+test -f /usr/lib/systemd/user/sios-broker.service
+test -f /usr/lib/systemd/user/sios-brain.service
+systemctl --global enable sios-broker.service sios-brain.service
+test -f /usr/lib/sysctl.d/60-sios.conf
 
 ### SIOS look and layout (docs/plan/15-build-blueprint.md, Stage A)
 # Our fonts (Instrument Sans, Jost, JetBrains Mono; all SIL Open Font License)

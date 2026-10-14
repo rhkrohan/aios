@@ -12,10 +12,10 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
-use crate::{state_dir, Brain};
+use crate::{runtime_dir, Brain};
 
 fn brain_call(method: &str, params: Value) -> Result<Value, String> {
-    let mut s = UnixStream::connect(state_dir().join("brain.sock")).map_err(|_| "SIOS isn't running its brain (brain-d serve). Ask the owner to switch on the live machine.".to_string())?;
+    let mut s = UnixStream::connect(runtime_dir().join("brain.sock")).map_err(|_| "SIOS isn't running its brain (brain-d serve). Ask the owner to switch on the live machine.".to_string())?;
     // an app the owner paired carries its token (set SIOS_PAIR_TOKEN in the app's MCP config)
     let mut params = params;
     if let Ok(tok) = std::env::var("SIOS_PAIR_TOKEN") {

@@ -1,0 +1,21 @@
+# SIOS brain (brain-d): plans requests and runs them through the broker (D3, D12).
+[Unit]
+Description=SIOS brain: plans what you ask and runs it through the broker
+Requires=sios-broker.service
+After=sios-broker.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=SIOS_STATE=%h/.local/share/sios SIOS_ROOT=%h/SIOS-test SIOS_RUNTIME=%t/sios SIOS_IDENTITY=peer
+ExecStart=/usr/bin/brain-d serve
+RuntimeDirectory=sios
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0077
+NoNewPrivileges=yes
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

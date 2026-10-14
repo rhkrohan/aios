@@ -13,6 +13,7 @@ mod helpers;
 mod mcp;
 mod memory;
 mod model;
+mod peer;
 mod plan;
 mod routines;
 
@@ -62,6 +63,11 @@ pub fn state_dir() -> PathBuf {
     std::env::var("SIOS_STATE").map(PathBuf::from).unwrap_or_else(|_| home().join(".sios"))
 }
 
+/// Where the sockets live: $SIOS_RUNTIME on SIOS ($XDG_RUNTIME_DIR/sios), else the state folder.
+pub fn runtime_dir() -> PathBuf {
+    std::env::var("SIOS_RUNTIME").map(PathBuf::from).unwrap_or_else(|_| state_dir())
+}
+
 pub fn root_dir() -> PathBuf {
     std::env::var("SIOS_ROOT").map(PathBuf::from).unwrap_or_else(|_| home().join("SIOS-sandbox"))
 }
@@ -94,7 +100,7 @@ impl Brain {
             ctx: Arc::new(goal::Ctx {
                 root: root_dir(),
                 state: state.clone(),
-                capd: capd::Capd { sock: state.join("capd.sock") },
+                capd: capd::Capd { sock: runtime_dir().join("capd.sock"), state: state.clone() },
                 routines: Arc::new(Mutex::new(routines::Routines::open(&state.join("routines.json")))),
                 system: Arc::new(Mutex::new(Value::Null)),
             }),
@@ -287,7 +293,8 @@ fn main() {
 fn serve() {
     let brain = Arc::new(Brain::new());
     let secret = Arc::new(brain_secret());
-    let sock = state_dir().join("brain.sock");
+    let sock = runtime_dir().join("brain.sock");
+    let by_peer = peer::enabled();
     let _ = std::fs::remove_file(&sock);
     let listener = UnixListener::bind(&sock).unwrap_or_else(|e| {
         eprintln!("can't listen on {}: {e}", sock.display());
@@ -302,6 +309,8 @@ fn serve() {
     helpers::spawn(brain.clone());
     for conn in listener.incoming().flatten() {
         let (brain, secret) = (brain.clone(), secret.clone());
+        // on SIOS the owner's shell is known by its program, asked once when it connects
+        let shell = by_peer.then(|| peer::classify(&peer::of(&conn), &peer::OWNER_APPS, None) == peer::Who::Owner);
         std::thread::spawn(move || {
             let Ok(mut w) = conn.try_clone() else { return };
             for line in BufReader::new(conn).lines().map_while(Result::ok) {
@@ -310,7 +319,7 @@ fn serve() {
                 }
                 let resp = serde_json::from_str::<Value>(&line)
                     .map(|r| {
-                        let owner = r["owner"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), secret.as_bytes()));
+                        let owner = shell.unwrap_or_else(|| r["owner"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), secret.as_bytes())));
                         // "Run now" needs the shared brain to start a goal
                         if r["method"] == "helpers.run_now" && !owner {
                             json!({ "error": "only the owner's shell can do that" })
