@@ -52,7 +52,7 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("mail.send", "{to: [emails], subject, body, attach?} can't be undone, ALWAYS asks the owner first"),
     ("apps.open", "{app} shows something: open files, browser, mail, settings, terminal, store, security, goals or activity"),
     ("files.show", "{path} shows something: open a folder in Files"),
-    ("files.preview", "{path} shows something: preview a file"),
+    ("files.preview", "{path} shows something: open the file's folder in Files so the owner can look at it"),
     ("system.notify", "{text} shows something: a short notification"),
     ("settings.set_theme", "{theme: light|dark} change, undoable"),
     ("network.connect_wifi", "{ssid} change, undoable: join a Wi-Fi network"),

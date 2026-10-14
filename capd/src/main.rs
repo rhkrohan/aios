@@ -268,8 +268,18 @@ fn serve() {
                             _ => None,
                         };
                         let method = req["method"].as_str().unwrap_or("");
-                        // an owner action on SIOS: the owner's password, through polkit, every time (D39)
+                        // an owner action on SIOS: only from SIOS's own windows, and then the
+                        // owner's password through polkit, every time (D39). Anything else never
+                        // gets a dialog, so the owner is never asked to confirm a request an AI made.
                         if let (Some(w), Some(action)) = (who, owner::action_for(method)) {
+                            if w != peer::Who::Owner && w != peer::Who::OwnerApp {
+                                let resp = json!({ "error": "only the owner can do that, from SIOS's own windows" });
+                                log_line(&req, &resp);
+                                if writeln!(writer, "{resp}").is_err() {
+                                    break;
+                                }
+                                continue;
+                            }
                             if w != peer::Who::Owner {
                                 match owner::confirm(action) {
                                     Ok(true) => who = Some(peer::Who::Owner),

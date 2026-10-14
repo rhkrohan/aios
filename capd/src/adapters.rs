@@ -233,14 +233,24 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             sh("/usr/bin/kstart", &["--application", id])?;
             ok(json!({ "opened": app }))
         })(),
+        // Only ever a folder is opened, in the file manager. Opening a file with its default
+        // handler would run it if an AI had written a launcher (.desktop) or a script, so a
+        // preview shows the file's folder instead and the owner opens the file themselves.
         "files.show" | "files.preview" => (|| {
             let r = crate::fsguard::resolve(root, s("path")).map_err(|e| e.to_string())?;
             if !r.real.exists() {
                 return Err(format!("{} doesn't exist", r.rel));
             }
-            let url = format!("file://{}", r.real.display());
-            sh("/usr/bin/kioclient", &["exec", &url])?;
-            ok(json!({ "shown": r.rel }))
+            let folder = if r.real.is_dir() { r.real.clone() } else { r.real.parent().map(|p| p.to_path_buf()).ok_or("no folder")? };
+            if tool == "files.show" && !r.real.is_dir() {
+                return Err(format!("{} is a file; files.show opens folders (files.preview shows where a file is)", r.rel));
+            }
+            let meta = std::fs::symlink_metadata(&folder).map_err(|e| e.to_string())?;
+            if !meta.is_dir() {
+                return Err("that isn't a folder".into());
+            }
+            sh("/usr/bin/kioclient", &["exec", &format!("file://{}", folder.display())])?;
+            ok(json!({ "shown": r.rel, "opened_folder": folder.strip_prefix(root.canonicalize().unwrap_or(root.to_path_buf())).map(|p| p.display().to_string()).unwrap_or_default() }))
         })(),
         // the rest of the system tools arrive in M9; never pretend they ran
         "settings.dnd" | "network.bluetooth_power" | "apps.focus" | "apps.close" | "apps.arrange" | "apps.list" | "system.remind" | "apps.install" | "apps.remove" => {
@@ -265,5 +275,8 @@ mod tests {
         assert!(run("settings.set_theme", &json!({ "theme": "neon" }), d.path()).unwrap().is_err());
         assert!(run("network.connect_wifi", &json!({ "ssid": "--help" }), d.path()).unwrap().is_err());
         assert!(run("files.show", &json!({ "path": "../etc" }), d.path()).unwrap().is_err());
+        // a file is never opened by files.show (a launcher or script would run)
+        std::fs::write(d.path().join("evil.desktop"), "[Desktop Entry]\nExec=sh -c x").unwrap();
+        assert!(run("files.show", &json!({ "path": "evil.desktop" }), d.path()).unwrap().unwrap_err().contains("opens folders"));
     }
 }

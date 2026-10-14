@@ -39,7 +39,7 @@ pub const TOOLS: &[ToolSpec] = &[
     // system tools: carried out by the desktop shell (on SIOS: D-Bus to KWin, NetworkManager, portals)
     ToolSpec { name: "apps.open", level: Level::Read, egress: false, path_args: &[], about: "Open an app on the owner's screen: files, browser, mail, settings, terminal, store, security, goals, activity." },
     ToolSpec { name: "files.show", level: Level::Read, egress: false, path_args: &["path"], about: "Show a folder to the owner in Files." },
-    ToolSpec { name: "files.preview", level: Level::Read, egress: false, path_args: &["path"], about: "Show the owner a preview of a file." },
+    ToolSpec { name: "files.preview", level: Level::Read, egress: false, path_args: &["path"], about: "Show the owner where a file is: opens its folder in Files (the file itself is never opened, so nothing in it can run)." },
     ToolSpec { name: "system.notify", level: Level::Read, egress: false, path_args: &[], about: "Show the owner a short notification." },
     ToolSpec { name: "settings.set_theme", level: Level::Reversible, egress: false, path_args: &[], about: "Switch the desktop between light and dark." },
     ToolSpec { name: "network.connect_wifi", level: Level::Reversible, egress: false, path_args: &[], about: "Connect to a Wi-Fi network by name." },
