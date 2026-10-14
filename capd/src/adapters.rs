@@ -153,6 +153,21 @@ const APPS: [(&str, &str); 9] = [
     ("activity", "org.sios.monitor"),
 ];
 
+/// A file:// URL that means exactly this path: every byte outside the plain set is
+/// percent-encoded, so a name with %, #, ? or spaces can't be read as another place.
+pub fn file_url(path: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    let mut out = String::from("file://");
+    for &b in path.as_os_str().as_bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 // ------------------------------------------------------------ the tools
 
 /// Carry out a system tool for real. None: not one of these (the caller decides).
@@ -249,7 +264,7 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             if !meta.is_dir() {
                 return Err("that isn't a folder".into());
             }
-            sh("/usr/bin/kioclient", &["exec", &format!("file://{}", folder.display())])?;
+            sh("/usr/bin/kioclient", &["exec", &file_url(&folder)])?;
             ok(json!({ "shown": r.rel, "opened_folder": folder.strip_prefix(root.canonicalize().unwrap_or(root.to_path_buf())).map(|p| p.display().to_string()).unwrap_or_default() }))
         })(),
         // the rest of the system tools arrive in M9; never pretend they ran
@@ -278,5 +293,8 @@ mod tests {
         // a file is never opened by files.show (a launcher or script would run)
         std::fs::write(d.path().join("evil.desktop"), "[Desktop Entry]\nExec=sh -c x").unwrap();
         assert!(run("files.show", &json!({ "path": "evil.desktop" }), d.path()).unwrap().unwrap_err().contains("opens folders"));
+        // names that a URL parser would read as another place stay one plain path
+        assert_eq!(file_url(Path::new("/home/r/a%2Fevil.desktop")), "file:///home/r/a%252Fevil.desktop");
+        assert_eq!(file_url(Path::new("/home/r/x#y?z w")), "file:///home/r/x%23y%3Fz%20w");
     }
 }
