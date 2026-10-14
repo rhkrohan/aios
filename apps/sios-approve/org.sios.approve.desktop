@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SIOS Approvals
+Comment=Asks you before an AI does something
+Exec=sios-approve
+Icon=security-high
+Terminal=false
+NoDisplay=true
+Categories=Qt;KDE;System;
+StartupWMClass=sios-approve

@@ -319,6 +319,11 @@ fn serve() {
                         let resp = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| guard.handle_as(&req, who)))
                             .unwrap_or_else(|_| json!({ "error": "capd hit an internal error on that request; nothing was changed by it" }));
                         drop(guard);
+                        // something now waits for the owner: wake the approval window (M5)
+                        let waits = (method == "call" && resp["ok"]["decision"] == "ask") || (method == "request_pass" && resp["ok"]["state"] == "waiting for the owner");
+                        if by_peer && waits {
+                            wake_approval_window();
+                        }
                         log_line(&req, &resp);
                         resp
                     }
@@ -330,6 +335,19 @@ fn serve() {
             }
         });
     }
+}
+
+/// Ask the session bus to start (or raise) sios-approve. It carries no data: the
+/// window asks the broker itself what's waiting. Never waits on the desktop.
+fn wake_approval_window() {
+    std::thread::spawn(|| {
+        let _ = exec::run(
+            "/usr/bin/gdbus",
+            &["call", "--session", "--dest", "org.sios.Approve1", "--object-path", "/Approve", "--method", "org.sios.Approve1.Show"],
+            None,
+            std::time::Duration::from_secs(10),
+        );
+    });
 }
 
 /// One line per request on the console, so you can watch decisions happen.

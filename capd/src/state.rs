@@ -96,6 +96,8 @@ pub struct State {
     revoked: HashSet<String>,
     /// Passes a service asked for that the owner hasn't granted yet: usable for dry runs only.
     ungranted: HashSet<String>,
+    /// What each of those passes would allow, to show the owner (the approval window).
+    waiting: HashMap<String, Cap>,
     /// The owner's standing rules: passes fully inside one are granted without asking.
     rules: Vec<Rule>,
     parents: HashMap<String, Option<String>>,
@@ -164,6 +166,7 @@ impl State {
             dir: dir.to_path_buf(),
             revoked: HashSet::new(),
             ungranted: HashSet::new(),
+            waiting: HashMap::new(),
             rules: Self::load_rules(&dir),
             parents: HashMap::new(),
             limits: HashMap::new(),
@@ -185,6 +188,36 @@ impl State {
             },
             gateway: crate::gateway::Gateway::open(dir).map_err(std::io::Error::other)?,
         })
+    }
+
+    /// Waiting passes and calls, described for a person: who, what for, which
+    /// tools and how risky, where. Long arguments are cut short; nothing secret is in here.
+    fn pending_list(&self) -> Value {
+        let tool = |n: &str| match tools::spec(n) {
+            Some(t) => json!({ "name": t.name, "about": t.about, "level": t.level, "egress": t.egress }),
+            None => json!({ "name": n, "about": "", "level": "irreversible", "egress": false }),
+        };
+        let short = |v: &Value| -> Value {
+            match v {
+                Value::String(s) if s.chars().count() > 300 => json!(format!("{}…", s.chars().take(300).collect::<String>())),
+                Value::Object(m) => Value::Object(m.iter().map(|(k, x)| (k.clone(), if let Value::String(s) = x { json!(s.chars().take(300).collect::<String>()) } else { x.clone() })).collect()),
+                other => other.clone(),
+            }
+        };
+        let mut passes: Vec<Value> = self
+            .waiting
+            .iter()
+            .filter(|(id, c)| self.ungranted.contains(*id) && !self.is_revoked(c) && now() < c.expires_at)
+            .map(|(id, c)| json!({ "kind": "pass", "id": id, "principal": c.principal, "goal": c.goal, "tools": c.tools.iter().map(|t| tool(t)).collect::<Vec<_>>(), "paths": c.paths, "expires_in": c.expires_at.saturating_sub(now()), "uses": c.uses, "sends_out": !c.no_egress && c.tools.iter().any(|t| tools::spec(t).is_some_and(|s| s.egress)) }))
+            .collect();
+        passes.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
+        let calls: Vec<Value> = self
+            .pending
+            .iter()
+            .filter(|(_, x)| x.answer.is_none())
+            .map(|(id, x)| json!({ "kind": "call", "id": id, "principal": x.cap.principal, "goal": x.cap.goal, "tool": tool(&x.tool), "args": short(&x.args), "reason": x.reason }))
+            .collect();
+        json!({ "passes": passes, "calls": calls })
     }
 
     #[cfg(test)]
@@ -402,7 +435,8 @@ impl State {
                         v["rule"] = json!(rule.note);
                     }
                     None => {
-                        self.ungranted.insert(id);
+                        self.ungranted.insert(id.clone());
+                        self.waiting.insert(id, cap.clone());
                         v["state"] = json!("waiting for the owner");
                     }
                 }
@@ -425,6 +459,7 @@ impl State {
             "grant" => {
                 let id = p["id"].as_str().unwrap_or("");
                 if self.ungranted.remove(id) {
+                    self.waiting.remove(id);
                     Ok(json!({ "granted": id }))
                 } else {
                     Err("no pass waiting with that id".into())
@@ -441,6 +476,7 @@ impl State {
             }),
             "revoke" => {
                 let id = p["id"].as_str().unwrap_or("").to_string();
+                self.waiting.remove(&id);
                 self.revoked.insert(id.clone());
                 Ok(json!({ "revoked": id }))
             }
@@ -452,6 +488,25 @@ impl State {
                 .filter(|(_, x)| x.answer.is_none())
                 .map(|(id, x)| json!({ "id": id, "principal": x.cap.principal, "goal": x.cap.goal, "tool": x.tool, "args": x.args, "reason": x.reason, "checks": x.checks }))
                 .collect::<Vec<_>>() })),
+            // what's waiting for the owner, in plain terms, for the approval window;
+            // readable by any program of this user (the socket is theirs alone)
+            "pending.list" => Ok(self.pending_list()),
+            // anyone may say no to something waiting: a no can't do harm. Yes is the owner's (D39)
+            "decline" => {
+                let id = p["id"].as_str().unwrap_or("").to_string();
+                if self.ungranted.contains(&id) {
+                    let cap = self.waiting.remove(&id);
+                    self.revoked.insert(id.clone());
+                    if let Some(c) = cap {
+                        self.record(&c, "pass.decline", &c.paths.join(", "), "denied", "declined from the approval window", &json!([]));
+                    }
+                    Ok(json!({ "declined": id }))
+                } else if self.pending.get(&id).is_some_and(|x| x.answer.is_none()) {
+                    self.decide(&id, false).map(|_| json!({ "declined": id }))
+                } else {
+                    Err("nothing waiting with that id".into())
+                }
+            }
             "approve" => self.decide(p["id"].as_str().unwrap_or(""), true),
             "deny" => self.decide(p["id"].as_str().unwrap_or(""), false),
             "undo" => self.undo_goal(p["goal"].as_str().unwrap_or("")),
@@ -1877,6 +1932,33 @@ mod tests {
         // the daily limit
         r.owner("model.configure", json!({ "max_calls_per_day": 1 }));
         assert!(complete(&mut r, None)["error"].as_str().unwrap().contains("limit"));
+    }
+
+    #[test]
+    fn the_approval_window_sees_what_waits_and_anyone_can_say_no() {
+        let mut r = rig();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "goal": "tidy Downloads", "tools": ["files.organize"], "paths": ["Downloads"], "ttl": 600, "uses": 4 }))["ok"].clone();
+        let id = v["id"].as_str().unwrap().to_string();
+        let list = r.agent("pending.list", json!({}))["ok"].clone();
+        let p = &list["passes"][0];
+        assert_eq!((p["id"].as_str(), p["goal"].as_str(), p["tools"][0]["name"].as_str(), p["tools"][0]["level"].as_str()), (Some(id.as_str()), Some("tidy Downloads"), Some("files.organize"), Some("reversible")));
+        assert_eq!(p["paths"][0], "Downloads");
+        // saying yes is the owner's; saying no is anyone's
+        assert!(r.agent("grant", json!({ "id": id }))["error"].is_string());
+        assert_eq!(r.agent("decline", json!({ "id": id }))["ok"]["declined"], id);
+        assert!(r.agent("pending.list", json!({}))["ok"]["passes"].as_array().unwrap().is_empty());
+        assert_eq!(r.st.pass_state(v["token"].as_str().unwrap()), "revoked");
+        assert!(r.agent("decline", json!({ "id": "nope" }))["error"].is_string());
+        // a waiting call shows its tool, why it asks, and arguments cut short
+        let t = r.mint(json!({ "principal": "a", "goal": "send notes", "tools": ["mail.send"] }));
+        let long = "x".repeat(1000);
+        let c = r.call(&t, "mail.send", json!({ "to": ["sara.okafor@example.com"], "subject": "Notes", "body": long }));
+        assert_eq!(decision(&c), "ask");
+        let list = r.agent("pending.list", json!({}))["ok"].clone();
+        let call = &list["calls"][0];
+        assert_eq!(call["tool"]["name"], "mail.send");
+        assert!(call["args"]["body"].as_str().unwrap().chars().count() <= 300);
+        assert!(call["reason"].as_str().unwrap().len() > 5);
     }
 
     #[test]
