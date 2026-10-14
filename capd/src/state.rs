@@ -529,7 +529,7 @@ impl State {
                 self.record(&Self::owner_cap(), &format!("iam.{method}"), &who, "you", &format!("you {} {who}", if method == "pause" { "paused" } else { "resumed" }), &json!([]));
                 Ok(json!({ "paused": self.iam.paused }))
             }
-            m if m.starts_with("iam.") => self.iam_method(m, p, owner, service),
+            m if m.starts_with("iam.") || m.starts_with("session.") => self.iam_method(m, p, owner, service),
             "audit" => {
                 let verify = match audit::verify(&self.dir.join("audit.jsonl")) {
                     Ok(n) => json!({ "intact": true, "entries": n }),
@@ -705,6 +705,28 @@ impl State {
                     return Err("SIOS may only register helper: and unpaired: identities".into());
                 }
                 Ok(json!(self.iam.get(&id)))
+            }
+            // an outside app's door (brain-d mcp) opens a session with the token the owner
+            // gave it: a pass for every tool its roles could allow; each call is still
+            // decided by the roles, the policy and, when it asks, the owner (M8, D35)
+            "session.open" => {
+                let id = self.iam.pairings.get(&crate::audit::sha256_hex(s("pair").as_bytes())).cloned().ok_or("that pairing token isn't known; pair the app again in Settings > Connected AI apps")?;
+                let tools = self.iam.tools_for(&id);
+                if tools.is_empty() {
+                    return Err(format!("{id} has no roles yet; give it one in Settings > Connected AI apps"));
+                }
+                let client: String = s("client").chars().take(60).collect();
+                let cap = Cap { id: random_hex(8), parent: None, principal: id.clone(), goal: format!("{} working for you", if client.is_empty() { id.as_str() } else { client.as_str() }), tools, paths: vec![String::new()], expires_at: now() + 8 * 3600, uses: None, no_egress: false, budget: None, own: false };
+                let v = self.issue_minted(cap.clone())?;
+                self.record(&cap, "session.open", &id, "allow", "an app you paired connected", &json!([]));
+                let manifest = crate::manifest::build(&cap, None, None, now(), "mcp")?;
+                Ok(json!({ "id": id, "name": self.iam.get(&id).map(|i| i.name.clone()), "token": v["token"], "manifest": manifest }))
+            }
+            // an app may end its own session
+            "session.close" => {
+                let cap = self.check_token_any(&s("cap"))?;
+                self.revoked.insert(cap.id.clone());
+                Ok(json!({ "closed": cap.id }))
             }
             "iam.resolve" if service => {
                 let token = s("token");
@@ -1971,6 +1993,32 @@ mod tests {
         assert_eq!(call["tool"]["name"], "mail.send");
         assert!(call["args"]["body"].as_str().unwrap().chars().count() <= 300);
         assert!(call["reason"].as_str().unwrap().len() > 5);
+    }
+
+    #[test]
+    fn a_paired_app_gets_a_session_sized_by_its_roles() {
+        let mut r = rig();
+        assert!(r.agent("session.open", json!({ "pair": "sios_pair_guess" }))["error"].is_string());
+        let tok = r.owner("iam.pair", json!({ "name": "Claude Code", "roles": ["reader"] }))["ok"]["token"].as_str().unwrap().to_string();
+        let v = r.agent("session.open", json!({ "pair": tok, "client": "claude-code" }))["ok"].clone();
+        assert_eq!(v["id"], "app:claude-code");
+        let names: Vec<&str> = v["manifest"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+        assert!(names.contains(&"files_read") && names.contains(&"system_state"));
+        assert!(!names.contains(&"files_write") && !names.contains(&"mail_send"), "{names:?}");
+        // a read-only role isn't offered tools it could never use
+        assert!(!names.contains(&"system_lock") && !names.contains(&"apps_install"), "{names:?}");
+        let cap = v["token"].as_str().unwrap().to_string();
+        // a read works; a change its role doesn't allow isn't even in its pass
+        assert_eq!(decision(&r.call(&cap, "files_read", json!({ "path": "Projects/notes.md" }))), "allow");
+        assert_eq!(decision(&r.call(&cap, "files.trash", json!({ "path": "Projects/notes.md" }))), "block");
+        // paused by the owner: the next call stops
+        r.owner("pause", json!({ "principal": "app:claude-code" }));
+        assert_eq!(decision(&r.call(&cap, "files_read", json!({ "path": "Projects/notes.md" }))), "block");
+        // an app with no roles gets no session, and closing ends it
+        let none = r.owner("iam.pair", json!({ "name": "Nobody", "roles": [] }))["ok"]["token"].as_str().unwrap().to_string();
+        assert!(r.agent("session.open", json!({ "pair": none }))["error"].as_str().unwrap().contains("no roles"));
+        assert_eq!(r.agent("session.close", json!({ "cap": cap }))["ok"]["closed"].as_str().is_some(), true);
+        assert_eq!(r.st.pass_state(&cap), "revoked");
     }
 
     #[test]

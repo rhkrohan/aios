@@ -27,11 +27,21 @@ impl Capd {
         self.call_within(method, params, Duration::from_secs(180))
     }
 
+    /// As an ordinary agent, with no service secret: for the MCP door, which runs
+    /// as a child of an outside AI and must never act as SIOS's brain.
+    pub fn call_as_agent(&self, method: &str, params: Value) -> Result<Value, String> {
+        self.send(method, params, Duration::from_secs(20), false)
+    }
+
     fn call_within(&self, method: &str, params: Value, wait: Duration) -> Result<Value, String> {
+        self.send(method, params, wait, true)
+    }
+
+    fn send(&self, method: &str, params: Value, wait: Duration, as_service: bool) -> Result<Value, String> {
         let mut s = UnixStream::connect(&self.sock).map_err(|e| format!("can't reach capd: {e}"))?;
         s.set_read_timeout(Some(wait)).ok();
         // brain-d proves who it is with the service secret capd made (on SIOS: SO_PEERCRED)
-        let service = std::fs::read_to_string(self.state.join("service.secret")).unwrap_or_default();
+        let service = if as_service { std::fs::read_to_string(self.state.join("service.secret")).unwrap_or_default() } else { String::new() };
         writeln!(s, "{}", json!({ "method": method, "params": params, "service": service.trim() })).map_err(|e| e.to_string())?;
         let mut line = String::new();
         BufReader::new(s).read_line(&mut line).map_err(|e| e.to_string())?;

@@ -333,6 +333,29 @@ impl Iam {
         self.roles.iter().filter(|r| r.global || mine.contains(&r.id)).collect()
     }
 
+    /// Every tool this identity's roles could ever allow (in some place, in some
+    /// mode), minus tools a statement denies outright. Each call is still decided
+    /// by `decide`; this only sizes the pass an outside app's session gets (M8).
+    pub fn tools_for(&self, principal: &str) -> Vec<String> {
+        if self.get(principal).is_none() {
+            return vec![];
+        }
+        let roles = self.roles_of(principal);
+        crate::tools::TOOLS
+            .iter()
+            .map(|t| t.name)
+            .filter(|t| {
+                // an allow that names the tool, and doesn't cap the risk below the tool's own
+                let level = crate::tools::spec(t).map(|x| risk(x.level)).unwrap_or(2);
+                roles.iter().any(|r| r.statements.iter().any(|s| {
+                    s.effect == Effect::Allow && s.tools.iter().any(|p| tool_matches(p, t)) && s.when.as_ref().and_then(|w| w.max_risk.as_deref()).is_none_or(|m| level <= risk_named(m))
+                }))
+            })
+            .filter(|t| !roles.iter().any(|r| r.statements.iter().any(|s| s.effect == Effect::Deny && s.places.is_empty() && s.when.is_none() && s.tools.iter().any(|p| tool_matches(p, t)))))
+            .map(String::from)
+            .collect()
+    }
+
     pub fn decide(&self, principal: &str, a: &Action) -> Decided {
         if principal == OWNER {
             return Decided { result: Res::Pass, detail: "You did this yourself. Roles limit AIs, not you.".into() };
