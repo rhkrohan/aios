@@ -9,7 +9,7 @@ Every tool goes through the broker (capd). Before running anything, the broker c
 - the AI's roles (IAM);
 - whether anything leaves the computer.
 
-The AI never touches D-Bus, files or the network itself. The same list goes to every AI in its own format: OpenAI, Anthropic and MCP (`capd/src/manifest.rs`). An AI only ever sees the tools its pass allows.
+Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) can never be named by any AI; the Trash is the one exception. The AI never touches D-Bus, files or the network itself. The same list goes to every AI in its own format: OpenAI, Anthropic and MCP (`capd/src/manifest.rs`). An AI only ever sees the tools its pass allows.
 
 ## How to read the tables
 

@@ -12,6 +12,7 @@
 | Big labs ship OS-level agents | Competition | Neutrality across models, open source trust, shared types |
 | Small team, many parts | Stalls | Reuse over rebuild; Vault exists; strict phases |
 | Aurora is amd64 only; main dev machine is an arm64 Mac | Slow or no local VM testing | Build on GitHub Actions; test on x86_64 hardware; UTM emulation as fallback |
+| An AI with a shell drives SIOS's own owner windows through the accessibility bus (AT-SPI can press buttons in any app of the same user) | It could approve its own requests in `sios-approve` or change Settings | M5: the approval window ignores accessibility actions and only takes real pointer or keyboard input; check before M5 ships. Found 2026-10-14 while building M3 |
 
 ## Open questions
 - OS name (paused)

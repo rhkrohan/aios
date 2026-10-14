@@ -1,7 +1,7 @@
 # Tasks
 
 ## Active
-- [ ] **AI OS layer M2: capd and brain-d built into the image, cargo test gates the build** - Phase 2, see docs/phases/phase-2.md
+- [ ] **AI OS layer M4: model gateway in the broker, keys encrypted, Settings > Brain** - Phase 2 (M2, M3 built 2026-10-14; check both on the VM after the next image)
 - [ ] **Install ISO in VirtualBox on the Windows PC; confirm desktop loads** - Phase 0 gate
 - [ ] **Set up test VM on an x86_64 Linux host (virt-manager or GNOME Boxes), or UTM emulation on the Mac as fallback** - Phase 0, Aurora is amd64 only
 - [ ] **Stub brain-d systemd user unit that logs "brain-d started"** - Phase 0
@@ -16,6 +16,7 @@
 - [ ] **Decide core license (Apache-2.0 vs GPL)**
 
 ## Done
+- [x] ~~AI OS layer M2 (Rust in the image) and M3 (user services, caller identity)~~ (2026-10-14)
 - [x] ~~AI OS layer M1: tools renamed with aliases; catalog in docs/plan/16-tool-catalog.md~~ (2026-10-14)
 - [x] ~~AI OS layer M0: plan, decisions D31 to D38, phase-2 milestones~~ (2026-10-14)
 - [x] ~~Generate cosign key pair, add SIGNING_SECRET~~ (2026-09-28)
