@@ -205,6 +205,10 @@ decisions = [
         {"role": "user", "content": "model.complete failed: \"Today's limit of 200 AI requests is used up (Settings > Brain).\""},
         {"role": "assistant", "content": "Tell the owner: \"I've used today's 200 AI requests, so I'll stop here. You can raise the limit in Settings > Brain, or I'll pick this up tomorrow.\" Report what was already done, and don't retry until the limit changes."},
     ], ["model", "limit"], "Limits are the owner's; report and stop."),
+    rec(7, "decisions", "explain-v1", [
+        {"role": "user", "content": "The owner pressed Deny in the approval window for the pass to tidy Downloads. pass_state now says revoked."},
+        {"role": "assistant", "content": "Tell the owner: \"OK, I left Downloads as it was.\" Stop this goal. Don't ask again for the same pass, don't ask for a smaller one to slip it through, and don't try it another way. If they want it later, they'll ask."},
+    ], ["deny", "approval"], "A no from the owner ends the goal; no re-asking or narrower retries."),
 ]
 
 for name, rows in [("plans", plans), ("tool_use", tool_use), ("decisions", decisions)]:
