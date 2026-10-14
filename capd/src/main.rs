@@ -49,6 +49,7 @@ const HELP: &str = "capd: SIOS capability daemon
 
   capd serve                      run the daemon (keep it open)
   capd seed                       fill the sandbox with demo files and labels
+  capd catalog                    every tool with its argument schema (MCP form)
   capd status                     tools, pending approvals, paused agents
   capd mint --principal P --goal G --tools a,b [--paths x,y] [--ttl secs]
             [--uses n] [--budget n] [--no-egress]
@@ -73,6 +74,26 @@ fn main() {
     match cmd {
         "serve" => serve(),
         "seed" => seed(),
+        // every tool with its exact argument schema, in MCP form (for docs and llm/)
+        "catalog" => {
+            let all = token::Cap {
+                id: "catalog".into(),
+                parent: None,
+                principal: "catalog".into(),
+                goal: "describe every tool".into(),
+                tools: tools::TOOLS.iter().map(|t| t.name.to_string()).collect(),
+                paths: vec![String::new()],
+                expires_at: u64::MAX,
+                uses: None,
+                no_egress: false,
+                budget: None,
+                own: false,
+            };
+            match manifest::build(&all, None, None, 0, "mcp") {
+                Ok(m) => println!("{}", serde_json::to_string_pretty(&m["tools"]).unwrap_or_default()),
+                Err(e) => eprintln!("{e}"),
+            }
+        }
         "memsim" => {
             let o = memsim::Options {
                 days: num(&args, "--days").unwrap_or(180).clamp(7, 730),

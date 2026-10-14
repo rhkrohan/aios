@@ -104,7 +104,7 @@ Return the WHOLE plan at once; the operating system checks it with the broker an
 Rules: use exact paths from the briefing; never invent files or people; prefer few, big steps (files.organize for many moves, files.find to search); \
 use a compose step whenever text must be written from file contents, then pass its text to later steps as {{N}}; \
 files.organize and files.move create missing destination folders, so don't create folders separately; \
-for anything that only shows something to the owner, use ui tools; \
+for anything that only shows something to the owner, use files.show, files.preview or apps.open; \
 use exactly the argument fields listed for each tool; \
 to duplicate a file use files.copy, never a compose step (that would rewrite its contents); \
 when the owner says \"remember\", \"note that\" or \"from now on\", save it with memory.save in their words; \
