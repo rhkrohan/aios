@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: M4 built (model gateway, Settings > Brain). D39 detail: polkit refuses dialog details from unprivileged callers, so owner actions use three polkit actions with their own wording instead. llm/: 3 decision examples for the gateway's refusals.
 - 2026-10-14: Owner asked to build fine-tuning data for a future ~7B SIOS model while we build (D18): new `llm/` folder (format, rules, prompts, tool catalog snapshot, 19 seed examples); CLAUDE.md asks every session to add examples after each task. `capd catalog` prints every tool with its schema.
 - 2026-10-14: D39 accepted (owner chose "password prompt"): owner actions are confirmed with your password through polkit, every time; checked on the VM that a user service can show the dialog.
 - 2026-10-14: D32 amended after a security review: the program check can be faked by a same-user process (copied connection plus exec), so no caller is the owner by program until the owner has an anchor an AI can't fake (decision needed before M4 key saving and M5 approvals). Risk added.

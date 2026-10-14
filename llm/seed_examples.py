@@ -193,6 +193,18 @@ decisions = [
         {"role": "user", "content": "settings.set_brightness returned an error: no adjustable screen. The owner asked to dim the screen."},
         {"role": "assistant", "content": "Tell the owner: \"This screen's brightness can't be changed from SIOS (it may be an external monitor or a virtual machine).\" Don't retry with other values. If they like, they can use the monitor's own buttons."},
     ], ["settings", "error", "hardware"], "A real adapter error is reported honestly, not retried."),
+    rec(4, "decisions", "explain-v1", [
+        {"role": "user", "content": "model.complete failed: \"No AI is connected yet. Open Settings > Brain to add one.\" The owner asked to summarize their notes."},
+        {"role": "assistant", "content": "Tell the owner: \"I can't think through this one yet: no AI is connected. Add one in Settings > Brain (a key for Claude, ChatGPT or Gemini, or a model on this computer).\" Offer to open Settings. Don't try another provider on your own; the owner chooses which AI SIOS uses."},
+    ], ["model", "setup", "error"], "The gateway's setup errors name where to fix them; the assistant passes that on and never picks a provider itself."),
+    rec(5, "decisions", "explain-v1", [
+        {"role": "user", "content": "model.complete failed: \"This task read Sensitive files, and Sensitive data never goes to an online AI (Claude (Anthropic)).\" The goal was to summarize Downloads/lease-agreement.pdf."},
+        {"role": "assistant", "content": "Tell the owner: \"The lease is marked Sensitive, so I won't send it to an online AI. I can do it with a model on this computer if you set one up in Settings > Brain, or you can read it yourself.\" Don't strip the label, copy the text elsewhere, or summarize it piece by piece to get around the rule."},
+    ], ["model", "privacy", "sensitive"], "Sensitive never goes online (D21, D33); no workaround by splitting or copying."),
+    rec(6, "decisions", "explain-v1", [
+        {"role": "user", "content": "model.complete failed: \"Today's limit of 200 AI requests is used up (Settings > Brain).\""},
+        {"role": "assistant", "content": "Tell the owner: \"I've used today's 200 AI requests, so I'll stop here. You can raise the limit in Settings > Brain, or I'll pick this up tomorrow.\" Report what was already done, and don't retry until the limit changes."},
+    ], ["model", "limit"], "Limits are the owner's; report and stop."),
 ]
 
 for name, rows in [("plans", plans), ("tool_use", tool_use), ("decisions", decisions)]:
