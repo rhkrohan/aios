@@ -167,6 +167,21 @@ fn words(s: &str) -> Vec<String> {
 
 const STOP: [&str; 24] = ["the", "and", "for", "with", "that", "this", "from", "into", "you", "your", "are", "was", "has", "have", "can", "please", "what", "who", "all", "any", "about", "tell", "send", "email"];
 
+/// What a memory will really be stored as: its kind, group and person, decided in
+/// one place, so the check for "would this replace the owner's memory" and the
+/// save itself can never disagree (security review 2026-10-15).
+fn normalize(text: &str, kind: &str, group: &str) -> (String, String, Option<Person>) {
+    let kind = if ["fact", "preference", "person", "episode"].contains(&kind) { kind } else { "fact" };
+    let group = if GROUPS.contains(&group) { group.to_string() } else if kind == "preference" { "Habits".into() } else { "Personal".into() };
+    // anything with a name and an email is also a person, so "my accountant" resolves
+    let person = if kind == "person" || (kind == "fact" && group == "People") { parse_person(text) } else { None };
+    if person.is_some() {
+        ("person".into(), "People".into(), person)
+    } else {
+        (kind.into(), group, None)
+    }
+}
+
 impl MemStore {
     pub fn open(path: &Path) -> MemStore {
         let mut s: MemStore = std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
@@ -280,8 +295,8 @@ impl MemStore {
     /// (or text injected into one) can't quietly change who your accountant is
     /// (security review 2026-10-15).
     pub fn add_from_ai(&mut self, text: &str, kind: &str, group: &str, labels: Vec<String>, source: &str, now: u64) -> Result<Memory, String> {
-        let probe = Memory { id: String::new(), text: text.trim().to_string(), kind: kind.into(), group: group.into(), labels: vec![], source: source.into(), created: now, last_used: now, uses: 0, person: parse_person(text.trim()), links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None };
-        let probe = Memory { kind: if probe.person.is_some() { "person".into() } else { probe.kind.clone() }, group: if probe.person.is_some() { "People".into() } else { probe.group.clone() }, ..probe };
+        let (pk, pg, pp) = normalize(text.trim(), kind, group);
+        let probe = Memory { id: String::new(), text: text.trim().to_string(), kind: pk, group: pg, labels: vec![], source: source.into(), created: now, last_used: now, uses: 0, person: pp, links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None };
         if let Some(old) = self.memories.iter().find(|old| same_subject(&probe, old)) {
             let why = format!("An AI wanted to replace \"{}\"", old.text.chars().take(120).collect::<String>());
             let grp = probe.group.clone();
@@ -300,8 +315,8 @@ impl MemStore {
         if let Some(why) = looks_secret(text) {
             return Err(format!("not saved: {why}. Secrets never go into memory; sign-ins belong in the vault (Security Center, Sign-ins)"));
         }
-        let kind = if ["fact", "preference", "person", "episode"].contains(&kind) { kind } else { "fact" };
-        let group = if GROUPS.contains(&group) { group.to_string() } else if kind == "preference" { "Habits".into() } else { "Personal".into() };
+        let (kind_s, group, person) = normalize(text, kind, group);
+        let kind = kind_s.as_str();
         // the same thing twice is one memory (episodes are a journal: every one is kept)
         if let Some(m) = self.memories.iter_mut().find(|m| kind != "episode" && m.kind != "episode" && m.live() && m.text.eq_ignore_ascii_case(text)) {
             m.last_used = now;
@@ -315,9 +330,6 @@ impl MemStore {
             self.save();
             return Ok(m);
         }
-        // anything with a name and an email is also a person, so "my accountant" resolves
-        let person = if kind == "person" || (kind == "fact" && group == "People") { parse_person(text) } else { None };
-        let (kind, group) = if person.is_some() { ("person", "People".to_string()) } else { (kind, group) };
         let m = Memory { id: new_id(), text: text.chars().take(500).collect(), kind: kind.into(), group, labels, source: source.into(), created: now, last_used: now, uses: 0, person, links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None };
         // the newer version of something replaces the older one (D73)
         for old in self.memories.iter_mut().filter(|_| may_replace) {
@@ -601,5 +613,16 @@ mod tests {
         assert_eq!(s.suggestions.len(), 1, "the owner decides in Memory");
         // something new (not replacing anything) is just saved
         assert!(s.add_from_ai("Prefers window seats on flights", "preference", "Habits", vec![], "SIOS", 3).is_ok());
+    }
+
+    #[test]
+    fn odd_kinds_or_groups_dont_slip_past_the_replace_check() {
+        let (_d, mut s) = store();
+        s.add("I live in Philadelphia", "fact", "Personal", vec![], "you", 1).unwrap();
+        for (kind, group) in [("fact", "personal"), ("bogus", "Bogus"), ("fact", "")] {
+            assert!(s.add_from_ai("I moved to Nowhere", kind, group, vec![], "app:x", 2).is_err(), "{kind}/{group}");
+        }
+        let v = Viewer { principal: "you", own: true, online: false };
+        assert!(s.search("where do I live", &v, 5)[0].text.contains("Philadelphia"));
     }
 }
