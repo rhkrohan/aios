@@ -381,7 +381,8 @@ fn serve() {
             })
         };
         let first = ask(&conn);
-        if let Some(w) = first.filter(|w| *w != peer::Who::Agent) {
+        // brain-d connects every few seconds; say so only for the others
+        if let Some(w) = first.filter(|w| *w != peer::Who::Agent && *w != peer::Who::Service) {
             println!("{w:?} connected");
         }
         std::thread::spawn(move || {
@@ -560,6 +561,12 @@ fn serve() {
 fn log_line(req: &Value, resp: &Value) {
     let m = req["method"].as_str().unwrap_or("?");
     if m == "await" || m == "status" || m == "pending" {
+        return;
+    }
+    // reads that brain-d and the windows repeat every few seconds fill the journal;
+    // only their errors are worth a line
+    const POLLS: [&str; 6] = ["agents.list", "connectors.tools", "connectors.view", "model.providers", "windows.check", "goal.events"];
+    if POLLS.contains(&m) && resp.get("error").is_none() {
         return;
     }
     let what = match m {

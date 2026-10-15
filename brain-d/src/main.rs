@@ -66,7 +66,18 @@ pub fn state_dir() -> PathBuf {
 
 /// Where the sockets live: $SIOS_RUNTIME on SIOS ($XDG_RUNTIME_DIR/sios), else the state folder.
 pub fn runtime_dir() -> PathBuf {
-    std::env::var("SIOS_RUNTIME").map(PathBuf::from).unwrap_or_else(|_| state_dir())
+    if let Ok(d) = std::env::var("SIOS_RUNTIME") {
+        return PathBuf::from(d);
+    }
+    // the service sets SIOS_RUNTIME; a CLI started from the desktop (the Today
+    // widget's `brain-d suggestions`) finds the running brain without being told
+    if let Ok(x) = std::env::var("XDG_RUNTIME_DIR") {
+        let d = PathBuf::from(x).join("sios");
+        if d.join("brain.sock").exists() {
+            return d;
+        }
+    }
+    state_dir()
 }
 
 /// The broker, where this brain-d finds it.
