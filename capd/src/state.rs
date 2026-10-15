@@ -456,6 +456,12 @@ impl State {
                 json!(a)
             }),
             "agents.update" => self.agents.update(p).map(|a| {
+                // paused means paused now: passes it already holds stop working too
+                self.iam.paused.retain(|x| x != &a.id);
+                if !a.active {
+                    self.iam.paused.push(a.id.clone());
+                }
+                self.iam.save();
                 self.record(&Self::owner_cap(), "agents.update", &a.id, "you", &format!("you changed {} ({}, {}, {})", a.name, a.job, a.brain, if a.active { "on" } else { "paused" }), &json!([]));
                 json!(a)
             }),
@@ -463,11 +469,26 @@ impl State {
                 let id = p["id"].as_str().unwrap_or("").to_string();
                 match self.agents.remove(&id) {
                     Some(a) => {
-                        // its identity goes, and every pass it holds stops working
+                        // its identity goes, with everything that hung on it: passes it holds,
+                        // passes and requests still waiting, memory shares, its pause entry
+                        // (a new agent with the same name starts from nothing)
                         self.iam.identities.retain(|i| i.id != id);
+                        self.iam.paused.retain(|x| x != &id);
                         self.iam.save();
+                        if self.memory.shares.remove(&id).is_some() {
+                            self.memory.save();
+                        }
                         let held: Vec<String> = self.holders.iter().filter(|(_, who)| **who == id).map(|(c, _)| c.clone()).collect();
                         self.revoked.extend(held);
+                        let waiting: Vec<String> = self.waiting.iter().filter(|(_, c)| c.principal == id).map(|(k, _)| k.clone()).collect();
+                        for k in waiting {
+                            self.waiting.remove(&k);
+                            self.ungranted.remove(&k);
+                            self.revoked.insert(k);
+                        }
+                        for x in self.pending.values_mut().filter(|x| x.answer.is_none() && x.cap.principal == id) {
+                            x.answer = Some(Err("that agent was removed".into()));
+                        }
                         self.record(&Self::owner_cap(), "agents.remove", &id, "you", &format!("you removed the agent {}", a.name), &json!([]));
                         Ok(json!({ "removed": id }))
                     }
@@ -1757,8 +1778,10 @@ mod tests {
         let pass = |r: &mut Rig| r.agent("request_pass", json!({ "principal": "agent:pip", "goal": "sort", "tools": ["files.list"], "paths": ["Downloads"], "own": true, "ttl": 600, "uses": 4 }));
         let v = pass(&mut r)["ok"].clone();
         assert!(v["token"].is_string(), "{v}");
+        let held = v["token"].as_str().unwrap().to_string();
         r.owner("agents.update", json!({ "id": "agent:pip", "active": false }));
         assert!(pass(&mut r)["error"].as_str().unwrap().contains("paused"));
+        assert_eq!(decision(&r.call(&held, "files.list", json!({ "path": "Downloads" }))), "block", "paused now: what it holds stops too");
         // an agent you never made can't ask
         assert!(r.agent("request_pass", json!({ "principal": "agent:ghost", "tools": ["files.list"], "paths": ["Downloads"] }))["error"].is_string());
         // reports come from SIOS's brain, are seen by SIOS's windows
@@ -1770,8 +1793,12 @@ mod tests {
         // removing it ends its passes and its identity
         let tok = v["token"].as_str().unwrap().to_string();
         r.owner("agents.update", json!({ "id": "agent:pip", "active": true }));
+        r.owner("memory.share", json!({ "principal": "agent:pip", "groups": ["Work"] }));
+        let waiting = r.agent("request_pass", json!({ "principal": "agent:pip", "goal": "move", "tools": ["files.move"], "paths": ["Downloads"] }))["ok"]["id"].as_str().unwrap().to_string();
         r.owner("agents.remove", json!({ "id": "agent:pip" }));
         assert!(r.st.iam.get("agent:pip").is_none());
+        assert!(!r.st.waiting.contains_key(&waiting), "nothing of it waits for your OK");
+        assert!(!r.st.memory.shares.contains_key("agent:pip"), "a new Pip wouldn't inherit its shares");
         assert_eq!(decision(&r.call(&tok, "files.list", json!({ "path": "Downloads" }))), "block");
     }
 
