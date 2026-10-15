@@ -292,7 +292,7 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             ok(json!({ "shown": r.rel, "opened_folder": folder.strip_prefix(root.canonicalize().unwrap_or(root.to_path_buf())).map(|p| p.display().to_string()).unwrap_or_default() }))
         })(),
         // a notification later, from a timer the user's systemd keeps (survives capd restarts);
-        // undo cancels it. Text is escaped for systemd's % and $ expansion.
+        // undo cancels it. Text is escaped for systemd's $ expansion.
         // undo only (not a tool any AI can call): cancel the reminder this call made
         "system.remind.cancel" => (|| {
             let unit = s("cancel");
@@ -310,7 +310,8 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
                 return Err("what should the reminder say?".to_string());
             }
             let unit = format!("sios-remind-{}", crate::state::random_hex(5));
-            let body = text.replace('%', "%%").replace('$', "$$");
+            // systemd-run keeps % as is but expands $ (checked on the VM): "$$" is a plain "$"
+            let body = text.replace('$', "$$");
             sh(
                 "/usr/bin/systemd-run",
                 &["--user", "--quiet", "--collect", &format!("--unit={unit}"), &format!("--on-active={minutes}m"), "--timer-property=AccuracySec=1s", "--",
@@ -354,7 +355,7 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             let done_note = format!("{} {id} finished. Open the Store to see it.", if installing { "Installing" } else { "Removing" });
             let notify = format!(
                 "ExecStopPost=/usr/bin/gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify SIOS 0 sios-logo SIOS \"{}\" [] {{}} 6000",
-                done_note.replace('%', "%%").replace('$', "$$")
+                done_note.replace('$', "$$")
             );
             let mut cmd = vec!["--user", "--quiet", "--collect", "--unit", unit.as_str(), "--property", notify.as_str(), "--", "/usr/bin/flatpak"];
             if installing {

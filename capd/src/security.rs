@@ -226,6 +226,24 @@ fn raise(name: &'static str, page: &str) {
     });
 }
 
+// ------------------------------------------------------- agents' sandboxes
+
+/// Stop: every agent sandbox freezes where it is (the cgroup freezer).
+pub fn freeze_agents() {
+    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "freeze", "sios-agents.slice"], None, Duration::from_secs(5));
+}
+
+/// Resume after Stop: frozen agent runs end (they don't just carry on).
+pub fn end_agents() {
+    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "thaw", "sios-agents.slice"], None, Duration::from_secs(5));
+    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", "sios-agents.slice"], None, Duration::from_secs(10));
+}
+
+/// Is an agent's unit still running?
+pub fn unit_active(unit: &str) -> bool {
+    crate::exec::run("/usr/bin/systemctl", &["--user", "is-active", "--quiet", &format!("{unit}.service")], None, Duration::from_secs(5)).is_ok_and(|o| o.code == Some(0))
+}
+
 // ------------------------------------------------------- MCP doors
 
 /// The MCP doors (brain-d mcp) that opened a session: pid and start time.

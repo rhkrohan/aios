@@ -24,7 +24,7 @@ pub const OWNER_METHODS: &[&str] = &[
     "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.revert", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
-    "ai.resume", "agents.add", "agents.update", "agents.remove",
+    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin",
 ];
 
 /// What every AI is told while Stop is on.
@@ -495,13 +495,40 @@ impl State {
                     None => Err("no such agent".into()),
                 }
             }
+            // a work lease (D65): the agent may start runs on its project for some hours
+            "agents.lease" => (|| {
+                let id = p["id"].as_str().unwrap_or("").to_string();
+                let hours = p["hours"].as_u64().unwrap_or(2).clamp(1, 8);
+                let a = self.agents.get_mut(&id).ok_or("no such agent")?;
+                a.lease_until = now() + hours * 3600;
+                let name = a.name.clone();
+                self.agents.save();
+                self.record(&Self::owner_cap(), "agents.lease", &id, "you", &format!("you let {name} work on its project for {hours} h (its network isn't limited yet)"), &json!([]));
+                Ok(json!({ "lease_until": now() + hours * 3600 }))
+            })(),
+            "agents.git_init" => self.agent_git_init(p["id"].as_str().unwrap_or("")),
+            "agents.signin" => self.agent_signin(p["id"].as_str().unwrap_or("")),
+            // a task for a coding agent: from SIOS's windows or SIOS's brain, inside a lease
+            "agents.run" if !(viewer || service || owner) => Err("only SIOS's own windows can give an agent a task".into()),
+            "agents.run" => self.agent_run(p["id"].as_str().unwrap_or(""), p["task"].as_str().unwrap_or("")),
             "agents.view" | "reports.read" if !viewer => Err("only SIOS's own windows can see agents".into()),
             "agents.view" => Ok(self.agents.view()),
             "reports.read" => {
                 self.agents.mark_read(p["agent"].as_str());
                 Ok(json!({ "unread": 0 }))
             }
-            "agents.list" | "agents.report" if !service => Err("only SIOS's brain can do that".into()),
+            // an agent reports through its own session (sios_report in the MCP door)
+            "agents.report" if !service => (|| {
+                let cap = self.check_token(p["cap"].as_str().unwrap_or(""))?;
+                let agent = p["agent"].as_str().unwrap_or("");
+                if cap.principal != agent || !agent.starts_with("agent:") {
+                    return Err("an agent reports only for itself".into());
+                }
+                let kind = p["kind"].as_str().unwrap_or("progress");
+                let kind = if ["progress", "question", "done"].contains(&kind) { kind } else { "progress" };
+                self.agents.report(agent, kind, p["text"].as_str().unwrap_or(""), false, "", now()).map(|_| json!({ "saved": true }))
+            })(),
+            "agents.list" if !service => Err("only SIOS's brain can do that".into()),
             "agents.list" => Ok(json!(self.agents.agents)),
             "agents.report" => self.agents.report(p["agent"].as_str().unwrap_or(""), p["kind"].as_str().unwrap_or("run"), p["text"].as_str().unwrap_or(""), p["failed"].as_bool().unwrap_or(false), p["goal"].as_str().unwrap_or(""), now()).map(|_| json!({ "saved": true })),
             m if m.starts_with("memory.") => self.memory_method(m, p),
@@ -844,8 +871,14 @@ impl State {
             // decided by the roles, the policy and, when it asks, the owner (M8, D35)
             "session.open" => {
                 let id = self.iam.pairings.get(&crate::audit::sha256_hex(s("pair").as_bytes())).cloned().ok_or("that pairing token isn't known; pair the app again in Settings > Connected AI apps")?;
+                // an agent's pairing works only from inside its own sandbox (D64); main.rs
+                // fills __unit from the kernel, whatever the caller sent
+                let agent = id.starts_with("agent:");
+                if agent && s("__unit") != format!("{}.service", crate::runner::unit(id.trim_start_matches("agent:"))) {
+                    return Err("that agent's pairing only works inside its own workspace".into());
+                }
                 let tools = self.iam.tools_for(&id);
-                if tools.is_empty() {
+                if tools.is_empty() && !agent {
                     return Err(format!("{id} has no roles yet; give it one in Settings > Connected AI apps"));
                 }
                 let client: String = s("client").chars().take(60).collect();
@@ -853,7 +886,7 @@ impl State {
                 let v = self.issue_minted(cap.clone())?;
                 self.record(&cap, "session.open", &id, "allow", "an app you paired connected", &json!([]));
                 let manifest = crate::manifest::build(&cap, None, None, now(), "mcp")?;
-                Ok(json!({ "id": id, "name": self.iam.get(&id).map(|i| i.name.clone()), "token": v["token"], "manifest": manifest }))
+                Ok(json!({ "id": id, "name": self.iam.get(&id).map(|i| i.name.clone()), "token": v["token"], "manifest": manifest, "agent": agent }))
             }
             // an app may end its own session
             "session.close" => {
@@ -1186,6 +1219,181 @@ impl State {
         Ok(result)
     }
 
+    /// Where an agent's things live: (project, worktree, its .git, its private home, its folder in state).
+    fn agent_paths(&self, a: &crate::agents::Agent) -> Result<(PathBuf, PathBuf, PathBuf, PathBuf, PathBuf), String> {
+        let project = crate::fsguard::resolve(&self.root, &a.folder).map_err(|e| e.to_string())?;
+        if self.meta.is_blocked(&project.rel).is_some() {
+            return Err(format!("{} is blocked for every AI", project.rel));
+        }
+        if !project.real.is_dir() {
+            return Err(format!("{} isn't a folder", project.rel));
+        }
+        let name = project.real.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "project".into());
+        let root = self.root.canonicalize().map_err(|e| e.to_string())?;
+        let worktree = root.join("Agents").join(a.slug()).join(name);
+        let mine = self.dir.join("agents").join(a.slug());
+        Ok((project.real.clone(), worktree, project.real.join(".git"), mine.join("home"), mine))
+    }
+
+    /// "Make it a git project" (D63): git init and a first commit, with the owner's OK.
+    fn agent_git_init(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        let (project, ..) = self.agent_paths(&a)?;
+        if project.join(".git").exists() {
+            return Ok(json!({ "git": "already a git project" }));
+        }
+        let p = project.to_string_lossy().to_string();
+        let git = |args: &[&str]| crate::exec::run("/usr/bin/git", args, None, std::time::Duration::from_secs(60)).and_then(|o| if o.code == Some(0) { Ok(()) } else { Err(o.stderr.trim().chars().take(200).collect()) });
+        git(&["-C", &p, "init", "-q"])?;
+        git(&["-C", &p, "add", "-A"])?;
+        git(&["-C", &p, "-c", "user.name=SIOS", "-c", "user.email=sios@localhost", "commit", "-q", "--allow-empty", "-m", "Start (made a git project for SIOS agents)"])?;
+        self.record(&Self::owner_cap(), "agents.git_init", &a.folder, "you", "you made this folder a git project", &json!([]));
+        Ok(json!({ "git": "made" }))
+    }
+
+    /// The sandbox, the worktree and the pairing for a run; the systemd-run arguments.
+    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str) -> Result<(Vec<String>, PathBuf), String> {
+        let (project, worktree, git_dir, home, mine) = self.agent_paths(a)?;
+        if !git_dir.is_dir() {
+            return Err("that folder isn't a git project yet: use Make it a git project".into());
+        }
+        let claude = crate::runner::claude(&std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default())).ok_or("Claude Code isn't installed (claude.ai/install.sh)")?;
+        for d in [&home, &mine.join("runs")] {
+            std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+        }
+        // its own branch and worktree; the owner's working copy is never touched (D63)
+        if !worktree.exists() {
+            std::fs::create_dir_all(worktree.parent().unwrap_or(&worktree)).map_err(|e| e.to_string())?;
+            let (p, w, b) = (project.to_string_lossy().to_string(), worktree.to_string_lossy().to_string(), format!("sios/{}", a.slug()));
+            let o = crate::exec::run("/usr/bin/git", &["-C", &p, "worktree", "add", "-B", &b, &w], None, std::time::Duration::from_secs(60))?;
+            if o.code != Some(0) {
+                return Err(format!("couldn't make its worktree: {}", o.stderr.trim().chars().take(200).collect::<String>()));
+            }
+        }
+        // its pairing: a fresh token each run, as a systemd credential (never in the project)
+        let token = format!("sios_pair_{}", random_hex(20));
+        self.iam.pairings.retain(|_, v| v != &a.id);
+        self.iam.pairings.insert(crate::audit::sha256_hex(token.as_bytes()), a.id.clone());
+        self.iam.save();
+        let pair = mine.join("pair");
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let _ = std::fs::remove_file(&pair);
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&pair).map_err(|e| e.to_string())?;
+            std::io::Write::write_all(&mut f, token.as_bytes()).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(home.join("sios-mcp.json"), json!({ "mcpServers": { "sios": { "command": "/usr/bin/brain-d", "args": ["mcp"] } } }).to_string()).map_err(|e| e.to_string())?;
+        let sockets = std::env::var("SIOS_RUNTIME").map(PathBuf::from).map_err(|_| "no SIOS runtime folder")?;
+        let run_file = mine.join("runs").join(format!("{run_id}.jsonl"));
+        let left = a.lease_until.saturating_sub(now());
+        #[cfg(target_os = "linux")]
+        // SAFETY: getuid has no preconditions.
+        let uid = unsafe { libc::getuid() };
+        #[cfg(not(target_os = "linux"))]
+        let uid = 0;
+        let args = crate::runner::build(&crate::runner::Run {
+            slug: a.slug(),
+            worktree: &worktree,
+            git_dir: &git_dir,
+            agent_home: &home,
+            sockets: &sockets,
+            claude: &claude,
+            run_file: &run_file,
+            pair_file: &pair,
+            task,
+            resume: (!a.session.is_empty()).then_some(a.session.as_str()),
+            max_secs: left,
+            uid,
+        })?;
+        Ok((args, run_file))
+    }
+
+    /// Give a coding agent a task (A5): inside its lease, in its sandbox.
+    fn agent_run(&mut self, id: &str, task: &str) -> Result<Value, String> {
+        if self.sec.stopped.is_some() {
+            return Err(STOPPED.into());
+        }
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if a.brain != "claude-code" {
+            return Err("only coding agents run in a workspace; SIOS agents use Run now".into());
+        }
+        if !a.active {
+            return Err(format!("{} is paused", a.name));
+        }
+        if !a.leased(now()) {
+            return Err(format!("{} has no work lease right now: let it work on its project first (asks for your password)", a.name));
+        }
+        if !a.run.is_empty() {
+            return Err(format!("{} is still working on its last task", a.name));
+        }
+        let task = task.trim();
+        if task.is_empty() {
+            return Err("what should it do?".into());
+        }
+        let run_id = format!("r{}", random_hex(6));
+        let (args, run_file) = self.agent_prepare(&a, task, &run_id)?;
+        let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+        let o = crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(20))?;
+        if o.code != Some(0) {
+            return Err(format!("couldn't start its workspace: {}", o.stderr.trim().chars().take(200).collect::<String>()));
+        }
+        if let Some(x) = self.agents.get_mut(id) {
+            x.run = run_id.clone();
+        }
+        self.agents.report(id, "run", &format!("Started: {}", task.chars().take(300).collect::<String>()), false, &run_id, now())?;
+        self.record(&Self::owner_cap(), "agents.run", id, "allow", &format!("{} started a task in its workspace", a.name), &json!([]));
+        Ok(json!({ "agent": id, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file }))
+    }
+
+    /// When a run's unit is gone: its outcome becomes the report, its session is kept for next time.
+    pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path) {
+        let (text, session, failed) = crate::runner::outcome(run_file);
+        if let Some(a) = self.agents.get_mut(id) {
+            if a.run == run_id {
+                a.run.clear();
+            }
+            if let Some(s) = session {
+                a.session = s;
+            }
+        }
+        let _ = self.agents.report(id, "done", &text, failed, run_id, now());
+    }
+
+    /// Open a terminal in the agent's sandbox so the owner signs Claude Code in once (D61).
+    fn agent_signin(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        let mut tmp = a.clone();
+        tmp.lease_until = now() + 1800;
+        tmp.session.clear();
+        let (args, _) = self.agent_prepare(&tmp, "Say hello (sign-in check).", "signin")?;
+        // the same sandbox, interactive: drop the output file and the task, keep everything else
+        let mut it: Vec<String> = vec!["-e".into(), "/usr/bin/systemd-run".into(), "--user".into(), "--pty".into(), "--quiet".into(), "--collect".into(), format!("--unit={}-signin", crate::runner::unit(a.slug()))];
+        let mut skip = false;
+        for (i, x) in args.iter().enumerate() {
+            if skip {
+                skip = false;
+                continue;
+            }
+            if x == "--" {
+                it.push("--".into());
+                it.push(args[i + 1].clone());
+                break;
+            }
+            if x.starts_with("--unit=") || x == "--user" || x == "--quiet" || x == "--collect" {
+                continue;
+            }
+            if x == "-p" && args.get(i + 1).is_some_and(|n| n.starts_with("StandardOutput=") || n.starts_with("StandardError=")) {
+                skip = true;
+                continue;
+            }
+            it.push(x.clone());
+        }
+        let argv: Vec<&str> = it.iter().map(String::as_str).collect();
+        std::process::Command::new("/usr/bin/konsole").args(&argv).spawn().map_err(|e| format!("couldn't open a terminal: {e}"))?;
+        self.record(&Self::owner_cap(), "agents.signin", id, "you", &format!("you opened {}'s workspace to sign it in", a.name), &json!([]));
+        Ok(json!({ "opened": "a terminal in its workspace: sign in with /login, then close it" }))
+    }
+
     /// Stop (D41): every pass and session revoked, everything waiting declined,
     /// the approval session ended. Kept across restarts until the owner resumes.
     pub fn stop_all(&mut self, by: &str) -> Value {
@@ -1204,6 +1412,8 @@ impl State {
             declined += 1;
         }
         crate::security::session_end("Stop was pressed");
+        // agents' sandboxes freeze where they are (D41, D62)
+        crate::security::freeze_agents();
         self.record(&Self::owner_cap(), "ai.stop", "every AI", "blocked", &format!("Stop pressed by {by}: {passes} passes revoked, {declined} requests declined"), &json!([]));
         json!({ "stopped": true, "passes_revoked": passes, "requests_declined": declined })
     }
@@ -1213,6 +1423,12 @@ impl State {
     fn resume_all(&mut self) -> Value {
         if let Some(s) = self.sec.stopped.take() {
             self.sec.save();
+            // frozen agent runs don't just carry on: they end, and are marked stopped
+            crate::security::end_agents();
+            for a in self.agents.agents.iter_mut().filter(|a| !a.run.is_empty()) {
+                a.run.clear();
+            }
+            self.agents.save();
             self.record(&Self::owner_cap(), "ai.resume", "every AI", "you", &format!("you let AI act again (stopped by {})", s.by), &json!([]));
         }
         json!({ "stopped": false })
@@ -1800,6 +2016,31 @@ mod tests {
         assert!(!r.st.waiting.contains_key(&waiting), "nothing of it waits for your OK");
         assert!(!r.st.memory.shares.contains_key("agent:pip"), "a new Pip wouldn't inherit its shares");
         assert_eq!(decision(&r.call(&tok, "files.list", json!({ "path": "Downloads" }))), "block");
+    }
+
+    #[test]
+    fn coding_agents_work_only_in_their_lease_and_their_own_workspace() {
+        use crate::peer::Who;
+        let mut r = rig();
+        std::fs::create_dir_all(r.st.root.join("Projects/parser")).unwrap();
+        r.owner("agents.add", json!({ "name": "Coder", "brain": "claude-code", "job": "project", "folder": "Projects/parser", "instructions": "Keep the parser tested" }));
+        let run = |r: &mut Rig| r.st.handle_as(&json!({ "method": "agents.run", "params": { "id": "agent:coder", "task": "add a test" } }), Some(Who::OwnerApp));
+        assert!(run(&mut r)["error"].as_str().unwrap().contains("work lease"), "no lease, no run");
+        assert!(r.agent("agents.run", json!({ "id": "agent:coder", "task": "x" }))["error"].is_string(), "only SIOS's windows or brain");
+        r.owner("agents.lease", json!({ "id": "agent:coder", "hours": 2 }));
+        assert!(run(&mut r)["error"].as_str().unwrap().contains("git project"), "a git project first (D63)");
+        // its pairing opens a session only from its own unit (the kernel's answer, D64)
+        let tok = "sios_pair_test123";
+        r.st.iam.pairings.insert(crate::audit::sha256_hex(tok.as_bytes()), "agent:coder".into());
+        let open = |r: &mut Rig, unit: &str| r.agent("session.open", json!({ "pair": tok, "__unit": unit }));
+        assert!(open(&mut r, "konsole.scope")["error"].as_str().unwrap().contains("own workspace"));
+        let v = open(&mut r, "sios-agent-coder.service")["ok"].clone();
+        assert_eq!(v["agent"], true, "{v}");
+        // it reports only as itself
+        let cap = v["token"].as_str().unwrap().to_string();
+        assert!(r.agent("agents.report", json!({ "cap": cap, "agent": "agent:coder", "kind": "progress", "text": "2 of 5 tests" }))["ok"].is_object());
+        assert!(r.agent("agents.report", json!({ "cap": cap, "agent": "agent:other", "text": "x" }))["error"].is_string());
+        assert!(r.agent("agents.report", json!({ "cap": "forged", "agent": "agent:coder", "text": "x" }))["error"].is_string());
     }
 
     // ---- D57: SIOS acts without asking on settings and reads

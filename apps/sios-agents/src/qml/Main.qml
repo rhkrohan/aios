@@ -262,7 +262,7 @@ QQC2.ApplicationWindow {
                 Layout.fillHeight: true
                 clip: true
                 cellWidth: Math.max(300, Math.floor(width / Math.max(1, Math.floor(width / 330))))
-                cellHeight: 214
+                cellHeight: 300
                 model: win.agents
                 delegate: Item {
                     required property var modelData
@@ -322,6 +322,38 @@ QQC2.ApplicationWindow {
                                 }
                             }
                             Item { Layout.fillHeight: true }
+                            // a coding agent: its lease, its sign-in, and a task (A5)
+                            ColumnLayout {
+                                visible: modelData.brain === "claude-code"
+                                Layout.fillWidth: true
+                                spacing: 6
+                                readonly property bool leased: (modelData.lease_until || 0) > Date.now() / 1000
+                                Text {
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    text: modelData.run ? "Working on a task now. Its network isn't limited yet." : parent.leased ? "May work on " + modelData.folder + " until " + new Date(modelData.lease_until * 1000).toLocaleTimeString(Qt.locale(), "h:mm ap") + "." : "Resting. Let it work to give it tasks."
+                                    color: modelData.run ? Theme.aiInk : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
+                                }
+                                RowLayout {
+                                    visible: parent.leased && !modelData.run
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    QQC2.TextField {
+                                        id: task
+                                        Layout.fillWidth: true
+                                        placeholderText: "Give it a task: \u201cadd tests for parse()\u201d"
+                                        font.family: Theme.ui; font.pixelSize: 12
+                                        onAccepted: go.clicked()
+                                    }
+                                    Button { id: go; text: "Go"; onClicked: { if (task.text.trim()) { broker.request("agents.run", { id: modelData.id, task: task.text }, modelData.name + " started"); task.text = ""; } } }
+                                }
+                                RowLayout {
+                                    spacing: 6
+                                    Button { visible: !parent.parent.leased; text: "Let it work 2 h"; onClicked: broker.request("agents.lease", { id: modelData.id, hours: 2 }, modelData.name + " may work for 2 hours") }
+                                    Button { text: "Sign in"; kind: "plain"; onClicked: broker.request("agents.signin", { id: modelData.id }, "A terminal opened in its workspace: sign in with /login") }
+                                    Button { text: "Make it a git project"; kind: "plain"; onClicked: broker.request("agents.git_init", { id: modelData.id }, "Done") }
+                                }
+                            }
                             RowLayout {
                                 spacing: 6
                                 Button { visible: modelData.brain === "builtin" && modelData.active; text: "Run now"; onClicked: broker.brain("agents.run_now", { id: modelData.id }, modelData.name + " started") }

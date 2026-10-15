@@ -23,14 +23,54 @@ use crate::{capd_link, runtime_dir, Brain};
 struct Session {
     cap: String,
     tools: Vec<Value>,
+    /// An agent SIOS runs in its own workspace (A5): it also reports back.
+    agent: Option<String>,
+}
+
+/// The pairing token: from a SIOS agent's workspace (a systemd credential, never a
+/// file in the project, D64), or from a paired app's MCP config.
+fn pair_token() -> Option<String> {
+    if let Ok(dir) = std::env::var("CREDENTIALS_DIRECTORY") {
+        if let Ok(t) = std::fs::read_to_string(std::path::Path::new(&dir).join("sios-pair")) {
+            return Some(t.trim().to_string()).filter(|t| !t.is_empty());
+        }
+    }
+    std::env::var("SIOS_PAIR_TOKEN").ok().map(|t| t.trim().to_string()).filter(|t| !t.is_empty())
 }
 
 fn open_session(client: &str) -> Option<Result<Session, String>> {
-    let pair = std::env::var("SIOS_PAIR_TOKEN").ok().filter(|t| !t.trim().is_empty())?;
-    Some(capd_link().call_as_agent("session.open", json!({ "pair": pair.trim(), "client": client })).map(|v| Session {
+    let pair = pair_token()?;
+    Some(capd_link().call_as_agent("session.open", json!({ "pair": pair, "client": client })).map(|v| Session {
         cap: v["token"].as_str().unwrap_or_default().to_string(),
         tools: v["manifest"]["tools"].as_array().cloned().unwrap_or_default(),
+        agent: (v["agent"] == true).then(|| v["id"].as_str().unwrap_or_default().to_string()),
     }))
+}
+
+/// What a SIOS agent uses to report to the owner. Its words are shown as data.
+fn agent_tools() -> Vec<Value> {
+    vec![
+        json!({ "name": "sios_report", "description": "Tell the owner how the work is going, in one or two plain sentences. Use it every few steps.", "inputSchema": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] } }),
+        json!({ "name": "sios_ask_owner", "description": "Ask the owner a question you need answered before going on (a choice, a missing fact). Then stop; their answer comes as your next task.", "inputSchema": { "type": "object", "properties": { "question": { "type": "string" }, "options": { "type": "array", "items": { "type": "string" } } }, "required": ["question"] } }),
+        json!({ "name": "sios_done", "description": "Finish: a short summary of what changed (files, commits, tests) for the owner to review.", "inputSchema": { "type": "object", "properties": { "summary": { "type": "string" } }, "required": ["summary"] } }),
+    ]
+}
+
+fn agent_call(s: &Session, agent: &str, name: &str, args: &Value) -> Result<String, String> {
+    let (kind, text) = match name {
+        "sios_report" => ("progress", args["text"].as_str().unwrap_or("").to_string()),
+        "sios_ask_owner" => {
+            let opts: Vec<&str> = args["options"].as_array().into_iter().flatten().filter_map(|o| o.as_str()).collect();
+            ("question", format!("{}{}", args["question"].as_str().unwrap_or(""), if opts.is_empty() { String::new() } else { format!(" (options: {})", opts.join(" / ")) }))
+        }
+        _ => ("done", args["summary"].as_str().unwrap_or("").to_string()),
+    };
+    capd_link().call_as_agent("agents.report", json!({ "cap": s.cap, "agent": agent, "kind": kind, "text": text }))?;
+    Ok(match kind {
+        "question" => "Asked the owner. Stop here; their answer comes as your next task.".into(),
+        "done" => "Reported to the owner. You can stop now.".into(),
+        _ => "Reported.".into(),
+    })
 }
 
 const APPROVAL_TOOL: &str = "sios_approval_status";
@@ -77,8 +117,8 @@ fn brain_call(method: &str, params: Value) -> Result<Value, String> {
     let mut s = UnixStream::connect(runtime_dir().join("brain.sock")).map_err(|_| "SIOS isn't running its brain (brain-d serve). Ask the owner to switch on the live machine.".to_string())?;
     // an app the owner paired carries its token (set SIOS_PAIR_TOKEN in the app's MCP config)
     let mut params = params;
-    if let Ok(tok) = std::env::var("SIOS_PAIR_TOKEN") {
-        params["pair"] = json!(tok.trim());
+    if let Some(tok) = pair_token() {
+        params["pair"] = json!(tok);
     }
     writeln!(s, "{}", json!({ "method": method, "params": params })).map_err(|e| e.to_string())?;
     let mut line = String::new();
@@ -220,6 +260,9 @@ pub fn run(_brain: Brain) {
                 if let Some(s) = &session {
                     all.extend(s.tools.iter().cloned());
                     all.push(approval_tool());
+                    if s.agent.is_some() {
+                        all.extend(agent_tools());
+                    }
                 }
                 Ok(json!({ "tools": all }))
             }
@@ -243,6 +286,8 @@ pub fn run(_brain: Brain) {
                             Err(e)
                         }
                     })
+                } else if let Some((s, agent)) = session.as_ref().and_then(|s| s.agent.clone().map(|a| (s, a))).filter(|_| ["sios_report", "sios_ask_owner", "sios_done"].contains(&name)) {
+                    agent_call(s, &agent, name, args)
                 } else if name == APPROVAL_TOOL && session.is_some() {
                     wait_approval(args["approval"].as_str().unwrap_or(""), Duration::from_secs(50))
                 } else {

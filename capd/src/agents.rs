@@ -37,6 +37,24 @@ pub struct Agent {
     pub at: String,
     pub active: bool,
     pub created: u64,
+    /// A work lease (D65): until when it may start runs without asking again.
+    #[serde(default)]
+    pub lease_until: u64,
+    /// Claude Code's session, so the next task continues where it left off.
+    #[serde(default)]
+    pub session: String,
+    /// The run going on now ("" when resting).
+    #[serde(default)]
+    pub run: String,
+}
+
+impl Agent {
+    pub fn slug(&self) -> &str {
+        self.id.strip_prefix("agent:").unwrap_or(&self.id)
+    }
+    pub fn leased(&self, now: u64) -> bool {
+        self.lease_until > now
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -123,6 +141,9 @@ impl Registry {
             at: String::new(),
             active: true,
             created: now,
+            lease_until: 0,
+            session: String::new(),
+            run: String::new(),
         };
         let a = Self::apply(a, p)?;
         self.agents.push(a.clone());
@@ -191,6 +212,10 @@ impl Registry {
             }
         }
         Ok(a)
+    }
+
+    pub fn get_mut(&mut self, id: &str) -> Option<&mut Agent> {
+        self.agents.iter_mut().find(|a| a.id == id)
     }
 
     pub fn remove(&mut self, id: &str) -> Option<Agent> {

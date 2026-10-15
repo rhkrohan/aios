@@ -20,6 +20,7 @@ mod meta;
 mod owner;
 mod peer;
 mod policy;
+mod runner;
 mod search;
 mod security;
 mod state;
@@ -337,7 +338,8 @@ fn serve() {
                             (Some(_), Some(_)) => Some(peer::Who::Agent),
                             _ => None,
                         };
-                        let method = req["method"].as_str().unwrap_or("");
+                        let method_s = req["method"].as_str().unwrap_or("").to_string();
+                        let method = method_s.as_str();
                         // is this process one of SIOS's windows? Only SIOS's brain may ask (D59)
                         if method == "windows.check" {
                             let resp = if who == Some(peer::Who::Service) {
@@ -434,6 +436,12 @@ fn serve() {
                             }
                             continue;
                         }
+                        // the unit a session.open comes from, by the kernel (D64): never the caller's word
+                        let mut req = req;
+                        if method == "session.open" {
+                            let unit = if by_peer { peer::of(&writer).cgroup.lines().last().and_then(|l| l.rsplit('/').next()).unwrap_or("").to_string() } else { String::new() };
+                            req["params"]["__unit"] = json!(unit);
+                        }
                         // one bad request must never take capd down for everyone after it
                         let mut guard = st.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                         let resp = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| guard.handle_as(&req, who)))
@@ -447,6 +455,19 @@ fn serve() {
                         if by_peer && method == "session.open" && resp.get("ok").is_some() {
                             let p = peer::of(&writer);
                             security::add_door(p.pid, p.start);
+                        }
+                        // a coding agent's run: watch its unit; when it's gone, its outcome is the report
+                        if method == "agents.run" && resp.get("ok").is_some() {
+                            let (st, ok) = (Arc::clone(&st), resp["ok"].clone());
+                            std::thread::spawn(move || {
+                                let unit = ok["unit"].as_str().unwrap_or("").to_string();
+                                std::thread::sleep(std::time::Duration::from_secs(3));
+                                while security::unit_active(&unit) {
+                                    std::thread::sleep(std::time::Duration::from_secs(3));
+                                }
+                                let file = std::path::PathBuf::from(ok["run_file"].as_str().unwrap_or(""));
+                                st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(ok["agent"].as_str().unwrap_or(""), ok["run"].as_str().unwrap_or(""), &file);
+                            });
                         }
                         // Stop also ends every MCP door at once (D41)
                         if by_peer && method == "ai.stop" && resp.get("ok").is_some() {
