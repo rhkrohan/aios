@@ -99,6 +99,22 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `memory.forget` | id | Change | Real | Forgets one memory (undo brings it back) | Same |
 | `people.resolve` | query | Read | Real | Turns "Sara" or "my accountant" into people with emails | Same, plus contacts |
 
+## Connectors: outside services (C1, D79 to D84)
+
+Connector tools come from SIOS's signed catalog (`/usr/share/sios/connectors/catalog.json`), exist only once the owner installs the connector in Settings (password), and only for the AIs the owner picks. SIOS writes each tool's name, risk, description and arguments; the server's own text never reaches a model. Every connector tool sends words out to the internet, so it counts as sending data out: a pass with one always asks the owner, once a goal has done anything on this computer each call asks again, and what the service answers taints the goal and only ever goes in the reply. If the server's tools change from what was pinned at install, the connector switches itself off.
+
+| Tool | Arguments | Risk | Status | What it does | On the SIOS image |
+| --- | --- | --- | --- | --- | --- |
+| `github.me` | (none) | Read, sends out | Built (C1) | Your GitHub login and profile | GitHub's remote MCP server, read-only address; token in the Sign-ins vault |
+| `github.prs` | query, owner?, repo?, perPage? | Read, sends out | Built (C1) | Search pull requests ("is:open author:@me") | Same |
+| `github.pr` | owner, repo, pullNumber | Read, sends out | Built (C1) | One pull request's details | Same |
+| `github.pr_files` | owner, repo, pullNumber | Read, sends out | Built (C1) | The files a pull request changes | Same |
+| `github.issues` | query, owner?, repo?, perPage? | Read, sends out | Built (C1) | Search issues | Same |
+| `github.issue` | owner, repo, issue_number | Read, sends out | Built (C1) | One issue's details | Same |
+| `github.notifications` | (none) | Read, sends out | Built (C1) | Your unread notifications | Same |
+| `github.repos` | query | Read, sends out | Built (C1) | Search repositories | Same |
+| `github.file` | owner, repo, path? | Read, sends out | Built (C1) | A file or folder listing from a repository | Same |
+
 ## Goal-level tools for outside AIs (MCP)
 
 These are served by `brain-d mcp`. Any connected AI can use them; SIOS's own planner does the work, and the owner approves the pass.
@@ -132,7 +148,7 @@ These are planned but not built, each through the broker like everything above:
 - `people.find`
 - `apps.read` and `apps.act` (AT-SPI)
 - `browser.open`, `browser.read`, `browser.act`
-- `mcp.list` and `mcp.call` (outside MCP servers)
+- More connectors (mail and calendar in C2, then the Store's Connectors tab in C3)
 - `user.ask` and `user.confirm`
 - `settings.get` and `settings.set_display`
 - `network.disconnect`
