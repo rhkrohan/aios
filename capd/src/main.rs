@@ -80,6 +80,7 @@ const HELP: &str = "capd: SIOS capability daemon
   capd audit [n]                  verify the log and show the last n decisions
   capd stop                       stop every AI at once (anyone; only the owner resumes)
   capd ai-resume                  let AI act again (owner)
+  capd extract FILE               the words search would index from FILE (sandbox check)
   capd window approve|settings [page]
                                   open SIOS's approval window or Settings (on a page)
   capd memsim [--days 180] [--seed 7] [--ai] [--out DIR]
@@ -129,6 +130,17 @@ fn main() {
                 Ok(r) => println!("{}", json!({ "done": true, "findings": r["findings"], "out": o.out.join("run.json") })),
                 Err(e) => {
                     eprintln!("memsim failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        // check the document reader's sandbox: the words capd would index (files you can read anyway)
+        "extract" => {
+            let path = args.get(1).cloned().unwrap_or_default();
+            match std::fs::File::open(&path).ok().and_then(|f| search::extract(f, &search::ext(&path))) {
+                Some(t) => println!("{t}"),
+                None => {
+                    eprintln!("nothing read from {path} (a kind capd doesn't read, or the sandbox refused)");
                     std::process::exit(1);
                 }
             }

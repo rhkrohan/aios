@@ -450,9 +450,10 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             let label = ["finance", "work", "personal", "sensitive"].into_iter().find(|l| q.contains(l) || (*l == "finance" && ["money", "invoice", "bill", "budget", "tax"].iter().any(|w| q.contains(w))));
             let want_untrusted = ["untrusted", "web", "download", "email"].iter().any(|w| q.contains(w));
             let mut index = crate::search::Index::load(env.state);
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+            let deadline = std::time::Instant::now() + crate::search::BUDGET;
+            let root_real = env.root.canonicalize().map_err(|e| e.to_string())?;
             let mut seen = std::collections::HashSet::new();
-            let mut scored: Vec<(u32, Value, Option<(String, Vec<String>, bool)>)> = Vec::new();
+            let mut scored: Vec<(u32, Value)> = Vec::new();
             let mut unread = 0;
             let mut walked = 0;
             let mut stack = vec![(r.real.clone(), r.rel.clone())];
@@ -482,10 +483,15 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                     seen.insert(p.clone());
                     let labels = meta.labels_at(&p);
                     let untrusted = meta.untrusted_at(&p);
-                    let text = index.text(&p, &e.path(), deadline);
-                    if text.is_none() && !name.contains('.') {
-                        // no extension: name only
-                    } else if text.is_none() {
+                    // the words inside, except for files whose data mustn't flow (Sensitive,
+                    // Finance): those match by name and label only, so a search can't probe them
+                    let flows = labels.iter().any(|l| crate::policy::FLOW_LABELS.contains(&l.as_str()));
+                    let text = if flows {
+                        None
+                    } else {
+                        crate::search::open_checked(&root_real, &e.path(), |rel| meta.is_blocked(rel).is_none()).and_then(|f| index.text(&p, f, deadline))
+                    };
+                    if text.is_none() && !flows && std::time::Instant::now() > deadline {
                         unread += 1;
                     }
                     let (mut s, mut why) = crate::search::score(&name, text.as_deref(), &terms);
@@ -499,24 +505,21 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                     if s == 0 {
                         continue;
                     }
-                    // a line from inside, except from files whose data mustn't flow (Sensitive, Finance)
-                    let flows = labels.iter().any(|l| crate::policy::FLOW_LABELS.contains(&l.as_str()));
-                    let snip = if flows { None } else { text.as_deref().and_then(|t| crate::search::snippet(t, &terms)) };
-                    let read = snip.as_ref().map(|_| (p.clone(), labels.clone(), untrusted));
-                    scored.push((s, json!({ "path": p, "labels": labels, "untrusted": untrusted, "why": why, "snippet": snip }), read));
+                    // which files and why, never a line from inside (that would be reading
+                    // contents without the owner, D57)
+                    scored.push((s, json!({ "path": p, "labels": labels, "untrusted": untrusted, "why": why })));
                 }
             }
             index.keep_only(&seen, &r.rel);
             index.save(env.state);
             scored.sort_by(|a, b| b.0.cmp(&a.0));
             scored.truncate(30);
-            let read: Vec<_> = scored.iter().filter_map(|(_, _, r)| r.clone()).collect();
-            let found: Vec<Value> = scored.into_iter().map(|(_, v, _)| v).collect();
+            let found: Vec<Value> = scored.into_iter().map(|(_, v)| v).collect();
             let mut result = json!({ "query": q, "under": r.rel, "matches": found });
             if unread > 0 {
                 result["not_read_yet"] = json!(unread);
             }
-            Ok(Outcome { result, undo: None, read, wrote: None })
+            Ok(done(result))
         }
         "files.organize" => {
             let moves = args.get("moves").and_then(|v| v.as_array()).ok_or("missing \"moves\"")?;

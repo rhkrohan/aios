@@ -1,15 +1,21 @@
 //! Finding files by what they are, not only by their names (files.find).
 //!
 //! "Find my invoices" should find `meeting-notes-acme.pdf` when it is an
-//! invoice. So each file is matched on its name, its labels, and the text inside
-//! it (plain text, PDFs through `pdftotext`, Word and LibreOffice documents
-//! through their XML), with related words ("invoice" also means bill, receipt,
-//! "amount due"). The extracted text is kept in a local index in capd's private
-//! state folder, keyed by each file's size and change time, so a second search
-//! is instant. Nothing leaves the computer.
+//! invoice. So each file is matched on its name, its labels, and the words inside
+//! it (plain text, and PDFs through `pdftotext`), with related words ("invoice"
+//! also means bill, receipt, "amount due"). The extracted text is kept in a local
+//! index in capd's private state folder, keyed by each file's size and change
+//! time, so a second search is instant. Nothing leaves the computer.
 //!
-//! Untrusted files are parsed by stock tools in a child process with a time and
-//! size limit; their text only ever comes back as data (D51).
+//! What comes back is only which files match and which search word matched, never
+//! a line from inside (security review 2026-10-15: that would be reading contents
+//! without the owner, D57). Files labelled Sensitive or Finance are matched by name
+//! and label only, so a search can't probe what they say.
+//!
+//! A PDF can be booby-trapped, so the broker opens the file itself (no links,
+//! checked again after opening) and hands only that open file to `pdftotext`,
+//! which runs in a sandbox: read-only /usr and /etc (Landlock), no network, no
+//! file writes, 512 MB and 5 seconds of CPU, at most 256 KB of output.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -22,7 +28,7 @@ const KEEP: usize = 12 * 1024;
 /// Files bigger than this are matched by name only.
 const MAX_FILE: u64 = 25 * 1024 * 1024;
 /// One search spends at most this long reading new files; the rest wait for the next one.
-const BUDGET: Duration = Duration::from_secs(6);
+pub const BUDGET: Duration = Duration::from_secs(6);
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Index {
@@ -58,20 +64,20 @@ impl Index {
         }
     }
 
-    /// The text inside a file, from the index if it hasn't changed. None: not read
-    /// (too big, a kind we don't read, or out of time for this search).
-    pub fn text(&mut self, rel: &str, real: &Path, deadline: Instant) -> Option<String> {
-        let md = std::fs::metadata(real).ok()?;
+    /// The text inside an already opened (and checked) file, from the index if it
+    /// hasn't changed. None: not read (too big, a kind we don't read, or out of time).
+    pub fn text(&mut self, rel: &str, file: std::fs::File, deadline: Instant) -> Option<String> {
+        let md = file.metadata().ok()?;
         let mtime = md.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
         if let Some(e) = self.files.get(rel) {
             if e.size == md.len() && e.mtime == mtime {
                 return Some(e.text.clone());
             }
         }
-        if md.len() > MAX_FILE || Instant::now() > deadline {
+        if !md.is_file() || md.len() > MAX_FILE || Instant::now() > deadline {
             return None;
         }
-        let text = extract(real)?;
+        let text = extract(file, &ext(rel))?;
         let text: String = text.to_lowercase().chars().filter(|c| !c.is_control() || *c == '\n').take(KEEP).collect();
         self.files.insert(rel.to_string(), Entry { size: md.len(), mtime, text: text.clone() });
         Some(text)
@@ -83,37 +89,83 @@ impl Index {
     }
 }
 
-fn ext(real: &Path) -> String {
-    real.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default()
+/// Open a file met while walking the home, never through a link, then ask the
+/// kernel where the opened file really is: it must still be inside the root, in
+/// no hidden folder, and `allowed` (not blocked). A file swapped for a link
+/// between the walk and the open is refused (security review 2026-10-15).
+pub fn open_checked(root_real: &Path, real: &Path, allowed: impl Fn(&str) -> bool) -> Option<std::fs::File> {
+    #[cfg(target_os = "linux")]
+    let file = {
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::io::FromRawFd;
+        let c = std::ffi::CString::new(real.as_os_str().as_bytes()).ok()?;
+        // SAFETY: a NUL-terminated path; we own the returned fd.
+        let fd = unsafe { libc::open(c.as_ptr(), libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK) };
+        if fd < 0 {
+            return None;
+        }
+        // SAFETY: fd was just opened and is ours alone.
+        let f = unsafe { std::fs::File::from_raw_fd(fd) };
+        let at = std::fs::read_link(format!("/proc/self/fd/{fd}")).ok()?;
+        (f, at)
+    };
+    #[cfg(not(target_os = "linux"))]
+    let file = (std::fs::File::open(real).ok()?, real.canonicalize().ok()?);
+    let (f, at) = file;
+    let rel = at.strip_prefix(root_real).ok()?.to_string_lossy().into_owned();
+    if rel.split('/').any(|p| p.starts_with('.')) || !allowed(&rel) || !f.metadata().ok()?.is_file() {
+        return None;
+    }
+    Some(f)
 }
 
-/// The text inside a file we know how to read.
-fn extract(real: &Path) -> Option<String> {
-    let p = real.to_str()?;
-    match ext(real).as_str() {
+pub fn ext(rel: &str) -> String {
+    Path::new(rel).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default()
+}
+
+/// The words inside a file we know how to read.
+pub fn extract(file: std::fs::File, ext: &str) -> Option<String> {
+    match ext {
         "txt" | "md" | "csv" | "tsv" | "json" | "log" | "html" | "htm" | "xml" | "yaml" | "yml" | "ini" | "rtf" | "eml" | "ics" | "vcf" => {
             let mut b = Vec::new();
-            std::fs::File::open(real).ok()?.take(64 * 1024).read_to_end(&mut b).ok()?;
+            file.take(64 * 1024).read_to_end(&mut b).ok()?;
             Some(strip_tags(&String::from_utf8_lossy(&b)))
         }
         // the first pages are enough to know what a document is
-        "pdf" => run_capped("/usr/bin/pdftotext", &["-l", "3", "-q", "-enc", "UTF-8", p, "-"]),
-        "docx" => run_capped("/usr/bin/unzip", &["-p", p, "word/document.xml"]).map(|x| strip_tags(&x)),
-        "odt" => run_capped("/usr/bin/unzip", &["-p", p, "content.xml"]).map(|x| strip_tags(&x)),
+        "pdf" => sandboxed("/usr/bin/pdftotext", &["-l", "3", "-q", "-enc", "UTF-8", "-", "-"], file),
+        // Word and LibreOffice files: by name for now (no stdin reader in the image)
         _ => None,
     }
 }
 
-/// Run a reader with a fixed argument list, keep at most 256 KB of what it prints
-/// (a "zip bomb" can't fill memory) and stop it after 4 seconds.
-fn run_capped(prog: &str, args: &[&str]) -> Option<String> {
-    let mut child = std::process::Command::new(prog)
-        .args(args)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
+/// Run a document reader on one open file (its stdin), in a sandbox, keeping at
+/// most 256 KB of what it prints and stopping it after 4 seconds. No sandbox, no
+/// reading: fail closed.
+#[cfg(target_os = "linux")]
+fn sandboxed(prog: &str, args: &[&str], input: std::fs::File) -> Option<String> {
+    use std::os::unix::process::CommandExt;
+    let ruleset = landlock::read_only_system()?;
+    let mut cmd = std::process::Command::new(prog);
+    cmd.args(args).env_clear().env("LANG", "C.UTF-8").stdin(input).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
+    // SAFETY: between fork and exec only async-signal-safe syscalls run (unshare,
+    // setrlimit, prctl, landlock_restrict_self); nothing allocates.
+    unsafe {
+        cmd.pre_exec(move || {
+            // its own empty network (best effort: user namespaces may be off)
+            let _ = libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET);
+            let lim = |r, v: u64| libc::setrlimit(r, &libc::rlimit { rlim_cur: v, rlim_max: v });
+            lim(libc::RLIMIT_AS, 512 << 20);
+            lim(libc::RLIMIT_CPU, 5);
+            lim(libc::RLIMIT_FSIZE, 0);
+            lim(libc::RLIMIT_CORE, 0);
+            if libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || landlock::restrict_self(ruleset) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    let mut child = cmd.spawn().ok()?;
+    landlock::close(ruleset);
     let mut out = child.stdout.take()?;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -125,6 +177,73 @@ fn run_capped(prog: &str, args: &[&str]) -> Option<String> {
     let _ = child.kill();
     let _ = child.wait();
     b.map(|b| String::from_utf8_lossy(&b).into_owned())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn sandboxed(_prog: &str, _args: &[&str], _input: std::fs::File) -> Option<String> {
+    None // no Landlock here (the Mac preview): never parse a document unsandboxed
+}
+
+/// Landlock (the kernel's sandbox for files), through its three system calls:
+/// a ruleset that allows reading /usr and /etc and running programs from /usr,
+/// and nothing else: no home folder, no writes.
+#[cfg(target_os = "linux")]
+mod landlock {
+    const EXECUTE: u64 = 1 << 0;
+    const READ_FILE: u64 = 1 << 2;
+    const READ_DIR: u64 = 1 << 3;
+    /// Every file right of Landlock's first version: what isn't allowed below is denied.
+    const ALL_V1: u64 = (1 << 13) - 1;
+    const RULE_PATH_BENEATH: libc::c_long = 1;
+
+    #[repr(C)]
+    struct RulesetAttr {
+        handled_access_fs: u64,
+    }
+    #[repr(C, packed)]
+    struct PathBeneath {
+        allowed_access: u64,
+        parent_fd: i32,
+    }
+
+    pub fn read_only_system() -> Option<i32> {
+        let attr = RulesetAttr { handled_access_fs: ALL_V1 };
+        // SAFETY: the kernel reads `attr` of the size we pass and returns a new fd or -1.
+        let fd = unsafe { libc::syscall(libc::SYS_landlock_create_ruleset, &attr as *const RulesetAttr, std::mem::size_of::<RulesetAttr>(), 0) } as i32;
+        if fd < 0 {
+            return None;
+        }
+        for (path, access) in [("/usr\0", EXECUTE | READ_FILE | READ_DIR), ("/etc\0", READ_FILE | READ_DIR)] {
+            // SAFETY: a NUL-terminated path; O_PATH only names the folder for the rule.
+            let dir = unsafe { libc::open(path.as_ptr() as *const libc::c_char, libc::O_PATH | libc::O_CLOEXEC) };
+            if dir < 0 {
+                close(fd);
+                return None;
+            }
+            let rule = PathBeneath { allowed_access: access, parent_fd: dir };
+            // SAFETY: the kernel reads `rule` for this ruleset fd.
+            let rc = unsafe { libc::syscall(libc::SYS_landlock_add_rule, fd, RULE_PATH_BENEATH, &rule as *const PathBeneath, 0) };
+            close(dir);
+            if rc != 0 {
+                close(fd);
+                return None;
+            }
+        }
+        Some(fd)
+    }
+
+    /// In the child, after fork: from now on only the ruleset's paths.
+    pub fn restrict_self(fd: i32) -> i32 {
+        // SAFETY: a plain system call on a ruleset fd.
+        unsafe { libc::syscall(libc::SYS_landlock_restrict_self, fd, 0) as i32 }
+    }
+
+    pub fn close(fd: i32) {
+        // SAFETY: closing an fd we own.
+        unsafe {
+            libc::close(fd);
+        }
+    }
 }
 
 /// XML and HTML to plain words.
@@ -209,14 +328,6 @@ pub fn score(name: &str, text: Option<&str>, terms: &[(String, bool)]) -> (u32, 
     (s, why.join(", "))
 }
 
-/// A short line of the file around the first term it mentions.
-pub fn snippet(text: &str, terms: &[(String, bool)]) -> Option<String> {
-    let at = terms.iter().filter_map(|(t, _)| text.find(t.as_str())).min()?;
-    let start = text[..at].char_indices().rev().take(40).last().map(|(i, _)| i).unwrap_or(0);
-    let line: String = text[start..].chars().take(120).map(|c| if c.is_whitespace() { ' ' } else { c }).collect();
-    Some(line.split_whitespace().collect::<Vec<_>>().join(" "))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,19 +357,26 @@ mod tests {
         let f = dir.path().join("notes.txt");
         std::fs::write(&f, "Invoice No. 12\nAmount due: 40").unwrap();
         let mut ix = Index::default();
-        let t = ix.text("notes.txt", &f, Instant::now() + BUDGET).unwrap();
+        let t = ix.text("notes.txt", std::fs::File::open(&f).unwrap(), Instant::now() + BUDGET).unwrap();
         assert!(t.contains("amount due"));
         ix.save(dir.path());
         let mut again = Index::load(dir.path());
         // from the index, even past the deadline
-        assert!(again.text("notes.txt", &f, Instant::now() - Duration::from_secs(1)).unwrap().contains("invoice"));
+        assert!(again.text("notes.txt", std::fs::File::open(&f).unwrap(), Instant::now() - Duration::from_secs(1)).unwrap().contains("invoice"));
         assert_eq!(strip_tags("<w:t>Total</w:t><w:t>due</w:t>").split_whitespace().collect::<Vec<_>>(), vec!["Total", "due"]);
     }
 
     #[test]
-    fn snippets_are_short() {
-        let t = terms("invoice");
-        let s = snippet("lots of words before the important part. invoice no 7 amount due 300 and then a long tail", &t).unwrap();
-        assert!(s.contains("invoice no 7") && s.chars().count() <= 120);
+    fn never_through_a_link_or_into_hidden_places() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join(".ssh")).unwrap();
+        std::fs::write(root.join(".ssh/id"), "secret key").unwrap();
+        std::fs::write(root.join("bill.txt"), "amount due").unwrap();
+        std::os::unix::fs::symlink(root.join(".ssh/id"), root.join("invoice.txt")).unwrap();
+        assert!(open_checked(&root, &root.join("bill.txt"), |_| true).is_some());
+        assert!(open_checked(&root, &root.join("invoice.txt"), |_| true).is_none(), "a link is never followed");
+        assert!(open_checked(&root, &root.join(".ssh/id"), |_| true).is_none(), "hidden places stay hidden");
+        assert!(open_checked(&root, &root.join("bill.txt"), |rel| rel != "bill.txt").is_none(), "blocked places stay blocked");
     }
 }
