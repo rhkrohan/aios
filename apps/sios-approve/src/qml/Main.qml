@@ -145,7 +145,8 @@ QQC2.ApplicationWindow {
                     Text {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        text: "<b>" + win.who(card.modelData.principal) + "</b> wants to " + (card.isPass ? "work on this goal:" : "do this now:")
+                        // the name can come from the app itself: escaped, so only our bold is markup
+                        text: "<b>" + String(win.who(card.modelData.principal)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</b> wants to " + (card.isPass ? "work on this goal:" : "do this now:")
                         textFormat: Text.StyledText
                         color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14
                     }

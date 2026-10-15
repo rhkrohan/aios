@@ -144,7 +144,9 @@ Flickable {
         Text {
             Layout.fillWidth: true
             visible: !!page.app.description
-            text: page.app.description || ""
+            // Flathub's text keeps its paragraphs and lists; links, images and any
+            // attributes are dropped, so a description can't load or point anywhere
+            text: String(page.app.description || "").replace(/<(\/?)([a-zA-Z0-9]+)[^>]*>/g, (m, end, tag) => ["p", "ul", "ol", "li", "em", "i", "b", "strong", "br", "code"].indexOf(tag.toLowerCase()) >= 0 ? "<" + end + tag.toLowerCase() + ">" : "")
             textFormat: Text.StyledText
             wrapMode: Text.WordWrap
             color: Theme.fg2
