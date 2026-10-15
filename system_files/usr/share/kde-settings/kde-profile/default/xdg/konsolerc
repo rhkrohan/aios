@@ -1,0 +1,24 @@
+# The SIOS terminal (owner, 2026-10-15): SIOS profiles that follow light and
+# dark, no menu bar, tabs only when there's more than one.
+[Desktop Entry]
+DefaultProfile=SIOS Light.profile
+
+# profile names here, not file names (Konsole 26.08's konsole.kcfg)
+[LightDarkTheme]
+SyncProfileWithSystemTheme=true
+LightThemeProfile=SIOS Light
+DarkThemeProfile=SIOS Dark
+
+[KonsoleWindow]
+ShowMenuBarByDefault=false
+RememberWindowSize=true
+
+[TabBar]
+TabBarVisibility=ShowTabBarWhenNeeded
+NewTabButton=false
+CloseTabButton=None
+ExpandTabWidth=true
+
+[MainWindow]
+MenuBar=Disabled
+ToolBarsMovable=Disabled

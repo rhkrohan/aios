@@ -97,6 +97,44 @@ test -f /usr/share/applications/org.sios.agents.desktop
 test -f /usr/share/kglobalaccel/org.sios.ask.desktop
 test -f /etc/xdg/autostart/org.sios.ask.desktop
 
+### Apps menu: only SIOS's apps and the few others people use (owner, 2026-10-15)
+# KDE's own programs that SIOS replaces (Dolphin: Files, Discover: Store, System
+# Monitor: Monitor, System Settings: Settings) and the admin and helper tools are
+# hidden, not removed: other programs and Settings' "More" pages still use them.
+# Firefox, Terminal, Text Editor, Archives and Screenshot stay.
+for id in org.kde.dolphin org.kde.discover org.kde.plasma-systemmonitor systemsettings kdesystemsettings \
+          org.kde.plasma-welcome org.kde.kdeconnect.app org.kde.kdeconnect.nonplasma org.kde.kdeconnect.sms \
+          org.kde.krfb org.kde.kwalletmanager org.kde.kmenuedit org.kde.kdebugsettings kvantummanager \
+          org.kde.drkonqi.coredump.gui org.kde.kjournaldbrowser org.kde.kinfocenter org.kde.khelpcenter \
+          org.kde.kcharselect org.kde.kfind firewall-config org.kde.partitionmanager org.kde.filelight \
+          org.kde.plasma.emojier; do
+    f="/usr/share/applications/$id.desktop"
+    [ -f "$f" ] || continue
+    sed -i '/^NoDisplay=/d' "$f"
+    sed -i '0,/^\[Desktop Entry\]$/s//[Desktop Entry]\nNoDisplay=true/' "$f"
+    grep -q "^NoDisplay=true" "$f"
+done
+# plain names for the ones that stay
+for pair in "org.kde.konsole:Terminal" "org.kde.kwrite:Text Editor" "org.kde.ark:Archives" "org.kde.spectacle:Screenshot"; do
+    f="/usr/share/applications/${pair%%:*}.desktop"
+    [ -f "$f" ] || continue
+    sed -i "0,/^Name=.*/s//Name=${pair#*:}/" "$f"
+    sed -i '/^Name\[/d' "$f"
+done
+
+### Terminal: Konsole in SIOS's look (owner, 2026-10-15)
+# Daylight colours that follow light and dark, JetBrains Mono, room around the
+# text, no toolbars (Konsole's own UI files without them, version raised so
+# they win). Profiles in /usr/share/konsole, defaults in the kde-profile konsolerc.
+test -s "/usr/share/konsole/SIOS Light.profile"
+test -s "/usr/share/konsole/SIOS Dark.profile"
+test -s /usr/share/konsole/SIOSLight.colorscheme
+test -s /usr/share/konsole/SIOSDark.colorscheme
+for f in konsoleui.rc sessionui.rc; do
+    python3 -c "import xml.dom.minidom,sys; xml.dom.minidom.parse(sys.argv[1])" "/usr/share/kxmlgui5/konsole/$f"
+    ! grep -q "<ToolBar" "/usr/share/kxmlgui5/konsole/$f"
+done
+
 ### Files (Dolphin) like the preview's Files app
 # Toolbar: back, forward, path, search, sort, grid, list, new folder, details
 # (/usr/share/kxmlgui5/dolphin/dolphinui.rc); defaults in dolphinrc; the
