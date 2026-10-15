@@ -112,10 +112,12 @@ impl Suggestions {
         Some(s)
     }
 
-    pub fn dismiss(&mut self, id: &str, now: u64) -> bool {
+    /// "Not now". Only the owner's own surfaces count toward turning a kind off; from
+    /// anywhere else (the widgets' open CLI) it only quiets the card for a day.
+    pub fn dismiss(&mut self, id: &str, now: u64, counts: bool) -> bool {
         let Some(s) = self.take(id) else { return false };
         let e = self.dismissed.entry(s.kind).or_insert((0, 0));
-        e.0 += 1;
+        e.0 += counts as u32;
         e.1 = now + DAY;
         self.save();
         true
@@ -146,16 +148,25 @@ mod tests {
         s.detect(d.path(), now + 60, 14 * 60);
         assert_eq!(s.list.len(), 1, "one card per kind");
         let id = s.list[0].id.clone();
-        assert!(s.dismiss(&id, now));
+        assert!(s.dismiss(&id, now, true));
         // the next day it may come back; three no's turn the kind off for good
         for day in [2, 4] {
             s.offer("downloads", "x".into(), "y", now + day * DAY);
             assert_eq!(s.list.len(), 1, "day {day}");
             let id = s.list[0].id.clone();
-            s.dismiss(&id, now + day * DAY);
+            s.dismiss(&id, now + day * DAY, true);
         }
         s.offer("downloads", "x".into(), "y", now + 6 * DAY);
         assert!(s.list.is_empty(), "three no's turn it off");
+        // anyone else's "not now" only quiets a kind for the day, never for good
+        s.offer("screens", "x".into(), "y", now);
+        for day in [0, 2, 4, 6] {
+            s.offer("screens", "x".into(), "y", now + day * DAY);
+            let id = s.list[0].id.clone();
+            s.dismiss(&id, now + day * DAY, false);
+        }
+        s.offer("screens", "x".into(), "y", now + 8 * DAY);
+        assert_eq!(s.list.len(), 1, "open callers can't turn a kind off");
         // the headline never quotes a file
         assert!(!s.headlines().to_string().contains("f1.pdf"));
     }

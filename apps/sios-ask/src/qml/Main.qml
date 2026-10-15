@@ -80,16 +80,25 @@ Window {
         }
     }
 
+    // a card asked for from outside (the desktop widget, or anything that can reach our
+    // D-Bus name) only opens the bar on that card: doing it always takes your Enter or click
+    function showCard(id) {
+        open();
+        input.text = "";
+        const i = rows.findIndex(r => r.kind === "card" && r.id === id);
+        current = Math.max(0, i);
+    }
+
     Connections {
         target: toggler
         function onToggled() { bar.visible ? bar.close() : bar.open(); }
         function onAppsRequested() { bar.visible && bar.mode === "apps" ? bar.close() : bar.showApps(); }
-        function onSuggestionRequested(id) { bar.open(); bar.mode = "assistant"; assistant.act(id); }
+        function onSuggestionRequested(id) { bar.showCard(id); }
     }
     // the approval window takes focus while SIOS works; stay open for it then
     onActiveChanged: if (!active && visible && mode !== "assistant") close()
     Component.onCompleted: {
-        if (startSuggestion) { open(); mode = "assistant"; assistant.act(startSuggestion); }
+        if (startSuggestion) showCard(startSuggestion);
         else if (visible) { if (startApps) showApps(); else open(); }
     }
 

@@ -42,7 +42,19 @@ pub struct Plan {
     /// When it can't or shouldn't do something: one-click actions the owner can take themselves.
     #[serde(default)]
     pub manual: Vec<Manual>,
+    /// Look first (A7, D72): read-only lookups to run before planning the real steps.
+    #[serde(default)]
+    pub look: Vec<Look>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Look {
+    pub tool: String,
+    pub args_json: String,
+}
+
+/// What a plan may look up first: finding and listing, never reading contents.
+pub const LOOK_TOOLS: [&str; 2] = ["files.find", "files.list"];
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Manual {
@@ -56,7 +68,7 @@ pub fn schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["understanding", "steps", "reply", "question", "undo_last", "manual"],
+        "required": ["understanding", "steps", "reply", "question", "undo_last", "manual", "look"],
         "properties": {
             "understanding": { "type": "string", "description": "One sentence: what the owner wants." },
             "steps": {
@@ -78,6 +90,19 @@ pub fn schema() -> Value {
             "reply": { "type": "string", "description": "What to tell the owner when it's done. May use {{N}}." },
             "question": { "type": "string", "description": "Only if the request is genuinely unclear (two people match, no file matches, it contradicts itself): one short question, and no steps. Otherwise empty." },
             "undo_last": { "type": "boolean", "description": "True only if the owner asks to undo or reverse what was just done. Then no steps." },
+            "look": {
+                "type": "array",
+                "description": "Only when you must find things before you can act on them (\"move my invoices to Finance\", \"trash the old screenshots\"): up to 3 lookups; leave steps empty, and you'll be asked again with what they found. Otherwise empty.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["tool", "args_json"],
+                    "properties": {
+                        "tool": { "type": "string", "enum": LOOK_TOOLS },
+                        "args_json": { "type": "string", "description": "The arguments as a JSON object, e.g. {\"path\": \"\", \"query\": \"invoices\"}." }
+                    }
+                }
+            },
             "manual": {
                 "type": "array",
                 "description": "Only when you can't or shouldn't do something (off limits, no tool, unsafe): up to 3 one-click actions that SHOW the owner where to do it themselves (open a folder or app, preview a file). Never anything that changes things. Otherwise empty.",
@@ -103,7 +128,7 @@ pub const PLANNER: &str = "You plan work on a personal computer called SIOS. You
 Return the WHOLE plan at once; the operating system checks it with the broker and runs it without asking you again. \
 Rules: use exact paths from the briefing; never invent files or people; prefer few, big steps (files.organize for many moves, files.find to search); \
 use a compose step whenever text must be written from file contents, then pass its text to later steps as {{N}}; \
-to find things, use one files.find step with path \"\" (the whole home) unless the owner named a folder, and write the reply around its results ({{N}}, e.g. \"Here is what I found: {{1}}\"); never ask where something is before searching; ask only when a change or a send needs one exact file and the briefing can't tell which; \
+to find things, use one files.find step with path \"\" (the whole home) unless the owner named a folder, and write the reply around its results ({{N}}, e.g. \"Here is what I found: {{1}}\"); never ask where something is before searching; to change files you must find first (\"move my invoices to Finance\"), put the search in look and leave steps empty: you'll get what it found and plan again with those exact paths; ask only when a change or a send needs one exact file and what you found can't tell which; \
 files.organize and files.move create missing destination folders, so don't create folders separately; \
 for anything that only shows something to the owner, use files.show, files.preview or apps.open; \
 use exactly the argument fields listed for each tool; \
@@ -200,7 +225,7 @@ mod tests {
 
     #[test]
     fn pass_is_the_least_the_plan_needs() {
-        let plan = Plan {
+        let plan = Plan { look: vec![],
             question: String::new(),
             undo_last: false,
             manual: vec![],
@@ -220,7 +245,7 @@ mod tests {
 
     #[test]
     fn new_top_level_files_and_generated_paths() {
-        let plan = Plan { question: String::new(), undo_last: false, manual: vec![], understanding: String::new(), reply: String::new(), steps: vec![step("files.write", r#"{"path":"summary.md","text":"x"}"#)] };
+        let plan = Plan { look: vec![], question: String::new(), undo_last: false, manual: vec![], understanding: String::new(), reply: String::new(), steps: vec![step("files.write", r#"{"path":"summary.md","text":"x"}"#)] };
         let (_, paths) = pass_for(&plan, |_| None);
         assert_eq!(paths, vec!["summary.md"], "not the whole home");
         assert!(placeholder_paths(&step("files.write", r#"{"path":"Projects/{{1}}","text":"x"}"#)).is_some());

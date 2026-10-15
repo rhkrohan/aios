@@ -222,7 +222,7 @@ impl Brain {
             // lets you follow it: only SIOS's windows (or the owner) may list them
             // proactive cards (A7): headlines (written by SIOS) for anyone, e.g. the desktop widgets
             "suggest.headlines" => Ok(self.suggestions.lock().unwrap().headlines()),
-            "suggest.dismiss" => Ok(json!({ "dismissed": self.suggestions.lock().unwrap().dismiss(p["id"].as_str().unwrap_or(""), helpers::now()) })),
+            "suggest.dismiss" => Ok(json!({ "dismissed": self.suggestions.lock().unwrap().dismiss(p["id"].as_str().unwrap_or(""), helpers::now(), owner || shell || viewer) })),
             // "Do it": the Ask bar or SIOS's windows start the card's fixed request as a normal
             // goal in the owner's name; it plans, checks and asks like any other (D70)
             "suggest.act" if !(owner || shell || viewer) => Err("only the Ask bar or SIOS's windows can do that".into()),

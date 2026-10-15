@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     QCommandLineParser args;
     args.addOption({QStringLiteral("background"), QStringLiteral("Start hidden and wait for the orb or Ctrl+Space")});
     args.addOption({QStringLiteral("apps"), QStringLiteral("Show all apps (the top bar's Apps)")});
-    args.addOption({QStringLiteral("suggestion"), QStringLiteral("Do what a suggestion card offers (from the desktop)"), QStringLiteral("id")});
+    args.addOption({QStringLiteral("suggestion"), QStringLiteral("Open on a suggestion card (from the desktop); doing it still takes a click"), QStringLiteral("id")});
     args.process(app);
 
     // already running: tell it to show (or hide) and leave
