@@ -1219,7 +1219,7 @@ impl State {
         Ok(result)
     }
 
-    /// Where an agent's things live: (project, worktree, its .git, its private home, its folder in state).
+    /// Where an agent's things live: (project, its clone, the project's .git, its private home, its folder in state).
     fn agent_paths(&self, a: &crate::agents::Agent) -> Result<(PathBuf, PathBuf, PathBuf, PathBuf, PathBuf), String> {
         let project = crate::fsguard::resolve(&self.root, &a.folder).map_err(|e| e.to_string())?;
         if self.meta.is_blocked(&project.rel).is_some() {
@@ -1257,18 +1257,27 @@ impl State {
         if !git_dir.is_dir() {
             return Err("that folder isn't a git project yet: use Make it a git project".into());
         }
+        // a link where its clone should be would bind something else into the sandbox
+        if worktree.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) || worktree.parent().is_some_and(|p| p.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())) {
+            return Err("its workspace folder was replaced by a link; remove it and try again".into());
+        }
         let claude = crate::runner::claude(&std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default())).ok_or("Claude Code isn't installed (claude.ai/install.sh)")?;
         for d in [&home, &mine.join("runs")] {
             std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
-        // its own branch and worktree; the owner's working copy is never touched (D63)
+        // its own clone on its own branch, made once, with no hooks run; the owner's
+        // project and its .git never go into the sandbox (D63, security review)
         if !worktree.exists() {
             std::fs::create_dir_all(worktree.parent().unwrap_or(&worktree)).map_err(|e| e.to_string())?;
             let (p, w, b) = (project.to_string_lossy().to_string(), worktree.to_string_lossy().to_string(), format!("sios/{}", a.slug()));
-            let o = crate::exec::run("/usr/bin/git", &["-C", &p, "worktree", "add", "-B", &b, &w], None, std::time::Duration::from_secs(60))?;
-            if o.code != Some(0) {
-                return Err(format!("couldn't make its worktree: {}", o.stderr.trim().chars().take(200).collect::<String>()));
-            }
+            let git = |args: &[&str]| -> Result<(), String> {
+                let mut all = vec!["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"];
+                all.extend_from_slice(args);
+                let o = crate::exec::run("/usr/bin/git", &all, None, std::time::Duration::from_secs(120))?;
+                if o.code == Some(0) { Ok(()) } else { Err(format!("couldn't make its workspace: {}", o.stderr.trim().chars().take(200).collect::<String>())) }
+            };
+            git(&["clone", "-q", "--no-hardlinks", &p, &w])?;
+            git(&["-C", &w, "checkout", "-q", "-B", &b])?;
         }
         // its pairing: a fresh token each run, as a systemd credential (never in the project)
         let token = format!("sios_pair_{}", random_hex(20));
@@ -1294,7 +1303,6 @@ impl State {
         let args = crate::runner::build(&crate::runner::Run {
             slug: a.slug(),
             worktree: &worktree,
-            git_dir: &git_dir,
             agent_home: &home,
             sockets: &sockets,
             claude: &claude,

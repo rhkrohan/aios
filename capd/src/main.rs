@@ -151,6 +151,35 @@ fn main() {
                 std::process::exit(1);
             }
         },
+        // an agent's live log, for the terminal on its desk: follows the run until its result
+        "agent-log" => {
+            use std::io::{Read, Seek, SeekFrom};
+            let path = args.get(1).cloned().unwrap_or_default();
+            let mut pos = 0u64;
+            let mut carry = String::new();
+            loop {
+                if let Ok(mut f) = std::fs::File::open(&path) {
+                    let _ = f.seek(SeekFrom::Start(pos));
+                    let mut buf = String::new();
+                    if let Ok(n) = f.read_to_string(&mut buf) {
+                        pos += n as u64;
+                        carry.push_str(&buf);
+                    }
+                }
+                let mut done = false;
+                while let Some(i) = carry.find('\n') {
+                    let line: String = carry.drain(..=i).collect();
+                    for out in runner::describe(line.trim()) {
+                        println!("{out}");
+                        done |= out.starts_with("Done:") || out.starts_with("Stopped:");
+                    }
+                }
+                if done {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(700));
+            }
+        }
         // check the document reader's sandbox: the words capd would index (files you can read anyway)
         "extract" => {
             let path = args.get(1).cloned().unwrap_or_default();
