@@ -161,13 +161,11 @@ impl Gateway {
 
     // ------------------------------------------------------------ owner changes
 
+    // (the key is never echoed back, not even in an error)
     pub fn set_key(&mut self, id: &str, key: &str) -> Result<Value, String> {
         let p = self.find(id)?.clone();
-        let key = key.trim();
-        if key.len() < 8 || key.len() > 400 || key.chars().any(|c| c.is_whitespace() || c.is_control()) {
-            return Err("that doesn't look like an API key".into());
-        }
-        self.keys.set(&p.id, key)?;
+        let key = clean_key(key)?;
+        self.keys.set(&p.id, &key)?;
         Ok(json!({ "saved": p.id }))
     }
 
@@ -291,6 +289,28 @@ impl Gateway {
     }
 }
 
+
+/// A pasted key, as the provider issued it. Keys never contain spaces, so line
+/// breaks and invisible characters that came along with a copy (a wrapped line,
+/// a web page's zero-width space) are dropped; anything else odd is refused.
+pub(crate) fn clean_key(raw: &str) -> Result<String, String> {
+    let invisible = |c: char| c.is_whitespace() || c.is_control() || matches!(c, '\u{200B}'..='\u{200D}' | '\u{2060}' | '\u{FEFF}');
+    let key: String = raw.chars().filter(|c| !invisible(*c)).collect();
+    if key.is_empty() {
+        return Err("the key field is empty".into());
+    }
+    if key.len() < 8 {
+        return Err(format!("that key is only {} characters long; API keys are longer. Copy the whole key", key.chars().count()));
+    }
+    if key.len() > 400 {
+        return Err("that's longer than any API key (over 400 characters). Copy just the key".into());
+    }
+    if !key.chars().all(|c| c.is_ascii_graphic()) {
+        return Err("that key has characters API keys don't use (for example curly quotes or accents). Copy it again from the provider's page".into());
+    }
+    Ok(key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,6 +326,20 @@ mod tests {
         }
         assert_eq!(parse_base("https://api.example.com:8443/v1"), Some(("https".into(), "api.example.com".into())));
         assert_eq!(parse_base("http://user:pw@host/"), None);
+    }
+
+    #[test]
+    fn pasted_keys_lose_line_breaks_and_invisible_characters() {
+        let k = "sk-ant-api03-ABCdef_123-xyz";
+        assert_eq!(clean_key(k).unwrap(), k);
+        assert_eq!(clean_key(&format!("  {k}\n")).unwrap(), k);
+        assert_eq!(clean_key("sk-ant-api03-ABC\ndef_123-xyz").unwrap(), k);
+        assert_eq!(clean_key("\u{FEFF}sk-ant-api03-ABCdef_123\u{200B}-xyz\r\n").unwrap(), k);
+        assert!(clean_key("   ").unwrap_err().contains("empty"));
+        assert!(clean_key("abc").unwrap_err().contains("3 characters"));
+        assert!(clean_key("“sk-ant-api03-ABCdef”").unwrap_err().contains("curly quotes"));
+        // the key itself never appears in an error
+        assert!(!clean_key("sk-ant-é-secret").unwrap_err().contains("secret"));
     }
 }
 
