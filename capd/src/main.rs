@@ -531,11 +531,18 @@ fn serve() {
                                 if by_peer {
                                     security::show_on_desk(ok["name"].as_str().unwrap_or("Agent"), ok["run_file"].as_str().unwrap_or(""));
                                 }
+                                let file = std::path::PathBuf::from(ok["run_file"].as_str().unwrap_or(""));
+                                let (agent, run) = (ok["agent"].as_str().unwrap_or("").to_string(), ok["run"].as_str().unwrap_or("").to_string());
                                 std::thread::sleep(std::time::Duration::from_secs(3));
+                                // while it works, the broker counts its tokens and watches its lease;
+                                // past a limit it stops the unit (the OS enforces, D65)
                                 while security::unit_active(&unit) {
+                                    let why = st.lock().unwrap_or_else(|p| p.into_inner()).agent_tick(&agent, &run, &file);
+                                    if why.is_some() {
+                                        let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.service")], None, std::time::Duration::from_secs(30));
+                                    }
                                     std::thread::sleep(std::time::Duration::from_secs(3));
                                 }
-                                let file = std::path::PathBuf::from(ok["run_file"].as_str().unwrap_or(""));
                                 st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(ok["agent"].as_str().unwrap_or(""), ok["run"].as_str().unwrap_or(""), &file);
                             });
                         }

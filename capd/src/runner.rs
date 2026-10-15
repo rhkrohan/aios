@@ -155,6 +155,114 @@ pub fn describe(line: &str) -> Vec<String> {
     }
 }
 
+/// Text from the agent, safe to show: no control characters (escape sequences,
+/// C1 codes), no direction tricks; newlines kept; capped.
+fn clean(s: &str, n: usize) -> String {
+    let t: String = s.chars().filter(|c| (!c.is_control() || *c == '\n') && !('\u{202a}'..='\u{202e}').contains(c) && !('\u{2066}'..='\u{2069}').contains(c)).take(n).collect();
+    t.trim().to_string()
+}
+
+/// What a run did so far, read by the broker from Claude Code's own stream:
+/// the live log for the Agents app, and the counts the limits are checked on.
+#[derive(Default, Debug, PartialEq)]
+pub struct Progress {
+    /// One entry per thing it did: {kind, text, detail?}. kind: start, say, read,
+    /// new, edit, run, search, ask, report, tool, done, failed.
+    pub log: Vec<serde_json::Value>,
+    /// input + output + cache writes, each message counted once
+    pub tokens: u64,
+    pub cost_usd: f64,
+    pub commands: u64,
+    pub files: Vec<String>,
+}
+
+/// Read a run's stream file (at most its last 8 MB). Paths are shown relative to
+/// the agent's copy of the project.
+pub fn progress(run_file: &Path, worktree: &Path) -> Progress {
+    use serde_json::{json, Value};
+    let bytes = std::fs::read(run_file).unwrap_or_default();
+    let bytes = &bytes[bytes.len().saturating_sub(8 << 20)..];
+    let text = String::from_utf8_lossy(bytes);
+    let root = format!("{}/", worktree.display());
+    let rel = |p: &str| clean(p.strip_prefix(&root).unwrap_or(p), 160);
+    let mut out = Progress::default();
+    let mut seen = std::collections::HashSet::new();
+    // a command's output goes with the command that asked for it
+    let mut runs: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+        match v["type"].as_str().unwrap_or("") {
+            "system" if v["subtype"] == "init" => out.log.push(json!({ "kind": "start", "text": "Workspace ready. Starting." })),
+            "assistant" => {
+                let m = &v["message"];
+                let id = m["id"].as_str().unwrap_or("").to_string();
+                if id.is_empty() || seen.insert(id) {
+                    let u = &m["usage"];
+                    out.tokens += ["input_tokens", "output_tokens", "cache_creation_input_tokens"].iter().map(|k| u[*k].as_u64().unwrap_or(0)).sum::<u64>();
+                }
+                for c in m["content"].as_array().into_iter().flatten() {
+                    match c["type"].as_str().unwrap_or("") {
+                        "text" => {
+                            let t = clean(c["text"].as_str().unwrap_or(""), 1200);
+                            if !t.is_empty() {
+                                out.log.push(json!({ "kind": "say", "text": t }));
+                            }
+                        }
+                        "tool_use" => {
+                            let i = &c["input"];
+                            let name = c["name"].as_str().unwrap_or("");
+                            let file = i["file_path"].as_str().or(i["notebook_path"].as_str()).map(rel);
+                            let (kind, what) = match name {
+                                "Read" => ("read", file.unwrap_or_default()),
+                                "Write" => ("new", file.unwrap_or_default()),
+                                "Edit" | "MultiEdit" | "NotebookEdit" => ("edit", file.unwrap_or_default()),
+                                "Bash" => ("run", clean(i["command"].as_str().unwrap_or(""), 300)),
+                                "Grep" | "Glob" | "LS" => ("search", clean(i["pattern"].as_str().or(i["path"].as_str()).unwrap_or(""), 160)),
+                                n if n.ends_with("sios_ask_owner") => ("ask", clean(i["question"].as_str().or(i["text"].as_str()).unwrap_or(""), 600)),
+                                n if n.ends_with("sios_report") || n.ends_with("sios_done") => ("report", clean(i["text"].as_str().or(i["summary"].as_str()).unwrap_or(""), 600)),
+                                n => ("tool", clean(n, 60)),
+                            };
+                            if matches!(kind, "new" | "edit") && !what.is_empty() && !out.files.contains(&what) && out.files.len() < 50 {
+                                out.files.push(what.clone());
+                            }
+                            if kind == "run" {
+                                out.commands += 1;
+                                runs.insert(c["id"].as_str().unwrap_or("").to_string(), out.log.len());
+                            }
+                            out.log.push(json!({ "kind": kind, "text": what }));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            // what a command printed: its last lines, beside the command
+            "user" => {
+                for c in v["message"]["content"].as_array().into_iter().flatten().filter(|c| c["type"] == "tool_result") {
+                    let Some(&at) = runs.get(c["tool_use_id"].as_str().unwrap_or("")) else { continue };
+                    let raw = match &c["content"] {
+                        Value::String(s) => s.clone(),
+                        Value::Array(a) => a.iter().filter_map(|x| x["text"].as_str()).collect::<Vec<_>>().join("\n"),
+                        _ => String::new(),
+                    };
+                    let tail: Vec<&str> = raw.lines().filter(|l| !l.trim().is_empty()).collect();
+                    let tail = tail[tail.len().saturating_sub(4)..].join("\n");
+                    out.log[at]["detail"] = json!(clean(&tail, 400));
+                    out.log[at]["failed"] = json!(c["is_error"] == true);
+                }
+            }
+            "result" => {
+                if let Some(c) = v["total_cost_usd"].as_f64() {
+                    out.cost_usd = c;
+                }
+                let failed = v["is_error"] == true || v["subtype"].as_str().is_some_and(|s| s != "success");
+                out.log.push(json!({ "kind": if failed { "failed" } else { "done" }, "text": clean(v["result"].as_str().unwrap_or(""), 1200) }));
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,6 +322,30 @@ mod tests {
         assert_eq!(describe(r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Adding tests."}]}}"#), vec!["Claude: Adding tests."]);
         assert_eq!(describe(r#"{"type":"result","is_error":false,"result":"Added 3 tests."}"#), vec!["Done: Added 3 tests."]);
         assert!(describe("not json").is_empty());
+    }
+
+    #[test]
+    fn progress_counts_each_message_once_and_keeps_paths_short() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("r.jsonl");
+        let lines = [
+            r#"{"type":"system","subtype":"init"}"#,
+            // one message comes as two lines (one per block) with the same usage: counted once
+            r#"{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":1000,"output_tokens":200,"cache_creation_input_tokens":300,"cache_read_input_tokens":90000},"content":[{"type":"text","text":"Adding the form."}]}}"#,
+            r#"{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":1000,"output_tokens":200,"cache_creation_input_tokens":300,"cache_read_input_tokens":90000},"content":[{"type":"tool_use","id":"t1","name":"Write","input":{"file_path":"/home/r/Agents/coder/site/src/contact.html"}}]}}"#,
+            r#"{"type":"assistant","message":{"id":"m2","usage":{"input_tokens":10,"output_tokens":5},"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"npm test"}}]}}"#,
+            r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","is_error":true,"content":"a\nb\n\n12 passed\n1 failed\u001b[0m"}]}}"#,
+            r#"{"type":"result","subtype":"success","is_error":false,"result":"Form added.","total_cost_usd":0.42}"#,
+        ];
+        std::fs::write(&f, lines.join("\n")).unwrap();
+        let p = progress(&f, Path::new("/home/r/Agents/coder/site"));
+        assert_eq!(p.tokens, 1515, "cache reads aren't counted, m1 once");
+        assert_eq!((p.commands, p.cost_usd), (1, 0.42));
+        assert_eq!(p.files, vec!["src/contact.html"]);
+        let kinds: Vec<&str> = p.log.iter().map(|e| e["kind"].as_str().unwrap()).collect();
+        assert_eq!(kinds, ["start", "say", "new", "run", "done"]);
+        assert_eq!(p.log[3]["detail"], "a\nb\n12 passed\n1 failed[0m", "last lines, no escape codes");
+        assert_eq!(p.log[3]["failed"], true);
     }
 
     #[test]

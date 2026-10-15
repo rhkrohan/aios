@@ -542,11 +542,13 @@ impl State {
                 let id = p["id"].as_str().unwrap_or("").to_string();
                 let hours = p["hours"].as_u64().unwrap_or(2).clamp(1, 8);
                 let a = self.agents.get_mut(&id).ok_or("no such agent")?;
-                a.lease_until = now() + hours * 3600;
-                let name = a.name.clone();
+                // "+1 hour" adds to the time left; a lease is never more than 8 hours ahead
+                let from = if p["add"] == true { a.lease_until.max(now()) } else { now() };
+                a.lease_until = (from + hours * 3600).min(now() + 8 * 3600);
+                let (name, until) = (a.name.clone(), a.lease_until);
                 self.agents.save();
-                self.record(&Self::owner_cap(), "agents.lease", &id, "you", &format!("you let {name} work on its project for {hours} h (its network isn't limited yet)"), &json!([]));
-                Ok(json!({ "lease_until": now() + hours * 3600 }))
+                self.record(&Self::owner_cap(), "agents.lease", &id, "you", &format!("you let {name} work on its project for {hours} h more (its network isn't limited yet)"), &json!([]));
+                Ok(json!({ "lease_until": until }))
             })(),
             "agents.git_init" => self.agent_git_init(p["id"].as_str().unwrap_or("")),
             "agents.signin" => self.agent_signin(p["id"].as_str().unwrap_or("")),
@@ -561,6 +563,12 @@ impl State {
             },
             "agents.view" | "reports.read" if !viewer => Err("only SIOS's own windows can see agents".into()),
             "agents.view" => Ok(self.agents.view()),
+            // the live log beside an agent (what it reads, changes and runs) and its counts
+            "agents.log" if !viewer => Err("only SIOS's own windows can see agents".into()),
+            "agents.log" => self.agent_log(p["id"].as_str().unwrap_or("")),
+            // Stop one agent's task: from SIOS's windows, no password (stopping is always safe)
+            "agents.stop" if !(viewer || owner) => Err("only SIOS's own windows can stop an agent".into()),
+            "agents.stop" => self.agent_stop(p["id"].as_str().unwrap_or("")),
             "reports.read" => {
                 self.agents.mark_read(p["agent"].as_str());
                 Ok(json!({ "unread": 0 }))
@@ -1482,7 +1490,9 @@ impl State {
             mcp_config: &mcp,
             task,
             resume: (!a.session.is_empty()).then_some(a.session.as_str()),
-            max_secs: left,
+            // the lease can grow while it works (+1 hour), so systemd's hard stop is the
+            // 8-hour ceiling and the broker stops it when the lease runs out (agent_tick)
+            max_secs: if left == 0 { 0 } else { 8 * 3600 },
             uid,
         })?;
         Ok((args, run_file))
@@ -1520,14 +1530,89 @@ impl State {
         if let Some(x) = self.agents.get_mut(id) {
             x.run = run_id.clone();
         }
+        self.agents.run_started(id, &run_id, task, now());
         self.agents.report(id, "run", &format!("Started: {}", task.chars().take(300).collect::<String>()), false, &run_id, now())?;
         self.record(&Self::owner_cap(), "agents.run", id, "allow", &format!("{} started a task in its workspace", a.name), &json!([]));
         Ok(json!({ "agent": id, "name": a.name, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file }))
     }
 
+    /// While a run works (every few seconds): count what it used from its own stream
+    /// and say why it must stop, if it must (its limits or its lease).
+    pub fn agent_tick(&mut self, id: &str, run_id: &str, run_file: &Path) -> Option<&'static str> {
+        let worktree = self.agents.get(id).cloned().and_then(|a| self.agent_paths(&a).ok()).map(|x| x.1).unwrap_or_default();
+        let pr = crate::runner::progress(run_file, &worktree);
+        let r = self.agents.run_mut(run_id)?;
+        if r.state != "working" {
+            return None;
+        }
+        let changed = (r.tokens, r.commands, r.files.len()) != (pr.tokens, pr.commands, pr.files.len());
+        (r.tokens, r.cost_usd, r.commands, r.files) = (pr.tokens, pr.cost_usd, pr.commands, pr.files);
+        let why = self.agents.over_limit(run_id, now());
+        if let Some(w) = why {
+            if let Some(r) = self.agents.run_mut(run_id) {
+                r.state = w.into();
+            }
+            let name = self.agents.get(id).map(|a| a.name.clone()).unwrap_or_default();
+            let said = match w {
+                "stopped: task limit" => format!("Stopped {name}: it reached its token limit for this task."),
+                "stopped: day limit" => format!("Stopped {name}: it reached its token limit for today."),
+                _ => format!("Stopped {name}: its working time ran out."),
+            };
+            let _ = self.agents.report(id, "done", &said, true, run_id, now());
+            self.record(&Self::owner_cap(), "agents.stop", id, "deny", &said, &json!([]));
+        }
+        if changed || why.is_some() {
+            self.agents.save();
+        }
+        why
+    }
+
+    /// The Agents app's live view of one agent: its current (or last) task, what it
+    /// did step by step, and its counts. Agent text is plain, capped data.
+    fn agent_log(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        let run = self.agents.runs.iter().find(|r| r.agent == id).cloned();
+        let log = match &run {
+            Some(r) => {
+                let file = self.dir.join("agents").join(a.slug()).join("runs").join(format!("{}.jsonl", r.id));
+                let worktree = self.agent_paths(&a).map(|x| x.1).unwrap_or_default();
+                let mut l = crate::runner::progress(&file, &worktree).log;
+                l.drain(..l.len().saturating_sub(400));
+                l
+            }
+            None => vec![],
+        };
+        Ok(json!({ "agent": a, "run": run, "log": log, "day_tokens": self.agents.day_tokens(id, now()), "now": now() }))
+    }
+
+    /// Stop an agent's task now (its unit); its copy of the project and its session stay.
+    fn agent_stop(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if a.run.is_empty() {
+            return Err(format!("{} isn't working on anything", a.name));
+        }
+        if let Some(r) = self.agents.run_mut(&a.run) {
+            if r.state == "working" {
+                r.state = "stopped: you".into();
+            }
+        }
+        self.agents.save();
+        let unit = format!("{}.service", crate::runner::unit(a.slug()));
+        crate::exec::run("/usr/bin/systemctl", &["--user", "stop", "--no-block", &unit], None, std::time::Duration::from_secs(5))?;
+        self.record(&Self::owner_cap(), "agents.stop", id, "you", &format!("you stopped {}'s task", a.name), &json!([]));
+        Ok(json!({ "stopping": id }))
+    }
+
     /// When a run's unit is gone: its outcome becomes the report, its session is kept for next time.
     pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path) {
+        let _ = self.agent_tick(id, run_id, run_file);
         let (text, session, failed) = crate::runner::outcome(run_file);
+        if let Some(r) = self.agents.run_mut(run_id) {
+            r.ended = now();
+            if r.state == "working" {
+                r.state = if failed { "failed" } else { "done" }.into();
+            }
+        }
         if let Some(a) = self.agents.get_mut(id) {
             if a.run == run_id {
                 a.run.clear();
@@ -2221,6 +2306,18 @@ mod tests {
         assert!(r.agent("agents.report", json!({ "cap": cap, "agent": "agent:coder", "kind": "progress", "text": "2 of 5 tests" }))["ok"].is_object());
         assert!(r.agent("agents.report", json!({ "cap": cap, "agent": "agent:other", "text": "x" }))["error"].is_string());
         assert!(r.agent("agents.report", json!({ "cap": "forged", "agent": "agent:coder", "text": "x" }))["error"].is_string());
+        // its live log and Stop belong to SIOS's windows, never to an agent or an outside app
+        let as_ = |r: &mut Rig, m: &str, who: Who| r.st.handle_as(&json!({ "method": m, "params": { "id": "agent:coder" } }), Some(who));
+        assert!(as_(&mut r, "agents.log", Who::OwnerApp)["ok"]["agent"]["max_task_tokens"].is_u64());
+        assert!(as_(&mut r, "agents.log", Who::Agent)["error"].is_string());
+        assert!(as_(&mut r, "agents.stop", Who::Agent)["error"].as_str().unwrap().contains("SIOS's own windows"));
+        assert!(as_(&mut r, "agents.stop", Who::OwnerApp)["error"].as_str().unwrap().contains("isn't working"));
+        // +1 hour adds to the time left, never past 8 hours ahead
+        let until = r.st.agents.get("agent:coder").unwrap().lease_until;
+        r.owner("agents.lease", json!({ "id": "agent:coder", "hours": 1, "add": true }));
+        assert_eq!(r.st.agents.get("agent:coder").unwrap().lease_until, until + 3600);
+        r.owner("agents.lease", json!({ "id": "agent:coder", "hours": 8, "add": true }));
+        assert!(r.st.agents.get("agent:coder").unwrap().lease_until <= now() + 8 * 3600);
     }
 
     // ---- C1: connectors

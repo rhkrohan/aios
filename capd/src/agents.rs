@@ -15,6 +15,17 @@ pub const BRAINS: [&str; 2] = ["builtin", "claude-code"];
 pub const JOBS: [&str; 5] = ["on-demand", "watch", "every", "daily", "project"];
 const COLORS: [&str; 8] = ["mint", "sky", "violet", "peach", "rose", "lemon", "slate", "coral"];
 const MAX_REPORTS: usize = 200;
+const MAX_RUNS: usize = 300;
+/// Token limits (Claude Code's own count: input, output and cache writes; cheap
+/// cache reads aren't counted). Defaults: 2M per task, 6M per rolling 24 hours.
+pub const TASK_TOKENS: u64 = 2_000_000;
+pub const DAY_TOKENS: u64 = 6_000_000;
+fn task_tokens() -> u64 {
+    TASK_TOKENS
+}
+fn day_tokens() -> u64 {
+    DAY_TOKENS
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Agent {
@@ -46,6 +57,35 @@ pub struct Agent {
     /// The run going on now ("" when resting).
     #[serde(default)]
     pub run: String,
+    /// The broker stops a run that goes past these (owner's choice, password).
+    #[serde(default = "task_tokens")]
+    pub max_task_tokens: u64,
+    #[serde(default = "day_tokens")]
+    pub max_day_tokens: u64,
+}
+
+/// One task a coding agent worked on: what it cost and what it touched, counted
+/// by the broker from Claude Code's own stream (never from what the agent says).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct RunInfo {
+    pub id: String,
+    pub agent: String,
+    /// The owner's words (capped).
+    pub task: String,
+    pub started: u64,
+    #[serde(default)]
+    pub ended: u64,
+    #[serde(default)]
+    pub tokens: u64,
+    #[serde(default)]
+    pub cost_usd: f64,
+    #[serde(default)]
+    pub commands: u64,
+    /// Files it made or changed, relative to its copy of the project (at most 50).
+    #[serde(default)]
+    pub files: Vec<String>,
+    /// working, done, failed, stopped: limit, stopped: time, stopped: you
+    pub state: String,
 }
 
 impl Agent {
@@ -79,6 +119,8 @@ pub struct Registry {
     pub agents: Vec<Agent>,
     #[serde(default)]
     pub reports: Vec<Report>,
+    #[serde(default)]
+    pub runs: Vec<RunInfo>,
     #[serde(skip)]
     path: PathBuf,
 }
@@ -144,6 +186,8 @@ impl Registry {
             lease_until: 0,
             session: String::new(),
             run: String::new(),
+            max_task_tokens: TASK_TOKENS,
+            max_day_tokens: DAY_TOKENS,
         };
         let a = Self::apply(a, p)?;
         self.agents.push(a.clone());
@@ -189,6 +233,12 @@ impl Registry {
         if let Some(on) = p["active"].as_bool() {
             a.active = on;
         }
+        if let Some(n) = p["max_task_tokens"].as_u64() {
+            a.max_task_tokens = n.clamp(100_000, 50_000_000);
+        }
+        if let Some(n) = p["max_day_tokens"].as_u64() {
+            a.max_day_tokens = n.clamp(a.max_task_tokens.min(200_000_000), 200_000_000);
+        }
         if a.brain.is_empty() {
             a.brain = "builtin".into();
         }
@@ -222,6 +272,7 @@ impl Registry {
         let i = self.agents.iter().position(|a| a.id == id)?;
         let a = self.agents.remove(i);
         self.reports.retain(|r| r.agent != id);
+        self.runs.retain(|r| r.agent != id);
         self.save();
         Some(a)
     }
@@ -246,9 +297,41 @@ impl Registry {
         self.save();
     }
 
+    /// A run starts: it's on the list as working.
+    pub fn run_started(&mut self, agent: &str, id: &str, task: &str, now: u64) {
+        self.runs.insert(0, RunInfo { id: id.into(), agent: agent.into(), task: task.chars().filter(|c| !c.is_control()).take(300).collect(), started: now, state: "working".into(), ..Default::default() });
+        self.runs.truncate(MAX_RUNS);
+        self.save();
+    }
+
+    pub fn run_mut(&mut self, id: &str) -> Option<&mut RunInfo> {
+        self.runs.iter_mut().find(|r| r.id == id)
+    }
+
+    /// Tokens an agent used in the 24 hours before `now`, its runs together.
+    pub fn day_tokens(&self, agent: &str, now: u64) -> u64 {
+        self.runs.iter().filter(|r| r.agent == agent && (r.ended == 0 || r.ended + 86_400 > now)).map(|r| r.tokens).sum()
+    }
+
+    /// Why a working run must stop now, if it must: its task limit, its day limit,
+    /// or its lease running out. Decided here, by the broker, from its own counts.
+    pub fn over_limit(&self, run: &str, now: u64) -> Option<&'static str> {
+        let r = self.runs.iter().find(|r| r.id == run)?;
+        let a = self.get(&r.agent)?;
+        if r.tokens >= a.max_task_tokens {
+            Some("stopped: task limit")
+        } else if self.day_tokens(&r.agent, now) >= a.max_day_tokens {
+            Some("stopped: day limit")
+        } else if !a.leased(now) {
+            Some("stopped: time")
+        } else {
+            None
+        }
+    }
+
     pub fn view(&self) -> Value {
         let unread = self.reports.iter().filter(|r| !r.read).count();
-        json!({ "agents": self.agents, "reports": self.reports.iter().take(100).collect::<Vec<_>>(), "unread": unread, "brains": BRAINS, "jobs": JOBS, "colors": COLORS })
+        json!({ "agents": self.agents, "reports": self.reports.iter().take(100).collect::<Vec<_>>(), "runs": self.runs.iter().take(100).collect::<Vec<_>>(), "unread": unread, "brains": BRAINS, "jobs": JOBS, "colors": COLORS })
     }
 }
 
@@ -272,6 +355,29 @@ mod tests {
         let every = r.add(&json!({ "name": "Momo", "job": "every", "every_min": 1, "instructions": "check big files" }), 1).unwrap();
         assert_eq!(every.every_min, 5, "at least 5 minutes apart");
         assert_eq!(Registry::open(d.path()).agents.len(), 2, "saved");
+    }
+
+    #[test]
+    fn the_broker_stops_a_run_at_its_limits_or_when_its_time_is_up() {
+        let d = tempfile::tempdir().unwrap();
+        let mut r = Registry::open(d.path());
+        r.add(&json!({ "name": "Coder", "brain": "claude-code", "instructions": "x", "folder": "Projects/site", "max_task_tokens": 1, "max_day_tokens": 1 }), 1).unwrap();
+        let a = r.get("agent:coder").unwrap();
+        assert_eq!((a.max_task_tokens, a.max_day_tokens), (100_000, 100_000), "limits have a floor; the day is at least one task");
+        r.get_mut("agent:coder").unwrap().lease_until = 10_000;
+        r.run_started("agent:coder", "r1", "Add a form", 100);
+        assert_eq!(r.over_limit("r1", 200), None);
+        r.run_mut("r1").unwrap().tokens = 100_000;
+        assert_eq!(r.over_limit("r1", 200), Some("stopped: task limit"));
+        // yesterday's runs still count for 24 hours, then drop off the day
+        r.run_mut("r1").unwrap().ended = 300;
+        r.run_started("agent:coder", "r2", "Next", 400);
+        assert_eq!(r.over_limit("r2", 500), Some("stopped: day limit"));
+        r.get_mut("agent:coder").unwrap().lease_until = 100_000;
+        assert_eq!(r.over_limit("r2", 300 + 86_400), None);
+        assert_eq!(r.over_limit("r2", 100_001), Some("stopped: time"));
+        r.remove("agent:coder");
+        assert!(r.runs.is_empty(), "its runs go with it");
     }
 
     #[test]
