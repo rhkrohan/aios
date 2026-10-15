@@ -505,7 +505,7 @@ PlasmoidItem {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: { root.run(root.waiting > 0 ? "sios-approve" : "sios-settings --page brain"); root.expanded = false; }
+                            onClicked: { root.run(root.waiting > 0 ? "capd window approve" : "sios-settings --page brain"); root.expanded = false; }
                         }
                     }
                 }

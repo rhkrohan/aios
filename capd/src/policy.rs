@@ -39,6 +39,8 @@ pub enum Level {
 /// Everything the broker needs to know about one call. Gathered by the state
 /// layer; the decision itself never touches disk or the network.
 pub struct Facts<'a> {
+    /// The owner (or anyone) pressed Stop: no AI may act until the owner resumes (D41).
+    pub stopped: bool,
     /// Signature, expiry and revocation already resolved into one result.
     pub token: Result<(), String>,
     pub principal: &'a str,
@@ -81,6 +83,10 @@ pub fn evaluate(f: &Facts) -> (Decision, Vec<Check>, String) {
         }};
     }
 
+    // 0. is AI allowed to act right now? (Stop, D41)
+    if f.stopped {
+        fail!("stop", "SIOS stopped all AI. Only the owner can let AI act again.".to_string());
+    }
     // 1. the token is genuine, current and not revoked
     match &f.token {
         Ok(()) => add!("token", Res::Pass, "Signed by capd, not expired, not revoked.".into()),
@@ -179,6 +185,7 @@ mod tests {
 
     fn facts<'a>(tools: &'a [String], paths: &'a [String]) -> Facts<'a> {
         Facts {
+            stopped: false,
             token: Ok(()),
             principal: "openai-agent",
             paused: false,

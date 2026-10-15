@@ -57,6 +57,17 @@ void Approvals::send(const QString &method, const QVariantMap &params, std::func
 
 void Approvals::refresh()
 {
+    send(QStringLiteral("status"), {}, [this](const QVariant &ok, const QString &err) {
+        if (!err.isEmpty())
+            return;
+        const QVariantMap m = ok.toMap();
+        const bool stopped = m.value(QStringLiteral("stopped")).toBool(), session = m.value(QStringLiteral("approvals_open")).toBool();
+        if (stopped != m_stopped || session != m_session) {
+            m_stopped = stopped;
+            m_session = session;
+            Q_EMIT statusChanged();
+        }
+    }, 5000);
     send(QStringLiteral("pending.list"), {}, [this](const QVariant &ok, const QString &err) {
         if (!err.isEmpty())
             return;
@@ -87,6 +98,35 @@ void Approvals::deny(const QString &id)
 {
     send(QStringLiteral("decline"), {{QStringLiteral("id"), id}}, [this](const QVariant &, const QString &err) {
         Q_EMIT message(err.isEmpty() ? QStringLiteral("Declined.") : err, !err.isEmpty());
+        refresh();
+    }, 10 * 1000);
+}
+
+void Approvals::stopAll()
+{
+    send(QStringLiteral("ai.stop"), {}, [this](const QVariant &, const QString &err) {
+        Q_EMIT message(err.isEmpty() ? QStringLiteral("All AI stopped. Nothing runs until you resume.") : err, !err.isEmpty());
+        refresh();
+    }, 10 * 1000);
+}
+
+void Approvals::resumeAll()
+{
+    m_busy = QStringLiteral("resume");
+    Q_EMIT busyChanged();
+    // the broker asks for the owner's password first
+    send(QStringLiteral("ai.resume"), {}, [this](const QVariant &, const QString &err) {
+        m_busy.clear();
+        Q_EMIT busyChanged();
+        Q_EMIT message(err.isEmpty() ? QStringLiteral("AI can act again. Each AI asks again for what it wants to do.") : err, !err.isEmpty());
+        refresh();
+    }, 150 * 1000);
+}
+
+void Approvals::endSession()
+{
+    send(QStringLiteral("approvals.end"), {}, [this](const QVariant &, const QString &err) {
+        Q_EMIT message(err.isEmpty() ? QStringLiteral("Approval session ended. The next yes asks for your password.") : err, !err.isEmpty());
         refresh();
     }, 10 * 1000);
 }

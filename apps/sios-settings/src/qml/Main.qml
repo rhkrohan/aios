@@ -18,6 +18,11 @@ QQC2.ApplicationWindow {
     color: Theme.surface
 
     property string page: startPage || "appearance"
+    // the broker brings this window forward, maybe on a page (S1)
+    Connections {
+        target: waker
+        function onShown(p) { if (p) win.page = p; win.show(); win.raise(); win.requestActivate(); }
+    }
 
     Connections { target: system; function onMessage(text, error) { toast.show(text, false, error); } }
 

@@ -43,6 +43,18 @@ pub struct Proc {
     pub traced: bool,
     /// Started with variables that load outside code into it (LD_PRELOAD...).
     pub injected: bool,
+    /// Its process id and when it started (clock ticks since boot): together they
+    /// name this one process, even after the pid is reused (S1, D55).
+    pub pid: u32,
+    pub start: u64,
+}
+
+/// When a process started, from field 22 of /proc/<pid>/stat (after the name,
+/// which can contain spaces and brackets, so count from the last ')').
+pub fn start_time(pid: u32) -> Option<u64> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let rest = &stat[stat.rfind(')')? + 1..];
+    rest.split_whitespace().nth(19)?.parse().ok()
 }
 
 pub const OWNER_APPS: [&str; 2] = ["/usr/bin/sios-approve", "/usr/bin/sios-settings"];
@@ -110,6 +122,8 @@ pub fn of(conn: &std::os::unix::net::UnixStream) -> Proc {
         cgroup: String::from_utf8_lossy(&read("cgroup")).into_owned(),
         traced,
         injected,
+        pid: cred.pid as u32,
+        start: start_time(cred.pid as u32).unwrap_or(0),
     }
 }
 
@@ -123,7 +137,7 @@ mod tests {
     use super::*;
 
     fn p(exe: &str, cgroup: &str) -> Proc {
-        Proc { same_user: true, exe: exe.into(), cgroup: cgroup.into(), traced: false, injected: false }
+        Proc { same_user: true, exe: exe.into(), cgroup: cgroup.into(), traced: false, injected: false, pid: 0, start: 0 }
     }
 
     #[test]

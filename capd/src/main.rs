@@ -18,6 +18,7 @@ mod meta;
 mod owner;
 mod peer;
 mod policy;
+mod security;
 mod state;
 mod token;
 mod tools;
@@ -76,6 +77,10 @@ const HELP: &str = "capd: SIOS capability daemon
   capd revoke ID | pause P | resume P
   capd undo GOAL_ID|*             undo everything a goal changed
   capd audit [n]                  verify the log and show the last n decisions
+  capd stop                       stop every AI at once (anyone; only the owner resumes)
+  capd ai-resume                  let AI act again (owner)
+  capd window approve|settings [page]
+                                  open SIOS's approval window or Settings (on a page)
   capd memsim [--days 180] [--seed 7] [--ai] [--out DIR]
                                   run months of made-up life through the memory store
 
@@ -209,6 +214,11 @@ fn build_request(cmd: &str, a: &[String]) -> Result<Value, String> {
         "resume" => ("resume", json!({ "principal": first })),
         "undo" => ("undo", json!({ "goal": first })),
         "audit" => ("audit", json!({ "n": first.parse::<u64>().unwrap_or(20) })),
+        // Stop: no password, anyone (D41). Resuming is the owner's, from a SIOS window
+        "stop" => ("ai.stop", json!({ "by": "the stop command" })),
+        "ai-resume" => ("ai.resume", json!({})),
+        // open SIOS's approval window or Settings, started by the broker (S1)
+        "window" => ("windows.open", json!({ "app": first, "page": a.get(1).cloned().unwrap_or_default() })),
         other => return Err(format!("unknown command {other}")),
     };
     Ok(json!({ "method": method, "params": params, "owner": owner }))
@@ -223,6 +233,13 @@ fn send(req: &Value) -> std::io::Result<Value> {
 }
 
 fn serve() {
+    // no other program of this user may read or drive the broker's memory, where
+    // the keys are (D55); its children (SIOS's windows) are readable again after exec
+    #[cfg(target_os = "linux")]
+    // SAFETY: prctl with PR_SET_DUMPABLE only changes this process's own flag.
+    unsafe {
+        libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
+    }
     let dir = state_dir();
     let st = match state::State::open(&dir, &root_dir()) {
         Ok(s) => s,
@@ -250,12 +267,25 @@ fn serve() {
         if by_peer { "known by their program (SIOS_IDENTITY=peer)" } else { "prove themselves with secret files" }
     );
     let st = Arc::new(Mutex::new(st));
+    // approval sessions end when the screen locks or the computer sleeps (D56)
+    if by_peer {
+        security::watch_lock();
+    }
     for conn in listener.incoming() {
         let Ok(conn) = conn else { continue };
         let st = Arc::clone(&st);
         // who connected, by the kernel; asked again before every request, since a
         // process can change its program (exec) after connecting
-        let ask = move |conn: &UnixStream| by_peer.then(|| peer::classify(&peer::of(conn), &peer::OWNER_APPS, Some(peer::SERVICE)));
+        // SIOS's windows count only as the exact processes the broker started (S1)
+        let ask = move |conn: &UnixStream| {
+            by_peer.then(|| {
+                let p = peer::of(conn);
+                match peer::classify(&p, &peer::OWNER_APPS, Some(peer::SERVICE)) {
+                    peer::Who::OwnerApp if !security::is_window(p.pid, p.start) => peer::Who::Agent,
+                    w => w,
+                }
+            })
+        };
         let first = ask(&conn);
         if let Some(w) = first.filter(|w| *w != peer::Who::Agent) {
             println!("{w:?} connected");
@@ -279,6 +309,18 @@ fn serve() {
                             _ => None,
                         };
                         let method = req["method"].as_str().unwrap_or("");
+                        // SIOS's own windows, started by the broker: anyone may ask
+                        if method == "windows.open" {
+                            let resp = match security::open_window(req["params"]["app"].as_str().unwrap_or(""), req["params"]["page"].as_str().unwrap_or("")) {
+                                Ok(v) => json!({ "ok": v }),
+                                Err(e) => json!({ "error": e }),
+                            };
+                            log_line(&req, &resp);
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
                         // an owner action on SIOS: only from SIOS's own windows, and then the
                         // owner's password through polkit, every time (D39). Anything else never
                         // gets a dialog, so the owner is never asked to confirm a request an AI made.
@@ -291,9 +333,22 @@ fn serve() {
                                 }
                                 continue;
                             }
-                            if w != peer::Who::Owner {
+                            // inside an approval session, SIOS's own undoable requests are a
+                            // click (D56); everything else still needs the password
+                            let in_session = w == peer::Who::OwnerApp
+                                && (method == "approve" || method == "grant")
+                                && security::session_is_open()
+                                && st.lock().unwrap_or_else(|p| p.into_inner()).session_covers(method, &req["params"]);
+                            if in_session {
+                                who = Some(peer::Who::Owner);
+                            } else if w != peer::Who::Owner {
                                 match owner::confirm(action) {
-                                    Ok(true) => who = Some(peer::Who::Owner),
+                                    Ok(true) => {
+                                        who = Some(peer::Who::Owner);
+                                        if method == "approve" || method == "grant" {
+                                            security::session_open(state::now());
+                                        }
+                                    }
                                     Ok(false) => {
                                         let resp = json!({ "error": "not confirmed: the owner's password wasn't given" });
                                         log_line(&req, &resp);
@@ -344,7 +399,16 @@ fn serve() {
                         // something now waits for the owner: wake the approval window (M5)
                         let waits = (method == "call" && resp["ok"]["decision"] == "ask") || (method == "request_pass" && resp["ok"]["state"] == "waiting for the owner");
                         if by_peer && waits {
-                            wake_approval_window();
+                            security::wake_approval_window();
+                        }
+                        if by_peer && method == "session.open" && resp.get("ok").is_some() {
+                            let p = peer::of(&writer);
+                            security::add_door(p.pid, p.start);
+                        }
+                        // Stop also ends every MCP door at once (D41)
+                        if by_peer && method == "ai.stop" && resp.get("ok").is_some() {
+                            let n = security::kill_doors();
+                            println!("stop: ended {n} MCP doors");
                         }
                         log_line(&req, &resp);
                         resp
@@ -357,19 +421,6 @@ fn serve() {
             }
         });
     }
-}
-
-/// Ask the session bus to start (or raise) sios-approve. It carries no data: the
-/// window asks the broker itself what's waiting. Never waits on the desktop.
-fn wake_approval_window() {
-    std::thread::spawn(|| {
-        let _ = exec::run(
-            "/usr/bin/gdbus",
-            &["call", "--session", "--dest", "org.sios.Approve1", "--object-path", "/Approve", "--method", "org.sios.Approve1.Show"],
-            None,
-            std::time::Duration::from_secs(10),
-        );
-    });
 }
 
 /// One line per request on the console, so you can watch decisions happen.

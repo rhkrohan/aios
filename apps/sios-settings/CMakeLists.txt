@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Svg Network)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Svg Network DBus)
 find_package(KF6Config REQUIRED)
 find_package(KF6CoreAddons REQUIRED)
 
@@ -34,7 +34,7 @@ qt_add_qml_module(sios-settings
 )
 
 target_link_libraries(sios-settings PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network KF6::ConfigCore KF6::CoreAddons
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network Qt6::DBus KF6::ConfigCore KF6::CoreAddons
 )
 
 install(TARGETS sios-settings RUNTIME DESTINATION bin)

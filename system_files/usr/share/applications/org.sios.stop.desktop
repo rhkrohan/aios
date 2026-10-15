@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Stop all AI
+Comment=SIOS stops every AI at once; only you can let AI act again (D41)
+Exec=/usr/bin/capd stop
+Icon=media-playback-stop
+Terminal=false
+NoDisplay=true
+Categories=System;
+X-KDE-Shortcuts=Ctrl+Shift+Escape,Meta+Shift+Escape
+StartupNotify=false

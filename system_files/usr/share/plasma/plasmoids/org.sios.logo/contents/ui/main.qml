@@ -1,7 +1,7 @@
 /*
     The SIOS logo at the top left, as in the preview's TopBar.tsx: a small
     menu, not an app launcher (Apps in the top bar and the orb do that).
-      Show or hide buddy, Security Center (arrives with the assistant), Settings
+      Show or hide buddy, Stop all AI, Approvals, Settings
       Sleep, Restart, Shut down
       Lock screen
     SPDX-License-Identifier: GPL-2.0-or-later
@@ -49,7 +49,9 @@ PlasmoidItem {
         id: menu
         placement: PlasmaExtras.Menu.BottomPosedLeftAlignedPopup
         PlasmaExtras.MenuItem { text: root.buddyShown ? "Hide buddy" : "Show buddy"; icon: root.buddyShown ? "view-hidden" : "view-visible"; onClicked: root.setBuddy(!root.buddyShown) }
-        PlasmaExtras.MenuItem { text: "Security Center (with the assistant)"; icon: "security-high"; enabled: false }
+        // stopping is always safe, so it needs no password (D41)
+        PlasmaExtras.MenuItem { text: "Stop all AI"; icon: "media-playback-stop"; onClicked: root.sh("capd stop") }
+        PlasmaExtras.MenuItem { text: "Approvals"; icon: "security-high"; onClicked: root.sh("capd window approve") }
         PlasmaExtras.MenuItem { text: "Settings"; icon: "preferences-system"; onClicked: root.sh("sios-settings || systemsettings") }
         PlasmaExtras.MenuItem { separator: true }
         PlasmaExtras.MenuItem { text: "Sleep"; icon: "system-suspend"; onClicked: session.suspend() }

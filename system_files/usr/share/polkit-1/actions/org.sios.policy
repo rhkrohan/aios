@@ -39,4 +39,14 @@
       <allow_active>auth_self</allow_active>
     </defaults>
   </action>
+  <action id="org.sios.owner.resume">
+    <description>Let AI act again after Stop</description>
+    <message>All AI on this computer was stopped. SIOS is about to let AI act again; every AI will have to ask again for what it wants to do. Confirm with your password only if you just pressed Resume yourself.</message>
+    <icon_name>sios-logo</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
 </policyconfig>

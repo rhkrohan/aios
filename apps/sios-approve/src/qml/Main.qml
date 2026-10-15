@@ -10,9 +10,12 @@ QQC2.ApplicationWindow {
     width: 560
     height: Math.min(720, Math.max(260, list.contentHeight + 150))
     minimumWidth: 480
-    visible: approvals.items.length > 0
+    // shown when something waits, while AI is stopped, or when opened on purpose
+    property bool wanted: true
+    visible: approvals.items.length > 0 || wanted
+    onClosing: wanted = false
     flags: Qt.Dialog | Qt.WindowStaysOnTopHint
-    title: approvals.items.length === 1 ? "An AI is asking" : approvals.items.length + " AI requests are waiting"
+    title: approvals.stopped ? "All AI is stopped" : approvals.items.length === 0 ? "Nothing is waiting" : approvals.items.length === 1 ? "An AI is asking" : approvals.items.length + " AI requests are waiting"
     color: Theme.surface
 
     property string note: ""
@@ -20,7 +23,7 @@ QQC2.ApplicationWindow {
 
     Connections {
         target: waker
-        function onShown() { approvals.refresh(); win.raise(); win.requestActivate(); }
+        function onShown() { win.wanted = true; approvals.refresh(); win.raise(); win.requestActivate(); }
     }
     Connections {
         target: approvals
@@ -70,9 +73,46 @@ QQC2.ApplicationWindow {
             spacing: 12
             Rectangle { implicitWidth: 40; implicitHeight: 40; radius: 12; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "shield-check"; size: 20; color: Theme.aiInk } }
             ColumnLayout {
+                Layout.fillWidth: true
                 spacing: 2
                 Text { text: win.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.DemiBold }
-                Text { text: "Nothing happens until you say yes. Yes asks for your password."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: approvals.sessionOpen
+                          ? "Approvals are open until you lock the screen: SIOS's own changes that can be undone need just a click. Sending, deleting for good and other AIs still ask for your password."
+                          : "Nothing happens until you say yes. Yes asks for your password; after that, SIOS's own undoable changes are a click until you lock the screen."
+                    color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                }
+            }
+            ColumnLayout {
+                spacing: 6
+                // Stop is always here and never asks for a password (D41)
+                Button { text: "Stop all AI"; kind: "danger"; visible: !approvals.stopped; onClicked: approvals.stopAll() }
+                Button { text: "End session"; kind: "plain"; visible: approvals.sessionOpen; onClicked: approvals.endSession() }
+            }
+        }
+
+        // while stopped: what that means, and Resume (password)
+        Rectangle {
+            visible: approvals.stopped
+            Layout.fillWidth: true
+            implicitHeight: stoppedBody.implicitHeight + 32
+            radius: 14
+            color: Theme.surface2
+            border.width: 1
+            border.color: Theme.danger
+            RowLayout {
+                id: stoppedBody
+                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 16 }
+                spacing: 12
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: "Every AI was stopped: their passes are cancelled, waiting requests were declined, and no AI can act or use the AI connection. Resume when you're ready; each AI will have to ask again."
+                    color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13
+                }
+                Button { text: "Resume"; busy: approvals.busy === "resume"; onClicked: approvals.resumeAll() }
             }
         }
 

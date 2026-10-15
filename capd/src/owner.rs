@@ -18,12 +18,16 @@ use std::time::{Duration, Instant};
 pub const KEYS: &str = "org.sios.owner.keys";
 pub const AI: &str = "org.sios.owner.ai";
 pub const OWNER: &str = "org.sios.owner";
+/// "Let AI act again" after Stop (D41).
+pub const RESUME: &str = "org.sios.owner.resume";
 
 static ONE_AT_A_TIME: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn action_for(method: &str) -> Option<&'static str> {
     if !crate::state::is_owner_method(method) {
         None
+    } else if method == "ai.resume" {
+        Some(RESUME)
     } else if method == "model.set_key" || method == "model.remove_key" {
         Some(KEYS)
     } else if method.starts_with("model.") {

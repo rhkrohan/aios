@@ -32,5 +32,3 @@ target_link_libraries(sios-approve PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qm
 
 install(TARGETS sios-approve RUNTIME DESTINATION bin)
 install(FILES org.sios.approve.desktop DESTINATION share/applications)
-# started by the session bus when the broker has something waiting
-install(FILES org.sios.Approve1.service DESTINATION share/dbus-1/services)

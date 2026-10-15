@@ -24,7 +24,11 @@ pub const OWNER_METHODS: &[&str] = &[
     "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
+    "ai.resume",
 ];
+
+/// What every AI is told while Stop is on.
+pub const STOPPED: &str = "SIOS stopped all AI. Nothing runs until the owner lets AI act again (Stop, D41).";
 
 pub fn is_owner_method(m: &str) -> bool {
     OWNER_METHODS.contains(&m)
@@ -118,6 +122,8 @@ pub struct State {
     pub gateway: crate::gateway::Gateway,
     /// What each forget_about removed, so the owner can put it back.
     forgotten: Vec<(String, Vec<crate::memory::Memory>)>,
+    /// Whether AI is stopped (D41); kept across restarts.
+    pub sec: crate::security::SecState,
 }
 
 fn load_or_create(path: &Path, make: impl FnOnce() -> String) -> std::io::Result<String> {
@@ -179,6 +185,7 @@ impl State {
             log: Log::open(&dir.join("audit.jsonl"))?,
             meta: Store::open(&dir.join("meta.json")),
             forgotten: Vec::new(),
+            sec: crate::security::SecState::load(dir),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
                 if let Ok(b) = std::fs::read(dir.join("people.json")) {
@@ -364,6 +371,10 @@ impl State {
         if is_owner_method(method) && !owner {
             return json!({ "error": "only the owner can do that" });
         }
+        // Stop (D41): no new passes, sessions or hand-ons until the owner resumes
+        if self.sec.stopped.is_some() && ["request_pass", "mint", "attenuate", "session.open"].contains(&method) {
+            return json!({ "error": STOPPED });
+        }
         let r = match method {
             // the model gateway (D33): what's set up is open to all, never a key
             "model.providers" => Ok(self.gateway.list()),
@@ -394,8 +405,24 @@ impl State {
             }
             "model.complete" | "model.test" => self.model_call(req, owner, service),
             // what anyone may know: how many things wait (never what), and which AI SIOS uses
-            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
+            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
+            // anyone may press Stop: stopping is always safe (D41)
+            "ai.stop" => {
+                let by = match who {
+                    Some(crate::peer::Who::Owner) | Some(crate::peer::Who::OwnerApp) => "you, from a SIOS window".to_string(),
+                    Some(crate::peer::Who::Service) => "SIOS".to_string(),
+                    Some(crate::peer::Who::Agent) => "a program or AI on this computer".to_string(),
+                    None => p["by"].as_str().unwrap_or("you").chars().take(60).collect(),
+                };
+                Ok(self.stop_all(&by))
+            }
+            "ai.resume" => Ok(self.resume_all()),
+            // ending an approval session is always safe, so anyone may (D56)
+            "approvals.end" => {
+                crate::security::session_end("ended from the top bar");
+                Ok(json!({ "approvals_open": false }))
+            }
             m if m.starts_with("memory.") => self.memory_method(m, p),
             // test data for the live machine
             "packs" => Ok(crate::packs::list()),
@@ -465,7 +492,9 @@ impl State {
             "grant" => {
                 let id = p["id"].as_str().unwrap_or("");
                 if self.ungranted.remove(id) {
-                    self.waiting.remove(id);
+                    if let Some(c) = self.waiting.remove(id) {
+                        self.record(&c, "pass.grant", &c.paths.join(", "), "approved", &format!("you granted: {}", c.tools.join(", ")), &json!([]));
+                    }
                     Ok(json!({ "granted": id }))
                 } else {
                     Err("no pass waiting with that id".into())
@@ -484,6 +513,7 @@ impl State {
                 let id = p["id"].as_str().unwrap_or("").to_string();
                 self.waiting.remove(&id);
                 self.revoked.insert(id.clone());
+                self.record(&Self::owner_cap(), "pass.revoke", &id, "you", "you revoked a pass (and everything handed on from it)", &json!([]));
                 Ok(json!({ "revoked": id }))
             }
             "call" => self.call(p),
@@ -558,6 +588,10 @@ impl State {
                         m.origin = o.into();
                     }
                     let _ = self.meta.save();
+                    path
+                })
+                .map(|path| {
+                    self.record(&Self::owner_cap(), "label", &path, "you", "you changed this file's labels or trust", &json!([]));
                     json!({ "path": path })
                 })
             }
@@ -568,6 +602,10 @@ impl State {
                         self.meta.blocked.push(path.clone());
                     }
                     let _ = self.meta.save();
+                    path
+                })
+                .map(|path| {
+                    self.record(&Self::owner_cap(), "block", &path, "you", "you blocked this place for every AI", &json!([]));
                     json!({ "blocked": self.meta.blocked })
                 })
             }
@@ -680,6 +718,7 @@ impl State {
                 let tainted = p["tainted"].as_bool().unwrap_or(false);
                 let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: spec.level, places: &places, tainted });
                 let facts = Facts {
+                    stopped: self.sec.stopped.is_some(),
                     token: Ok(()),
                     principal: &cap.principal,
                     paused: self.iam.is_paused(&cap.principal),
@@ -986,6 +1025,7 @@ impl State {
         // roles: what this identity may do, here, now
         let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: spec.map(|s| s.level).unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
         let facts = Facts {
+            stopped: self.sec.stopped.is_some(),
             token: tok.as_ref().map(|_| ()).map_err(|e| e.clone()),
             principal: &cap.principal,
             paused: self.iam.is_paused(&cap.principal) || self.paused_in_chain(&cap.id).is_some(),
@@ -1041,6 +1081,53 @@ impl State {
         let mut result = out.result;
         result["op"] = json!(op);
         Ok(result)
+    }
+
+    /// Stop (D41): every pass and session revoked, everything waiting declined,
+    /// the approval session ended. Kept across restarts until the owner resumes.
+    pub fn stop_all(&mut self, by: &str) -> Value {
+        if self.sec.stopped.is_none() {
+            self.sec.stopped = Some(crate::security::Stopped { at: now(), by: by.to_string() });
+            self.sec.save();
+        }
+        let mut ids: Vec<String> = self.parents.keys().cloned().collect();
+        ids.extend(self.ungranted.drain());
+        let passes = ids.len();
+        self.revoked.extend(ids);
+        self.waiting.clear();
+        let mut declined = 0;
+        for x in self.pending.values_mut().filter(|x| x.answer.is_none()) {
+            x.answer = Some(Err(STOPPED.into()));
+            declined += 1;
+        }
+        crate::security::session_end("Stop was pressed");
+        self.record(&Self::owner_cap(), "ai.stop", "every AI", "blocked", &format!("Stop pressed by {by}: {passes} passes revoked, {declined} requests declined"), &json!([]));
+        json!({ "stopped": true, "passes_revoked": passes, "requests_declined": declined })
+    }
+
+    /// The owner lets AI act again (password, D41). Revoked passes stay revoked:
+    /// each AI starts over and asks again.
+    fn resume_all(&mut self) -> Value {
+        if let Some(s) = self.sec.stopped.take() {
+            self.sec.save();
+            self.record(&Self::owner_cap(), "ai.resume", "every AI", "you", &format!("you let AI act again (stopped by {})", s.by), &json!([]));
+        }
+        json!({ "stopped": false })
+    }
+
+    /// Inside an approval session, may this yes be a click instead of the password?
+    /// Only for SIOS's own assistant, and only for what can be undone (D56).
+    pub fn session_covers(&self, method: &str, p: &Value) -> bool {
+        let undoable = |tool: &str| tools::spec(tool).is_some_and(|s| s.level != crate::policy::Level::Irreversible && !s.egress);
+        let id = p["id"].as_str().unwrap_or("");
+        if self.sec.stopped.is_some() {
+            return false;
+        }
+        match method {
+            "grant" => self.ungranted.contains(id) && self.waiting.get(id).is_some_and(|c| c.principal == crate::iam::SIOS && !c.tools.is_empty() && c.tools.iter().all(|t| undoable(t))),
+            "approve" => self.pending.get(id).is_some_and(|x| x.answer.is_none() && x.cap.principal == crate::iam::SIOS && undoable(&x.tool)),
+            _ => false,
+        }
     }
 
     fn decide(&mut self, id: &str, yes: bool) -> Result<Value, String> {
@@ -1145,6 +1232,9 @@ impl State {
             "model.complete" => {
                 if !service {
                     return Err("only SIOS's own brain uses the AI connection".into());
+                }
+                if self.sec.stopped.is_some() {
+                    return Err(STOPPED.into());
                 }
                 // the goal's pass tells what it has read; Sensitive never goes online (D21)
                 let (sensitive, goal) = match p["cap"].as_str().filter(|c| !c.is_empty()) {
@@ -1518,6 +1608,85 @@ mod tests {
 
     fn decision(v: &Value) -> &str {
         v["decision"].as_str().unwrap_or("?")
+    }
+
+    // ---- S1: Stop (D41) and approval sessions (D56)
+
+    #[test]
+    fn anyone_can_stop_and_then_nothing_runs() {
+        let mut r = rig();
+        let t = r.mint(json!({ "principal": "a", "tools": ["files.read"] }));
+        assert_eq!(decision(&r.call(&t, "files.read", json!({ "path": "Projects/notes.md" }))), "allow");
+        // any program may press Stop, no password
+        let v = r.agent("ai.stop", json!({}))["ok"].clone();
+        assert_eq!(v["stopped"], true);
+        let c = r.call(&t, "files.read", json!({ "path": "Projects/notes.md" }));
+        assert_eq!(decision(&c), "block");
+        assert!(c["reason"].as_str().unwrap().contains("stopped all AI"));
+        // no new passes, sessions or hand-ons either
+        assert!(r.agent("request_pass", json!({ "principal": "sios", "goal": "x", "tools": ["files.read"], "paths": ["Projects"] }))["error"].as_str().unwrap().contains("stopped"));
+        assert!(r.agent("session.open", json!({ "pair": "sios_pair_x" }))["error"].as_str().unwrap().contains("stopped"));
+        assert!(r.agent("attenuate", json!({ "cap": t, "uses": 1 }))["error"].is_string());
+        assert_eq!(r.agent("status", json!({}))["ok"]["stopped"], true);
+    }
+
+    #[test]
+    fn only_the_owner_resumes_and_old_passes_stay_dead() {
+        let mut r = rig();
+        let t = r.mint(json!({ "principal": "a", "tools": ["files.read"] }));
+        r.agent("ai.stop", json!({}));
+        assert!(r.agent("ai.resume", json!({}))["error"].is_string(), "an AI can't undo Stop");
+        assert_eq!(r.owner("ai.resume", json!({}))["ok"]["stopped"], false);
+        // passes from before Stop were revoked: each AI asks again
+        assert_eq!(decision(&r.call(&t, "files.read", json!({ "path": "Projects/notes.md" }))), "block");
+        let t2 = r.mint(json!({ "principal": "a", "tools": ["files.read"] }));
+        assert_eq!(decision(&r.call(&t2, "files.read", json!({ "path": "Projects/notes.md" }))), "allow");
+    }
+
+    #[test]
+    fn stop_survives_a_restart() {
+        let mut r = rig();
+        r.agent("ai.stop", json!({}));
+        let again = State::open(r._dirs.0.path(), r._dirs.1.path()).unwrap();
+        assert!(again.sec.stopped.is_some());
+    }
+
+    #[test]
+    fn stop_declines_everything_waiting_and_refuses_model_calls() {
+        let mut r = rig();
+        let v = r.agent("request_pass", json!({ "principal": "sios", "goal": "tidy", "tools": ["files.move"], "paths": ["Downloads"] }))["ok"].clone();
+        let waiting = v["token"].as_str().unwrap().to_string();
+        let t = r.mint(json!({ "principal": "a", "tools": ["mail.send"] }));
+        let asked = r.call(&t, "mail.send", json!({ "to": ["sara.okafor@example.com"], "subject": "hi", "body": "hi" }));
+        assert_eq!(decision(&asked), "ask");
+        let s = r.agent("ai.stop", json!({}))["ok"].clone();
+        assert_eq!(s["requests_declined"], 1);
+        assert_ne!(r.agent("pass_state", json!({ "cap": waiting }))["ok"]["state"], "waiting");
+        let svc = r.st.service_secret.clone();
+        let m = r.st.model_prepare(&json!({ "method": "model.complete", "params": { "purpose": "plan" }, "service": svc }), false, true);
+        assert!(m.err().unwrap().contains("stopped"));
+    }
+
+    #[test]
+    fn a_session_click_covers_only_sios_undoable_requests() {
+        let mut r = rig();
+        let ask = |r: &mut Rig, who: &str, tools: Value| {
+            let v = r.agent("request_pass", json!({ "principal": who, "goal": "g", "tools": tools, "paths": ["Downloads"] }))["ok"].clone();
+            json!({ "id": v["id"] })
+        };
+        let tidy = ask(&mut r, "sios", json!(["files.move", "files.organize"]));
+        assert!(r.st.session_covers("grant", &tidy), "SIOS tidying Downloads: a click");
+        let send = ask(&mut r, "sios", json!(["files.read", "mail.send"]));
+        assert!(!r.st.session_covers("grant", &send), "sending out always needs the password");
+        let delete = ask(&mut r, "sios", json!(["files.delete"]));
+        assert!(!r.st.session_covers("grant", &delete), "irreversible always needs the password");
+        r.agent("iam.register", json!({ "id": "helper:tidy", "name": "tidy" }));
+        let other = ask(&mut r, "helper:tidy", json!(["files.move"]));
+        assert!(!r.st.session_covers("grant", &other), "only SIOS's own assistant");
+        assert!(!r.st.session_covers("approve", &json!({ "id": "nope" })));
+        assert!(!r.st.session_covers("model.set_key", &tidy), "never keys, roles or rules");
+        r.agent("ai.stop", json!({}));
+        assert!(!r.st.session_covers("grant", &tidy), "nothing while stopped");
     }
 
     #[test]

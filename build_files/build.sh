@@ -75,10 +75,14 @@ test -f /usr/share/applications/org.sios.monitor.desktop
 test -x /usr/bin/sios-settings
 test -f /usr/share/applications/org.sios.settings.desktop
 
-### Approvals: the window that asks before an AI acts (D37), started by the session bus
+### Approvals: the window that asks before an AI acts (D37), started by the broker (S1)
 test -x /usr/bin/sios-approve
 test -f /usr/lib/sysctl.d/60-sios-ptrace.conf
-test -f /usr/share/dbus-1/services/org.sios.Approve1.service
+# the broker starts the approval window itself (S1); never the session bus
+test ! -e /usr/share/dbus-1/services/org.sios.Approve1.service
+# Stop all AI: Ctrl+Shift+Esc, no password (D41)
+test -f /usr/share/applications/org.sios.stop.desktop
+test -f /usr/share/polkit-1/actions/org.sios.policy && grep -q org.sios.owner.resume /usr/share/polkit-1/actions/org.sios.policy
 
 ### The Ask bar: the orb and Meta+Space (apps, files, settings now)
 test -x /usr/bin/sios-ask

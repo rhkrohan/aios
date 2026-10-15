@@ -5,6 +5,10 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDBusConnection>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLocalSocket>
 #include <QFile>
 #include <QDir>
 #include <QIcon>
@@ -79,6 +83,41 @@ static void useDesktopIconTheme()
     QIcon::setFallbackThemeName(QStringLiteral("breeze"));
 }
 
+
+// SIOS's windows are started by the broker (S1, D55): it trusts only the exact
+// processes it started itself, so no AI can start this window as its own child
+// and drive it. Started any other way (the menu, the dock, a terminal), ask the
+// broker to start the real one, then quit.
+static bool brokerOpens(const QString &app, const QString &page)
+{
+    QString dir = qEnvironmentVariable("SIOS_RUNTIME");
+    if (dir.isEmpty())
+        dir = qEnvironmentVariable("XDG_RUNTIME_DIR") + QStringLiteral("/sios");
+    QLocalSocket s;
+    s.connectToServer(dir + QStringLiteral("/capd.sock"));
+    if (!s.waitForConnected(1000))
+        return false;
+    const QJsonObject req{{QStringLiteral("method"), QStringLiteral("windows.open")},
+                          {QStringLiteral("params"), QJsonObject{{QStringLiteral("app"), app}, {QStringLiteral("page"), page}}}};
+    s.write(QJsonDocument(req).toJson(QJsonDocument::Compact) + '\n');
+    if (!s.waitForBytesWritten(1000) || !s.waitForReadyRead(5000))
+        return false;
+    return QJsonDocument::fromJson(s.readLine()).object().contains(QStringLiteral("ok"));
+}
+
+// brought forward by the broker when Settings is already open (a page name only)
+class Waker : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.sios.Settings1")
+public:
+    using QObject::QObject;
+public Q_SLOTS:
+    Q_SCRIPTABLE void Show(const QString &page) { Q_EMIT shown(page); }
+Q_SIGNALS:
+    void shown(const QString &page);
+};
+
 int main(int argc, char *argv[])
 {
     // Its memory is safe from other programs because the image sets
@@ -97,6 +136,11 @@ int main(int argc, char *argv[])
     QCommandLineParser args;
     args.addOption({QStringLiteral("page"), QStringLiteral("Open on a page: appearance, wifi, updates, about, brain, permissions, connections"), QStringLiteral("page")});
     args.process(app);
+    if (qgetenv("SIOS_WINDOW") != "1" && brokerOpens(QStringLiteral("settings"), args.value(QStringLiteral("page"))))
+        return 0;
+    Waker waker;
+    QDBusConnection::sessionBus().registerService(QStringLiteral("org.sios.Settings1"));
+    QDBusConnection::sessionBus().registerObject(QStringLiteral("/Settings"), &waker, QDBusConnection::ExportScriptableSlots);
 
     System system;
     Broker broker;
@@ -106,7 +150,10 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("system"), &system);
     engine.rootContext()->setContextProperty(QStringLiteral("broker"), &broker);
     engine.rootContext()->setContextProperty(QStringLiteral("startPage"), args.value(QStringLiteral("page")));
+    engine.rootContext()->setContextProperty(QStringLiteral("waker"), &waker);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("org.sios.settings", "Main");
     return app.exec();
 }
+
+#include "main.moc"

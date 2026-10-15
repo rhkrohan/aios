@@ -2,7 +2,8 @@
     The middle island of the top bar (owner's pick 2026-10-14: three islands,
     search "S2"): the orb and "Search or ask SIOS" in a glass pill whose edge is
     a slowly drifting SIOS gradient. Clicking it opens the Ask bar (apps, files,
-    settings, and Ask SIOS), the same as Ctrl+Space.
+    settings, and Ask SIOS), the same as Ctrl+Space. Red with "All AI stopped"
+    after Stop (D41); "Approvals open" during an approval session (D56).
     The edge also says how SIOS is: blue and calm when idle, amber when
     something waits for the owner's OK, grey when the broker isn't running.
     It reads only the broker's public status (`capd status`), never what waits.
@@ -23,13 +24,15 @@ PlasmoidItem {
 
     property bool siosUp: true
     property int waiting: 0
+    property bool stopped: false
+    property bool session: false
 
     P5Support.DataSource {
         id: sh
         engine: "executable"
         onNewData: (source, data) => {
             if (source === root.readSios) {
-                try { const v = JSON.parse(String(data.stdout)).ok; root.waiting = v.pending || 0; root.siosUp = true; }
+                try { const v = JSON.parse(String(data.stdout)).ok; root.waiting = v.pending || 0; root.stopped = !!v.stopped; root.session = !!v.approvals_open; root.siosUp = true; }
                 catch (e) { root.siosUp = false; }
             }
             disconnectSource(source);
@@ -40,6 +43,7 @@ PlasmoidItem {
 
     // edge colours per state: SIOS blue, cyan and violet; amber; grey
     readonly property var edge: !siosUp ? ["#5b6270", "#7a8190", "#5b6270"]
+        : stopped ? ["#ef5a5a", "#ff8a80", "#ef5a5a"]
         : waiting > 0 ? ["#f0a43a", "#ffd27a", "#f0a43a"]
         : ["#6f7cff", "#4fc3f7", "#b48cff"]
 
@@ -106,8 +110,8 @@ PlasmoidItem {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: root.waiting > 0 ? (root.waiting === 1 ? "1 request waits for your OK" : root.waiting + " requests wait for your OK") : "Search or ask SIOS"
-                        color: root.waiting > 0 ? "#ffd19a" : "#c9cfe0"
+                        text: root.stopped ? "All AI stopped" : root.waiting > 0 ? (root.waiting === 1 ? "1 request waits for your OK" : root.waiting + " requests wait for your OK") : "Search or ask SIOS"
+                        color: root.stopped ? "#ffb3b3" : root.waiting > 0 ? "#ffd19a" : "#c9cfe0"
                         elide: Text.ElideRight
                         font.family: "Instrument Sans"
                         font.pixelSize: 13
@@ -121,7 +125,8 @@ PlasmoidItem {
                         Text {
                             id: key
                             anchors.centerIn: parent
-                            text: "Ctrl Space"
+                            // the key, or what's going on: stopped (resume in Approvals), approvals open
+                            text: root.stopped ? "Resume…" : root.session ? "Approvals open" : "Ctrl Space"
                             color: "#c8ced6"
                             font.family: "Instrument Sans"
                             font.pixelSize: 11
@@ -136,10 +141,10 @@ PlasmoidItem {
             anchors.fill: ring
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            // with something waiting, open the approval window; else the Ask bar
-            onClicked: sh.connectSource(root.waiting > 0 ? "sios-approve" : "sios-ask")
+            // stopped or something waiting: SIOS's approval window (started by the broker); else the Ask bar
+            onClicked: sh.connectSource(root.stopped || root.waiting > 0 ? "capd window approve" : "sios-ask")
         }
         Accessible.role: Accessible.Button
-        Accessible.name: root.waiting > 0 ? "Requests waiting for your OK" : "Search or ask SIOS"
+        Accessible.name: root.stopped ? "All AI stopped" : root.waiting > 0 ? "Requests waiting for your OK" : "Search or ask SIOS"
     }
 }

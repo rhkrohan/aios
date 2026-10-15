@@ -1,5 +1,5 @@
-// SIOS Approve (D37): started by the session bus when the broker has something
-// waiting for the owner, it shows what an AI asked for and sends the answer.
+// SIOS Approve (D37): started by the broker when something waits for the owner
+// (S1), it shows what an AI asked for and sends the answer.
 // It decides nothing itself and takes no data from whoever woke it: it asks the
 // broker what's waiting. Yes needs the owner's password (the broker asks polkit).
 #include "approvals.h"
@@ -10,6 +10,9 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLocalSocket>
 #include <QPainter>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -58,6 +61,28 @@ public:
     }
 };
 
+
+// SIOS's windows are started by the broker (S1, D55): it trusts only the exact
+// processes it started itself, so no AI can start this window as its own child
+// and drive it. Started any other way (the menu, the dock, a terminal), ask the
+// broker to start the real one, then quit.
+static bool brokerOpens(const QString &app, const QString &page)
+{
+    QString dir = qEnvironmentVariable("SIOS_RUNTIME");
+    if (dir.isEmpty())
+        dir = qEnvironmentVariable("XDG_RUNTIME_DIR") + QStringLiteral("/sios");
+    QLocalSocket s;
+    s.connectToServer(dir + QStringLiteral("/capd.sock"));
+    if (!s.waitForConnected(1000))
+        return false;
+    const QJsonObject req{{QStringLiteral("method"), QStringLiteral("windows.open")},
+                          {QStringLiteral("params"), QJsonObject{{QStringLiteral("app"), app}, {QStringLiteral("page"), page}}}};
+    s.write(QJsonDocument(req).toJson(QJsonDocument::Compact) + '\n');
+    if (!s.waitForBytesWritten(1000) || !s.waitForReadyRead(5000))
+        return false;
+    return QJsonDocument::fromJson(s.readLine()).object().contains(QStringLiteral("ok"));
+}
+
 int main(int argc, char *argv[])
 {
     // Its memory is safe from other programs because the image sets
@@ -71,6 +96,10 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon::fromTheme(QStringLiteral("org.sios.approve")));
     app.setQuitOnLastWindowClosed(false);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
+    if (qgetenv("SIOS_WINDOW") != "1") {
+        // without the broker there is nothing to approve
+        return brokerOpens(QStringLiteral("approve"), {}) ? 0 : 1;
+    }
 
     // one copy: a second start just wakes the first
     auto bus = QDBusConnection::sessionBus();
