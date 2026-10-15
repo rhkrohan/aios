@@ -31,7 +31,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | Tool | Arguments | Risk | Status | What it does | On the SIOS image |
 | --- | --- | --- | --- | --- | --- |
 | `files.list` | path | Read | Real | Lists a folder: names, kinds, sizes, labels. Hidden files, links and blocked places are left out | Same, over the home folder |
-| `files.find` | path, query | Read | Real | Finds up to 30 files by name words, a label (Finance, Work, Personal, Sensitive) or "untrusted" | Same; local search index later |
+| `files.find` | path, query | Read | Real | Finds files by what they are: name, label, and the text inside documents and PDFs, with related words ("invoice" also finds bills, receipts, "amount due"). Best 30 first, each with why and a short line from inside (never from Sensitive or Finance files). `path` "" is the whole home | Same; the extracted text is kept in a local index (`index.json` in capd's state, by size and change time); `pdftotext` and `unzip` read PDFs and Word/LibreOffice files with a 4 s and 256 KB limit |
 | `files.read` | path | Read | Real | Reads up to 64 KB of text. Untrusted files come back marked as data, never instructions | Same |
 | `files.write` | path, text | Change | Real | Creates or replaces a text file; the old version is kept for undo | Same; Btrfs snapshots later |
 | `files.move` | from, to | Change | Real | Moves or renames. A `to` ending in `/` means "into this folder" (created if missing) | Same |

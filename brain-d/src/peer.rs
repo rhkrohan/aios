@@ -39,12 +39,12 @@ pub const OWNER_APPS: [&str; 3] = ["/usr/bin/sios-ask", "/usr/bin/sios-monitor",
 /// Off for the same reason as capd's (capd/src/peer.rs): a copied connection can pose as the shell.
 pub const OWNER_BY_PROGRAM: bool = false;
 
-/// Variables that make a program load code it wasn't shipped with (whole families).
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 /// Plasma sets `QT_WAYLAND_RECONNECT=1` for every app it launches (seen on the
 /// image 2026-10-14); it only lets the app survive a compositor restart.
 const HARMLESS: [&[u8]; 1] = [b"QT_WAYLAND_RECONNECT=1"];
 
+/// Variables that make a program load code it wasn't shipped with (whole families).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn injecting(var: &[u8]) -> bool {
     // settings the desktop gives every app it starts, which load nothing (exact value)
     if HARMLESS.contains(&var) {

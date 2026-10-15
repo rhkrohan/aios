@@ -379,8 +379,32 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
             let why = err.and_then(|e| e.as_str().map(String::from)).or(res["reason"].as_str().map(String::from)).unwrap_or("it didn't go through".into());
             return Ok(Outcome::Failed(format!("step {n} ({}) failed: {why}", s.tool)));
         }
+        // what a search found can go in the reply ({{N}}), the same way as a compose step's text
+        if s.tool == "files.find" {
+            texts.push((n, found_text(&res["result"])));
+        }
         *done_steps += 1;
         done_log.push(format!("  step {n}: {} {} -> ok", s.tool, s.args_json));
     }
     Ok(Outcome::Done(texts))
+}
+
+/// A search's results in a few plain lines for the reply: the best 10, with why.
+fn found_text(result: &Value) -> String {
+    let m = result["matches"].as_array().cloned().unwrap_or_default();
+    if m.is_empty() {
+        return "nothing matched".into();
+    }
+    let mut lines: Vec<String> = m
+        .iter()
+        .take(10)
+        .map(|x| {
+            let why = x["why"].as_str().unwrap_or("");
+            if why.is_empty() { format!("{}", x["path"].as_str().unwrap_or("?")) } else { format!("{} ({why})", x["path"].as_str().unwrap_or("?")) }
+        })
+        .collect();
+    if m.len() > 10 {
+        lines.push(format!("and {} more", m.len() - 10));
+    }
+    lines.join("; ")
 }

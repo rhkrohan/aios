@@ -39,7 +39,7 @@ Security track (2026-10-14 plan, D40 to D55, `docs/plan/17-security-engine.md`; 
 - [x] S0 Plan: security engine doc, decisions, tasks
 - [ ] S1 Stop: one switch cuts every AI channel; capd non-dumpable; `ptrace_scope=1`; the broker starts SIOS's own windows (approval, Settings) and trusts only those processes; approval sessions: one password until the screen locks, then one click for SIOS's undoable actions (D56)
 - [x] D57 SIOS acts without asking on settings and look-ups (built 2026-10-14; check on the VM with the S1 image)
-- [ ] Smarter search: a local index of names, text inside documents and PDFs, and related words; the planner searches broadly and asks only when it finds nothing or can't choose
+- [x] Smarter search: a local index of names, text inside documents and PDFs, and related words; the planner searches broadly and asks only when it finds nothing or can't choose (built 2026-10-15; VM check pending)
 - [ ] S2 One signed, versioned policy; roles absorb standing rules and memory shares; all owner changes audited
 - [ ] S3 Instances and 10 minute leases bound to the calling process; broker state survives a restart (part of M10)
 - [ ] S4 Sentinel and freeze (machine-speed anomaly rules, freeze the chain, owner resumes)

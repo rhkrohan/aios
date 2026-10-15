@@ -18,6 +18,7 @@ mod meta;
 mod owner;
 mod peer;
 mod policy;
+mod search;
 mod security;
 mod state;
 mod token;

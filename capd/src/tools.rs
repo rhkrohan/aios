@@ -443,12 +443,18 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             Ok(Outcome { result: json!({ "sent": true, "outbox": format!("outbox/{}.json", env.op) }), undo: None, read, wrote: None })
         }
         "files.find" => {
+            // by name, label and the text inside (search.rs); best first, with why
             let r = res(env.root, arg(args, "path")?)?;
             let q = arg(args, "query")?.to_lowercase();
-            let words: Vec<&str> = q.split_whitespace().filter(|w| w.len() > 1).collect();
+            let terms = crate::search::terms(&q);
             let label = ["finance", "work", "personal", "sensitive"].into_iter().find(|l| q.contains(l) || (*l == "finance" && ["money", "invoice", "bill", "budget", "tax"].iter().any(|w| q.contains(w))));
             let want_untrusted = ["untrusted", "web", "download", "email"].iter().any(|w| q.contains(w));
-            let mut found = Vec::new();
+            let mut index = crate::search::Index::load(env.state);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+            let mut seen = std::collections::HashSet::new();
+            let mut scored: Vec<(u32, Value, Option<(String, Vec<String>, bool)>)> = Vec::new();
+            let mut unread = 0;
+            let mut walked = 0;
             let mut stack = vec![(r.real.clone(), r.rel.clone())];
             while let Some((dir, rel)) = stack.pop() {
                 for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
@@ -469,18 +475,48 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                         stack.push((e.path(), p));
                         continue;
                     }
+                    walked += 1;
+                    if walked > 50_000 {
+                        break;
+                    }
+                    seen.insert(p.clone());
                     let labels = meta.labels_at(&p);
                     let untrusted = meta.untrusted_at(&p);
-                    let lname = name.to_lowercase();
-                    let hit = words.iter().any(|w| lname.contains(w))
-                        || label.is_some_and(|l| labels.iter().any(|x| x.to_lowercase() == l))
-                        || (want_untrusted && untrusted);
-                    if hit && found.len() < 30 {
-                        found.push(json!({ "path": p, "labels": labels, "untrusted": untrusted }));
+                    let text = index.text(&p, &e.path(), deadline);
+                    if text.is_none() && !name.contains('.') {
+                        // no extension: name only
+                    } else if text.is_none() {
+                        unread += 1;
                     }
+                    let (mut s, mut why) = crate::search::score(&name, text.as_deref(), &terms);
+                    if label.is_some_and(|l| labels.iter().any(|x| x.to_lowercase() == l)) {
+                        s += 5;
+                        why = if why.is_empty() { "labelled to match".into() } else { format!("{why}, labelled to match") };
+                    }
+                    if want_untrusted && untrusted {
+                        s += 3;
+                    }
+                    if s == 0 {
+                        continue;
+                    }
+                    // a line from inside, except from files whose data mustn't flow (Sensitive, Finance)
+                    let flows = labels.iter().any(|l| crate::policy::FLOW_LABELS.contains(&l.as_str()));
+                    let snip = if flows { None } else { text.as_deref().and_then(|t| crate::search::snippet(t, &terms)) };
+                    let read = snip.as_ref().map(|_| (p.clone(), labels.clone(), untrusted));
+                    scored.push((s, json!({ "path": p, "labels": labels, "untrusted": untrusted, "why": why, "snippet": snip }), read));
                 }
             }
-            Ok(done(json!({ "query": q, "under": r.rel, "matches": found })))
+            index.keep_only(&seen, &r.rel);
+            index.save(env.state);
+            scored.sort_by(|a, b| b.0.cmp(&a.0));
+            scored.truncate(30);
+            let read: Vec<_> = scored.iter().filter_map(|(_, _, r)| r.clone()).collect();
+            let found: Vec<Value> = scored.into_iter().map(|(_, v, _)| v).collect();
+            let mut result = json!({ "query": q, "under": r.rel, "matches": found });
+            if unread > 0 {
+                result["not_read_yet"] = json!(unread);
+            }
+            Ok(Outcome { result, undo: None, read, wrote: None })
         }
         "files.organize" => {
             let moves = args.get("moves").and_then(|v| v.as_array()).ok_or("missing \"moves\"")?;

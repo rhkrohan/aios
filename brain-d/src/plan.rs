@@ -103,6 +103,7 @@ pub const PLANNER: &str = "You plan work on a personal computer called SIOS. You
 Return the WHOLE plan at once; the operating system checks it with the broker and runs it without asking you again. \
 Rules: use exact paths from the briefing; never invent files or people; prefer few, big steps (files.organize for many moves, files.find to search); \
 use a compose step whenever text must be written from file contents, then pass its text to later steps as {{N}}; \
+to find things, use one files.find step with path \"\" (the whole home) unless the owner named a folder, and write the reply around its results ({{N}}, e.g. \"Here is what I found: {{1}}\"); never ask where something is before searching; ask only when a change or a send needs one exact file and the briefing can't tell which; \
 files.organize and files.move create missing destination folders, so don't create folders separately; \
 for anything that only shows something to the owner, use files.show, files.preview or apps.open; \
 use exactly the argument fields listed for each tool; \

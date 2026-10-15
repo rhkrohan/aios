@@ -62,13 +62,13 @@ pub const OWNER_APPS: [&str; 2] = ["/usr/bin/sios-approve", "/usr/bin/sios-setti
 pub const OWNER_BY_PROGRAM: bool = false;
 pub const SERVICE: (&str, &str) = ("/usr/bin/brain-d", "/sios-brain.service");
 
-/// Variables that make a program load code it wasn't shipped with: whole families,
-/// so a new loader variable in a later release is caught too.
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 /// Plasma sets `QT_WAYLAND_RECONNECT=1` for every app it launches (seen on the
 /// image 2026-10-14); it only lets the app survive a compositor restart.
 const HARMLESS: [&[u8]; 1] = [b"QT_WAYLAND_RECONNECT=1"];
 
+/// Variables that make a program load code it wasn't shipped with: whole families,
+/// so a new loader variable in a later release is caught too.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn injecting(var: &[u8]) -> bool {
     // settings the desktop gives every app it starts, which load nothing (exact value)
     if HARMLESS.contains(&var) {

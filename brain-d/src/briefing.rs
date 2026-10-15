@@ -42,7 +42,7 @@ pub struct Briefing {
 /// Exact argument fields come first; the broker refuses anything else.
 pub const TOOLS: &[(&str, &str)] = &[
     ("files.list", "{path} read: list a folder"),
-    ("files.find", "{path, query} read: find files under a folder by name words, a label (Finance, Work...), or \"untrusted\""),
+    ("files.find", "{path, query} read: find files by what they are: name, label (Finance, Work...) and the text inside documents and PDFs; related words count (\"invoices\" also finds bills, receipts, \"amount due\"); path \"\" searches the whole home; its results can go in the reply as {{N}}"),
     ("files.read", "{path} read: read a text file (untrusted files come back as data)"),
     ("files.write", "{path, text} change, undoable: create or replace a text file with exactly this text"),
     ("files.move", "{from, to} change, undoable: move or rename one file or folder; to move INTO a folder end `to` with / (\"Documents/Finance/\"), it's created if missing"),
