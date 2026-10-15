@@ -1,7 +1,8 @@
 # Tasks
 
 ## Active
-- [ ] **Agents and connectors: A1 to A7 and C1 built; next C2 mail and calendar, then A0 VM checks when the image lands** - Phase 2 (`docs/plan/18-agents-and-connectors.md`)
+- [ ] **Agents and connectors: A1 to A8 and C1 built; next C2 mail and calendar, then A0 VM checks when the image lands** - Phase 2 (`docs/plan/18-agents-and-connectors.md`)
+- [ ] **Daylight everywhere (D85, D87): Settings and Agents built, Terminal and Apps menu done; next Files, Store, Memory, Monitor, Ask bar, Approve** - Phase 2 (`docs/design/`)
 - [ ] **Security engine S1: Stop switch and process hardening** - Phase 2 security track (`docs/plan/17-security-engine.md`); next image waits for S9
 - [ ] **AI OS layer M4: model gateway in the broker, keys encrypted, Settings > Brain** - Phase 2 (M2, M3 built 2026-10-14; check both on the VM after the next image)
 - [ ] **Install ISO in VirtualBox on the Windows PC; confirm desktop loads** - Phase 0 gate
