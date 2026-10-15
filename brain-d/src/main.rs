@@ -216,6 +216,13 @@ impl Brain {
             }
             // agents' states carry the goal each one is running, and a goal id is what
             // lets you follow it: only SIOS's windows (or the owner) may list them
+            // "@coder add tests" from the Ask bar or SIOS's windows: the broker starts the
+            // run only inside the agent's work lease (D65)
+            "agent.task" if !(owner || shell || viewer) => Err("only the Ask bar or SIOS's windows can give an agent a task".into()),
+            "agent.task" => {
+                let id = format!("agent:{}", slug(p["agent"].as_str().unwrap_or("")));
+                self.ctx.capd.call("agents.run", json!({ "id": id, "task": p["task"].as_str().unwrap_or("") }))
+            }
             "helpers.list" | "watch.list" if !(owner || viewer) => Err("only SIOS's own windows can list agents".into()),
             "helpers.list" => Ok(helpers::status(self)),
             "brains.list" => Ok(json!(helpers::BRAINS.iter().map(|(id, on)| json!({ "id": id, "connected": on })).collect::<Vec<_>>())),

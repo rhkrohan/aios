@@ -56,6 +56,19 @@ void Assistant::ask(const QString &text)
     m_next = 0;
     m_running = true;
     Q_EMIT eventsChanged();
+    // "@coder add tests": a task for one of your agents (A6); its reports go to Agents
+    if (m_request.startsWith(QLatin1Char('@'))) {
+        const int sp = m_request.indexOf(QLatin1Char(' '));
+        const QString name = m_request.mid(1, sp < 0 ? -1 : sp - 1), task = sp < 0 ? QString() : m_request.mid(sp + 1).trimmed();
+        send(QStringLiteral("agent.task"), {{QStringLiteral("agent"), name}, {QStringLiteral("task"), task}}, [this, name](const QVariant &, const QString &err) {
+            m_events.append(err.isEmpty()
+                ? QVariantMap{{QStringLiteral("t"), QStringLiteral("done")}, {QStringLiteral("text"), name + QStringLiteral(" is on it, in its own workspace. Its reports come to the Agents app.")}}
+                : QVariantMap{{QStringLiteral("t"), QStringLiteral("error")}, {QStringLiteral("message"), err}});
+            m_running = false;
+            Q_EMIT eventsChanged();
+        });
+        return;
+    }
     QVariantMap p{{QStringLiteral("request"), m_request}};
     if (!m_thread.isEmpty())
         p.insert(QStringLiteral("thread"), m_thread);
