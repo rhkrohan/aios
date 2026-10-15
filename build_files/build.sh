@@ -86,6 +86,10 @@ test -f /usr/share/polkit-1/actions/org.sios.policy && grep -q org.sios.owner.re
 
 ### The Ask bar: the orb and Meta+Space (apps, files, settings now)
 test -x /usr/bin/sios-ask
+
+### Memory: what SIOS remembers about you (A2), a broker-started window (D59)
+test -x /usr/bin/sios-memory
+test -f /usr/share/applications/org.sios.memory.desktop
 test -f /usr/share/kglobalaccel/org.sios.ask.desktop
 test -f /etc/xdg/autostart/org.sios.ask.desktop
 

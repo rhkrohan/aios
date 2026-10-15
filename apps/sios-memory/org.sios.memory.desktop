@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Memory
+Comment=What SIOS remembers about you, and who may see it
+Exec=sios-memory
+Icon=org.sios.memory
+Terminal=false
+Categories=Qt;KDE;Utility;
+StartupNotify=true

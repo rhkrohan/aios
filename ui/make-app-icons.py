@@ -12,7 +12,8 @@ uid=[0]
 def nid(p="p"):
     uid[0]+=1; return f"{p}{uid[0]}"
 C={"files":("#ffcf6b","#e8a33d","#b86f12"),"store":("#5ed39b","#23a26b","#14704a"),"monitor":("#ff9d66","#ef6a2e","#b3461a"),
-   "settings":("#b3bcc7","#7b8794","#4c5662"),"ask":("#b7a8ff","#6c7cff","#4453d6"),"approvals":("#6fd6e6","#2aa3b8","#1a7180")}
+   "settings":("#b3bcc7","#7b8794","#4c5662"),"ask":("#b7a8ff","#6c7cff","#4453d6"),"approvals":("#6fd6e6","#2aa3b8","#1a7180"),
+   "memory":("#ffb3cf","#e8679a","#a83c68")}
 NAMES=[("Files","files","Fi"),("Store","store","St"),("Monitor","monitor","Mo"),("Settings","settings","Se"),("Ask SIOS","ask","As"),("Approvals","approvals","Ap")]
 
 # filled symbols, drawn in a 48 box; f(light, mid, dark) -> svg fragment
@@ -51,6 +52,8 @@ def sym(key,a,b,d,white=False):
                 f'<circle cx="24" cy="24" r="16" fill="url(#{g})"/>'
                 f'<ellipse cx="24" cy="24" rx="16" ry="6" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.2" transform="rotate(-25 24 24)"/>'
                 f'<ellipse cx="24" cy="24" rx="16" ry="6" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="1.2" transform="rotate(35 24 24)"/>')
+    if key=="memory":
+        return memory_sym(a,b,d)
     if key=="approvals":
         g=nid()
         shield="M24 6l14 5v11c0 9-6 15.5-14 19-8-3.5-14-10-14-19V11z"
@@ -59,13 +62,24 @@ def sym(key,a,b,d,white=False):
                 f'<path d="{shield}" fill="url(#{g})"/><path d="M24 6l14 5v3L24 9 10 14v-3z" fill="#ffffff" opacity=".35"/>'
                 f'<path d="M18 24l4.5 4.5L31 20" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>')
 
+def memory_sym(a,b,d):
+    # a notebook with a bookmark ribbon and a small spark: what SIOS remembers
+    g=nid()
+    return (f'<defs><linearGradient id="{g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{a}"/><stop offset="1" stop-color="{b}"/></linearGradient></defs>'
+            f'<rect x="10" y="7" width="28" height="34" rx="4" fill="{d}"/>'
+            f'<rect x="12" y="7" width="26" height="32" rx="3.5" fill="url(#{g})"/>'
+            f'<rect x="12" y="7" width="26" height="3" rx="1.5" fill="#ffffff" opacity=".35"/>'
+            f'<rect x="15" y="7" width="2.2" height="32" fill="{d}" opacity=".35"/>'
+            f'<path d="M30 7v12l3-2.4 3 2.4V7z" fill="#ffffff" opacity=".92"/>'
+            f'<path d="M24 22c.8 2.7 2.6 4.5 5.3 5.3-2.7.8-4.5 2.6-5.3 5.3-.8-2.7-2.6-4.5-5.3-5.3 2.7-.8 4.5-2.6 5.3-5.3z" fill="#ffffff"/>')
+
 def svg(inner, size=80): return f'<svg viewBox="0 0 80 80" width="{size}" height="{size}">{inner}</svg>'
 def shadow(cx=40,cy=70,rx=24): return f'<ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="4" fill="#0a1428" opacity=".18"/>'
 
 def P1(key,mono):  # objects: no tile, the thing itself, soft ground shadow
     a,b,d=C[key]; return svg(shadow()+f'<g transform="translate(6 4) scale(1.42)">{sym(key,a,b,d)}</g>')
 
-APPS = {"files": "files", "store": "store", "monitor": "monitor", "settings": "settings", "ask": "ask", "approve": "approvals"}
+APPS = {"files": "files", "store": "store", "monitor": "monitor", "settings": "settings", "ask": "ask", "approve": "approvals", "memory": "memory"}
 out = ROOT / "system_files/usr/share/icons/hicolor/scalable/apps"
 out.mkdir(parents=True, exist_ok=True)
 for app, key in APPS.items():
