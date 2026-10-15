@@ -130,7 +130,8 @@ impl Brain {
             format!("\n\nCONVERSATION SO FAR (oldest first)\n{}", lines.join("\n"))
         };
         let last_goal = turns.iter().rev().find_map(|t| t.goal.clone());
-        let id = format!("g{:x}{:x}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+        // a goal id can't be guessed: holding it is what lets a caller follow the goal
+        let id = format!("g{}", random_hex(12));
         let shared: goal::Shared = Arc::new(Mutex::new(goal::Goal::default()));
         self.goals.lock().unwrap().insert(id.clone(), shared.clone());
         self.recent.lock().unwrap().push((id.clone(), request.to_string(), principal.to_string()));
@@ -173,12 +174,13 @@ impl Brain {
     /// `owner`: the caller proved it is the owner's shell (brain.secret; on SIOS,
     /// the shell's identity over D-Bus). Without it, only what an outside AI may do.
     pub fn handle(&self, req: &Value, owner: bool) -> Value {
-        self.handle_from(req, owner, false)
+        self.handle_from(req, owner, false, false)
     }
 
     /// `shell`: the caller is the owner's Ask bar, known by its program. Its goals
     /// run in the owner's name; every pass still waits for the owner's password.
-    pub fn handle_from(&self, req: &Value, owner: bool, shell: bool) -> Value {
+    /// `viewer`: one of SIOS's windows that capd started: may look at every goal.
+    pub fn handle_from(&self, req: &Value, owner: bool, shell: bool, viewer: bool) -> Value {
         let p = &req["params"];
         let method = req["method"].as_str().unwrap_or("");
         const OWNER_ONLY: [&str; 8] = ["state.update", "routines.clear", "helpers.add", "helpers.update", "helpers.remove", "helpers.run_now", "watch.add", "watch.remove"];
@@ -281,23 +283,11 @@ impl Brain {
                 model::Model::from_env().and_then(|m| memory::answer_from(&m, p["question"].as_str().unwrap_or(""), &mems)).map(Value::from)
             }
             // SIOS's own windows see every goal (D59); others never list them
-            "goals.recent" if !(owner || shell) => Err("only SIOS's own windows can list goals".into()),
+            "goals.recent" if !(owner || shell || viewer) => Err("only SIOS's own windows can list goals".into()),
             "goals.recent" => Ok(json!(self.recent.lock().unwrap().iter().rev().take(20).map(|(g, r, p)| json!({ "goal": g, "request": r, "principal": p })).collect::<Vec<_>>())),
-            // a goal's events can hold email bodies: only SIOS's windows, or the AI that
-            // started that goal (known by its pairing), may follow it
-            "goal.events" => {
-                let goal = p["goal"].as_str().unwrap_or("");
-                let started_by = self.recent.lock().unwrap().iter().find(|(g, _, _)| g == goal).map(|(_, _, who)| who.clone());
-                let mine = owner || shell || match (&started_by, self.requester(p, false)) {
-                    (Some(who), Ok((me, _))) => *who == me && !me.is_empty(),
-                    _ => false,
-                };
-                if mine {
-                    self.events(goal, p["since"].as_u64().unwrap_or(0) as usize).ok_or_else(|| "no such goal".into())
-                } else {
-                    Err("no such goal".into())
-                }
-            }
+            // a goal's events can hold email bodies: SIOS's windows see every goal; anyone
+            // else needs the goal's id, which can't be guessed and only its starter got
+            "goal.events" => self.events(p["goal"].as_str().unwrap_or(""), p["since"].as_u64().unwrap_or(0) as usize).ok_or_else(|| "no such goal".into()),
             other => Err(format!("unknown method {other}")),
         };
         match r {
@@ -338,7 +328,14 @@ fn serve() {
         let (brain, secret) = (brain.clone(), secret.clone());
         // on SIOS the owner's shell is known by its program, asked once when it connects:
         // it may start goals in the owner's name; the owner's controls stay with brain.secret
-        let who = by_peer.then(|| peer::classify(&peer::of(&conn), &peer::OWNER_APPS, None));
+        let proc = by_peer.then(|| peer::of(&conn));
+        let who = proc.as_ref().map(|p| peer::classify(p, &peer::OWNER_APPS, None));
+        // SIOS's windows may look at goals, once capd confirms it started that very process
+        let viewer = who.is_some_and(|w| w == peer::Who::OwnerApp)
+            || proc.as_ref().is_some_and(|p| {
+                peer::classify(p, &peer::VIEWER_APPS, None) == peer::Who::OwnerApp
+                    && brain.ctx.capd.call("windows.check", json!({ "pid": p.pid, "start": p.start })).is_ok_and(|v| v["window"] == true)
+            });
         let shell = who.map(|w| w == peer::Who::Owner);
         let asks_for_owner = who.is_some_and(|w| w == peer::Who::Owner || w == peer::Who::OwnerApp);
         std::thread::spawn(move || {
@@ -359,7 +356,7 @@ fn serve() {
                                 None => json!({ "error": "that helper is busy or doesn't exist" }),
                             }
                         } else {
-                            brain.handle_from(&r, owner, asks_for_owner)
+                            brain.handle_from(&r, owner, asks_for_owner, viewer)
                         }
                     })
                     .unwrap_or_else(|e| json!({ "error": format!("not JSON: {e}") }));
@@ -401,4 +398,17 @@ fn spawn_watchers(brain: Arc<Brain>) {
             }
         }
     });
+}
+
+/// Random hex from the kernel's generator.
+fn random_hex(n: usize) -> String {
+    use std::io::Read;
+    let mut b = vec![0u8; n];
+    if std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut b)).is_err() {
+        // never a predictable id: fall back to the clock mixed with the pid, and say so
+        eprintln!("brain-d: /dev/urandom unavailable");
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0) ^ (std::process::id() as u128) << 64;
+        return format!("{t:x}");
+    }
+    b.iter().map(|x| format!("{x:02x}")).collect()
 }

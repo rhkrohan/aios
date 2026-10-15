@@ -57,6 +57,57 @@ pub struct Memory {
     /// Which AI wrote it or ran the goal ("SIOS", "Pip (helper)", "Claude Desktop (MCP)").
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub by: String,
+    /// A newer memory about the same thing replaced this one (D73): kept as
+    /// history, left out of recall, and the owner can revert.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_at: Option<u64>,
+    /// Deleted by the owner: kept 30 days so it can be put back, then gone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<u64>,
+}
+
+impl Memory {
+    /// In use: not replaced, not in the bin.
+    pub fn live(&self) -> bool {
+        self.superseded_by.is_none() && self.deleted_at.is_none()
+    }
+}
+
+/// Roles one person holds at a time: a new one replaces the old one.
+const ONE_AT_A_TIME: [&str; 14] = ["accountant", "landlord", "doctor", "dentist", "therapist", "lawyer", "manager", "boss", "advisor", "partner", "wife", "husband", "mechanic", "barber"];
+
+/// What a fact is about: the words before its value ("lunch spot is X" ->
+/// "lunch spot", "I keep finance files in X" -> "i keep finance files").
+/// A few ways of saying the same thing share one subject.
+fn subject(text: &str) -> Option<String> {
+    let t = text.to_lowercase();
+    let cut = [" is ", " are ", " in ", " on ", " at ", " to ", " = "].iter().filter_map(|w| t.find(w)).min()?;
+    let s = t[..cut].trim().trim_start_matches("my ").trim().to_string();
+    let s = match s.as_str() {
+        "i moved" | "i'm moving" | "i am moving" | "i now live" | "i live" => "i live".to_string(),
+        _ => s,
+    };
+    (!s.is_empty() && s.len() <= 60).then_some(s)
+}
+
+/// Is `new` the newer version of `old` (D73)? Same email or full name for people,
+/// or the same one-at-a-time role; the same subject and group for other facts.
+fn same_subject(new: &Memory, old: &Memory) -> bool {
+    if new.kind == "episode" || old.kind == "episode" || !old.live() || new.id == old.id {
+        return false;
+    }
+    match (&new.person, &old.person) {
+        (Some(a), Some(b)) => {
+            let says_new = { let t = new.text.to_lowercase(); t.contains(" now ") || t.contains(" new ") };
+            (!a.email.is_empty() && a.email.eq_ignore_ascii_case(&b.email))
+                || a.name.eq_ignore_ascii_case(&b.name)
+                || (!a.role.is_empty() && a.role.eq_ignore_ascii_case(&b.role) && (says_new || ONE_AT_A_TIME.iter().any(|r| a.role.to_lowercase().contains(r))))
+        }
+        (None, None) => new.group == old.group && subject(&new.text).is_some_and(|s| subject(&old.text) == Some(s)),
+        _ => false,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -146,12 +197,15 @@ impl MemStore {
                 continue;
             }
             let text = format!("{} <{}>{}", person.name, person.email, if person.role.is_empty() { String::new() } else { format!(", {}", person.role) });
-            self.memories.push(Memory { id: new_id(), text, kind: "person".into(), group: "People".into(), labels: vec![], source: "your contacts".into(), created: now, last_used: 0, uses: 0, person: Some(person), links: vec![], by: String::new() });
+            self.memories.push(Memory { id: new_id(), text, kind: "person".into(), group: "People".into(), labels: vec![], source: "your contacts".into(), created: now, last_used: 0, uses: 0, person: Some(person), links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None });
         }
         self.save();
     }
 
     fn visible(&self, m: &Memory, v: &Viewer) -> bool {
+        if !m.live() {
+            return false;
+        }
         if v.online && m.labels.iter().any(|l| l == "Sensitive") {
             return false;
         }
@@ -170,7 +224,8 @@ impl MemStore {
             .iter()
             .filter(|m| self.visible(m, v))
             .filter_map(|m| {
-                let hay = format!("{} {} {}", m.text, m.group, m.labels.join(" ")).to_lowercase();
+                // its subject too, so "where do I live" finds "I moved to Boston"
+                let hay = format!("{} {} {} {}", m.text, m.group, m.labels.join(" "), subject(&m.text).unwrap_or_default()).to_lowercase();
                 let hits = q.iter().filter(|w| hay.contains(w.as_str())).count() as i64;
                 let group_hit = ql.contains(&m.group.to_lowercase()) as i64;
                 let score = hits * 10 + group_hit * 5;
@@ -179,7 +234,13 @@ impl MemStore {
             })
             .collect();
         scored.sort_by(|a, b| b.0.cmp(&a.0));
-        scored.into_iter().take(limit).map(|(_, m)| m.clone()).collect()
+        // what you told SIOS answers first; past tasks only when nothing else does,
+        // and never more than 3 (they carry old names and places)
+        let facts: Vec<Memory> = scored.iter().filter(|(_, m)| m.kind != "episode").take(limit).map(|(_, m)| (*m).clone()).collect();
+        if !facts.is_empty() {
+            return facts;
+        }
+        scored.into_iter().take(limit.min(3)).map(|(_, m)| m.clone()).collect()
     }
 
     /// Memories that mention every word of the query (for forgetting: one shared
@@ -189,7 +250,7 @@ impl MemStore {
         if q.is_empty() {
             return vec![];
         }
-        self.memories.iter().filter(|m| { let hay = m.text.to_lowercase(); q.iter().all(|w| hay.contains(w.as_str())) }).cloned().collect()
+        self.memories.iter().filter(|m| m.deleted_at.is_none()).filter(|m| { let hay = m.text.to_lowercase(); q.iter().all(|w| hay.contains(w.as_str())) }).cloned().collect()
     }
 
     /// How many Sensitive memories matched but were held back from an online model.
@@ -220,7 +281,7 @@ impl MemStore {
         let kind = if ["fact", "preference", "person", "episode"].contains(&kind) { kind } else { "fact" };
         let group = if GROUPS.contains(&group) { group.to_string() } else if kind == "preference" { "Habits".into() } else { "Personal".into() };
         // the same thing twice is one memory (episodes are a journal: every one is kept)
-        if let Some(m) = self.memories.iter_mut().find(|m| kind != "episode" && m.kind != "episode" && m.text.eq_ignore_ascii_case(text)) {
+        if let Some(m) = self.memories.iter_mut().find(|m| kind != "episode" && m.kind != "episode" && m.live() && m.text.eq_ignore_ascii_case(text)) {
             m.last_used = now;
             // saying it again can add a label (say, Sensitive), never drop one
             for l in labels {
@@ -235,7 +296,14 @@ impl MemStore {
         // anything with a name and an email is also a person, so "my accountant" resolves
         let person = if kind == "person" || (kind == "fact" && group == "People") { parse_person(text) } else { None };
         let (kind, group) = if person.is_some() { ("person", "People".to_string()) } else { (kind, group) };
-        let m = Memory { id: new_id(), text: text.chars().take(500).collect(), kind: kind.into(), group, labels, source: source.into(), created: now, last_used: now, uses: 0, person, links: vec![], by: String::new() };
+        let m = Memory { id: new_id(), text: text.chars().take(500).collect(), kind: kind.into(), group, labels, source: source.into(), created: now, last_used: now, uses: 0, person, links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None };
+        // the newer version of something replaces the older one (D73)
+        for old in self.memories.iter_mut() {
+            if same_subject(&m, old) {
+                old.superseded_by = Some(m.id.clone());
+                old.superseded_at = Some(now);
+            }
+        }
         self.memories.push(m.clone());
         if kind == "episode" {
             // oldest episodes go first, like page reclaim
@@ -248,6 +316,40 @@ impl MemStore {
         }
         self.save();
         Ok(m)
+    }
+
+    /// Into the bin (30 days), not gone: the owner can put it back.
+    pub fn soft_delete(&mut self, id: &str, now: u64) -> Option<Memory> {
+        let m = self.memories.iter_mut().find(|m| m.id == id && m.deleted_at.is_none())?;
+        m.deleted_at = Some(now);
+        let m = m.clone();
+        self.save();
+        Some(m)
+    }
+
+    /// Put a memory back: out of the bin, or back in place of what replaced it.
+    pub fn revert(&mut self, id: &str) -> Result<Memory, String> {
+        let i = self.memories.iter().position(|m| m.id == id).ok_or("no such memory")?;
+        if self.memories[i].deleted_at.take().is_none() {
+            let newer = self.memories[i].superseded_by.take().ok_or("that memory is already in use")?;
+            self.memories[i].superseded_at = None;
+            let me = self.memories[i].id.clone();
+            if let Some(n) = self.memories.iter_mut().find(|m| m.id == newer) {
+                n.superseded_by = Some(me);
+            }
+        }
+        let m = self.memories[i].clone();
+        self.save();
+        Ok(m)
+    }
+
+    /// Empty the bin of anything older than 30 days.
+    pub fn purge(&mut self, now: u64) {
+        let before = self.memories.len();
+        self.memories.retain(|m| m.deleted_at.is_none_or(|d| now.saturating_sub(d) < 30 * 86400));
+        if self.memories.len() != before {
+            self.save();
+        }
     }
 
     pub fn remove(&mut self, id: &str) -> Option<Memory> {
@@ -268,7 +370,7 @@ impl MemStore {
         if let Some(w) = looks_secret(text) {
             return Err(format!("not suggested: {w}"));
         }
-        if self.memories.iter().any(|m| m.text.eq_ignore_ascii_case(text.trim())) || self.suggestions.iter().any(|s| s.text.eq_ignore_ascii_case(text.trim())) {
+        if self.memories.iter().any(|m| m.live() && m.text.eq_ignore_ascii_case(text.trim())) || self.suggestions.iter().any(|s| s.text.eq_ignore_ascii_case(text.trim())) {
             return Err("already known or already suggested".into());
         }
         let s = Suggestion { id: new_id(), text: text.trim().chars().take(300).collect(), kind: kind.into(), group: if GROUPS.contains(&group) { group.into() } else { "Habits".into() }, why: why.chars().take(300).collect(), created: now };
@@ -416,5 +518,53 @@ mod tests {
         assert!(s.memories.is_empty(), "not saved until confirmed");
         let again = MemStore::open(&d.path().join("memory.json"));
         assert_eq!(again.suggestions.len(), 1);
+    }
+
+    #[test]
+    fn newer_facts_replace_older_ones_and_can_be_reverted() {
+        let (_d, mut s) = store();
+        let v = Viewer { principal: "you", own: true, online: false };
+        let priya = s.add("My accountant is Priya Shah, priya@ledger.example", "fact", "People", vec![], "you", 1).unwrap();
+        s.add("Sara Lee <sara.lee@example.com>, landlord", "fact", "People", vec![], "you", 1).unwrap();
+        let marcus = s.add("My accountant is now Marcus Webb <marcus@books.example>", "fact", "People", vec![], "you", 2).unwrap();
+        let top = s.search("who is my accountant", &v, 5);
+        assert!(top[0].text.contains("Marcus") && !top.iter().any(|m| m.text.contains("Priya")), "{top:?}");
+        assert!(!s.search("landlord", &v, 5).is_empty(), "a different role stays");
+        // same person, new email: replaces too
+        s.add("Marcus Webb <marcus.webb@newfirm.example>, accountant", "fact", "People", vec![], "you", 3).unwrap();
+        assert!(s.search("accountant email", &v, 5)[0].text.contains("newfirm"));
+        // facts by subject
+        s.add("I live in Philadelphia", "fact", "Personal", vec![], "you", 1).unwrap();
+        s.add("I moved to Boston", "fact", "Personal", vec![], "you", 4).unwrap();
+        let home = s.search("where do I live", &v, 5);
+        assert!(home.iter().all(|m| !m.text.contains("Philadelphia")), "{home:?}");
+        // revert brings the old one back in place of the new
+        s.revert(&priya.id).unwrap();
+        assert!(s.memories.iter().find(|m| m.id == marcus.id).unwrap().superseded_by.is_some());
+        assert!(s.memories.iter().find(|m| m.id == priya.id).unwrap().live());
+    }
+
+    #[test]
+    fn deleting_is_soft_for_30_days() {
+        let (_d, mut s) = store();
+        let v = Viewer { principal: "you", own: true, online: false };
+        let m = s.add("Lunch spot is Dizengoff", "fact", "Personal", vec![], "you", 1).unwrap();
+        s.soft_delete(&m.id, 10).unwrap();
+        assert!(s.search("lunch spot", &v, 5).is_empty());
+        s.revert(&m.id).unwrap();
+        assert_eq!(s.search("lunch spot", &v, 5).len(), 1);
+        s.soft_delete(&m.id, 10).unwrap();
+        s.purge(10 + 31 * 86400);
+        assert!(s.memories.is_empty(), "gone after 30 days");
+    }
+
+    #[test]
+    fn two_friends_never_replace_each_other() {
+        let (_d, mut s) = store();
+        s.add("Ana Ruiz <ana@example.com>, friend", "fact", "People", vec![], "you", 1).unwrap();
+        s.add("Ben Cho <ben@example.com>, friend", "fact", "People", vec![], "you", 2).unwrap();
+        assert!(s.memories.iter().all(|m| m.live()));
+        assert_eq!(subject("Lunch spot is Federal Donuts").as_deref(), Some("lunch spot"));
+        assert_eq!(subject("I keep finance files in Documents/Money now").as_deref(), Some("i keep finance files"));
     }
 }

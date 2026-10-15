@@ -322,6 +322,19 @@ fn serve() {
                             _ => None,
                         };
                         let method = req["method"].as_str().unwrap_or("");
+                        // is this process one of SIOS's windows? Only SIOS's brain may ask (D59)
+                        if method == "windows.check" {
+                            let resp = if who == Some(peer::Who::Service) {
+                                let p = &req["params"];
+                                json!({ "ok": { "window": security::is_window(p["pid"].as_u64().unwrap_or(0) as u32, p["start"].as_u64().unwrap_or(0)) } })
+                            } else {
+                                json!({ "error": "only SIOS's brain can ask that" })
+                            };
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
                         // SIOS's own windows, started by the broker: anyone may ask
                         if method == "windows.open" {
                             let resp = match security::open_window(req["params"]["app"].as_str().unwrap_or(""), req["params"]["page"].as_str().unwrap_or("")) {
@@ -348,8 +361,9 @@ fn serve() {
                             }
                             // inside an approval session, SIOS's own undoable requests are a
                             // click (D56); everything else still needs the password
+                            const CLICKABLE: [&str; 7] = ["approve", "grant", "memory.confirm", "memory.dismiss", "memory.edit", "memory.delete", "memory.revert"];
                             let in_session = w == peer::Who::OwnerApp
-                                && (method == "approve" || method == "grant")
+                                && CLICKABLE.contains(&method)
                                 && security::session_is_open()
                                 && st.lock().unwrap_or_else(|p| p.into_inner()).session_covers(method, &req["params"]);
                             if in_session {
@@ -358,7 +372,7 @@ fn serve() {
                                 match owner::confirm(action) {
                                     Ok(true) => {
                                         who = Some(peer::Who::Owner);
-                                        if method == "approve" || method == "grant" {
+                                        if CLICKABLE.contains(&method) {
                                             security::session_open(state::now());
                                         }
                                     }

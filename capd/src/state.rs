@@ -21,7 +21,7 @@ use crate::tools::{self, Undo};
 /// password through polkit first (D39, main.rs); on the Mac, owner.secret proves it.
 pub const OWNER_METHODS: &[&str] = &[
     "rules", "rule_add", "rule_remove", "mint", "grant", "revoke", "approve", "deny", "pending", "undo", "pause", "resume", "audit", "label", "block", "packs", "load_pack", "create_file", "owner_do", "owner_undo", "outbox",
-    "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
+    "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.revert", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
     "ai.resume",
@@ -191,6 +191,8 @@ impl State {
                 if let Ok(b) = std::fs::read(dir.join("people.json")) {
                     m.import_people(&serde_json::from_slice(&b).unwrap_or(Value::Null), now());
                 }
+                // the bin keeps deleted memories 30 days
+                m.purge(now());
                 m
             },
             gateway: crate::gateway::Gateway::open(dir).map_err(std::io::Error::other)?,
@@ -1158,6 +1160,11 @@ impl State {
         if self.sec.stopped.is_some() {
             return false;
         }
+        // memory changes that can be put back are a click too (D71); sharing and
+        // forget-about aren't on this list, so they keep the password
+        if ["memory.confirm", "memory.dismiss", "memory.edit", "memory.delete", "memory.revert"].contains(&method) {
+            return true;
+        }
         match method {
             "grant" => self.ungranted.contains(id) && self.waiting.get(id).is_some_and(|c| c.principal == crate::iam::SIOS && !c.tools.is_empty() && c.tools.iter().all(|t| undoable(t))),
             "approve" => self.pending.get(id).is_some_and(|x| x.answer.is_none() && x.cap.principal == crate::iam::SIOS && undoable(&x.tool)),
@@ -1508,10 +1515,17 @@ impl State {
                 self.record(&owner, "memory.edit", &text, "you", "you edited a memory", &json!([]));
                 Ok(json!({ "edited": id }))
             }
+            // into the bin for 30 days (D73); revert puts it back
             "memory.delete" => {
-                let m = self.memory.remove(p["id"].as_str().unwrap_or("")).ok_or("no memory with that id")?;
-                self.record(&owner, "memory.delete", &m.text, "you", "you deleted a memory", &json!([]));
+                let m = self.memory.soft_delete(p["id"].as_str().unwrap_or(""), t).ok_or("no memory with that id")?;
+                self.record(&owner, "memory.delete", &m.text, "you", "you deleted a memory (kept 30 days, can be put back)", &json!([]));
                 Ok(json!({ "deleted": m.id }))
+            }
+            // a deleted memory back from the bin, or an older one back in place of what replaced it
+            "memory.revert" => {
+                let m = self.memory.revert(p["id"].as_str().unwrap_or(""))?;
+                self.record(&owner, "memory.revert", &m.text, "you", "you put a memory back", &json!([]));
+                Ok(json!(m))
             }
             "memory.forget_about" => {
                 let q = p["query"].as_str().unwrap_or("");
@@ -1779,6 +1793,8 @@ mod tests {
         assert!(!r.st.session_covers("grant", &other), "only SIOS's own assistant");
         assert!(!r.st.session_covers("approve", &json!({ "id": "nope" })));
         assert!(!r.st.session_covers("model.set_key", &tidy), "never keys, roles or rules");
+        assert!(r.st.session_covers("memory.confirm", &json!({})), "a memory change you can put back: a click (D71)");
+        assert!(!r.st.session_covers("memory.share", &json!({})) && !r.st.session_covers("memory.forget_about", &json!({})));
         r.agent("ai.stop", json!({}));
         assert!(!r.st.session_covers("grant", &tidy), "nothing while stopped");
     }

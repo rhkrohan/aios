@@ -32,10 +32,24 @@ pub struct Proc {
     pub traced: bool,
     /// Started with variables that load outside code into it (LD_PRELOAD...).
     pub injected: bool,
+    /// Which process exactly (pid and start time), to ask capd whether it started it.
+    pub pid: u32,
+    pub start: u64,
 }
 
-/// The owner's shell on brain.sock: the Ask bar, Monitor, Settings, Agents and Memory.
-pub const OWNER_APPS: [&str; 5] = ["/usr/bin/sios-ask", "/usr/bin/sios-monitor", "/usr/bin/sios-settings", "/usr/bin/sios-agents", "/usr/bin/sios-memory"];
+/// When a process started (field 22 of /proc/<pid>/stat, counted after the name).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn start_time(pid: u32) -> Option<u64> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let rest = &stat[stat.rfind(')')? + 1..];
+    rest.split_whitespace().nth(19)?.parse().ok()
+}
+
+/// The owner's shell on brain.sock: the Ask bar. Only it starts goals in the owner's name.
+pub const OWNER_APPS: [&str; 1] = ["/usr/bin/sios-ask"];
+/// SIOS's windows that may look at goals (never start them in the owner's name),
+/// and only when capd confirms it started that exact process (security review 2026-10-15).
+pub const VIEWER_APPS: [&str; 3] = ["/usr/bin/sios-settings", "/usr/bin/sios-agents", "/usr/bin/sios-memory"];
 /// Off for the same reason as capd's (capd/src/peer.rs): a copied connection can pose as the shell.
 pub const OWNER_BY_PROGRAM: bool = false;
 
@@ -97,6 +111,8 @@ pub fn of(conn: &std::os::unix::net::UnixStream) -> Proc {
         cgroup: String::from_utf8_lossy(&read("cgroup")).into_owned(),
         traced,
         injected,
+        pid: cred.pid as u32,
+        start: start_time(cred.pid as u32).unwrap_or(0),
     }
 }
 
@@ -110,7 +126,7 @@ mod tests {
     use super::*;
 
     fn p(exe: &str) -> Proc {
-        Proc { same_user: true, exe: exe.into(), cgroup: String::new(), traced: false, injected: false }
+        Proc { same_user: true, exe: exe.into(), cgroup: String::new(), traced: false, injected: false, pid: 0, start: 0 }
     }
 
     #[test]
@@ -119,5 +135,9 @@ mod tests {
         assert_eq!(classify(&p("/usr/bin/brain-d"), &OWNER_APPS, None), Who::Agent, "an MCP door isn't the owner");
         assert_eq!(classify(&p("/usr/bin/python3"), &OWNER_APPS, None), Who::Agent);
         assert_eq!(classify(&Proc { traced: true, ..p("/usr/bin/sios-ask") }, &OWNER_APPS, None), Who::Agent);
+        // SIOS's other windows may look, never start goals in the owner's name
+        for w in VIEWER_APPS {
+            assert_eq!(classify(&p(w), &OWNER_APPS, None), Who::Agent, "{w} isn't the shell");
+        }
     }
 }
