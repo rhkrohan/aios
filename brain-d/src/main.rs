@@ -10,6 +10,7 @@ mod briefing;
 mod capd;
 mod goal;
 mod helpers;
+mod suggest;
 mod mcp;
 mod memory;
 mod model;
@@ -94,6 +95,8 @@ pub struct Brain {
     pub watchers: Mutex<Vec<Watcher>>,
     /// The pet team: helpers with long-running jobs.
     pub helpers: helpers::Shared,
+    /// Proactive cards (A7): what SIOS noticed and offers to do.
+    pub suggestions: Arc<Mutex<suggest::Suggestions>>,
     /// Newest last: (goal, request, who asked). The shell picks up goals outside AIs start.
     pub recent: Mutex<Vec<(String, String, String)>>,
 }
@@ -113,6 +116,7 @@ impl Brain {
             threads: Arc::new(Mutex::new(HashMap::new())),
             watchers: Mutex::new(std::fs::read(state.join("watchers.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()),
             helpers: Arc::new(Mutex::new(helpers::Helpers::open(state.join("helpers.json")))),
+            suggestions: Arc::new(Mutex::new(suggest::Suggestions::open(state.join("suggestions.json")))),
             recent: Mutex::new(Vec::new()),
         }
     }
@@ -216,6 +220,19 @@ impl Brain {
             }
             // agents' states carry the goal each one is running, and a goal id is what
             // lets you follow it: only SIOS's windows (or the owner) may list them
+            // proactive cards (A7): headlines (written by SIOS) for anyone, e.g. the desktop widgets
+            "suggest.headlines" => Ok(self.suggestions.lock().unwrap().headlines()),
+            "suggest.dismiss" => Ok(json!({ "dismissed": self.suggestions.lock().unwrap().dismiss(p["id"].as_str().unwrap_or(""), helpers::now()) })),
+            // "Do it": the Ask bar or SIOS's windows start the card's fixed request as a normal
+            // goal in the owner's name; it plans, checks and asks like any other (D70)
+            "suggest.act" if !(owner || shell || viewer) => Err("only the Ask bar or SIOS's windows can do that".into()),
+            "suggest.act" => match self.suggestions.lock().unwrap().take(p["id"].as_str().unwrap_or("")) {
+                Some(sg) => {
+                    let (goal, thread) = self.start(&sg.request, "owner", true, None);
+                    Ok(json!({ "goal": goal, "thread": thread, "request": sg.request }))
+                }
+                None => Err("that suggestion is gone".into()),
+            },
             // "@coder add tests" from the Ask bar or SIOS's windows: the broker starts the
             // run only inside the agent's work lease (D65)
             "agent.task" if !(owner || shell || viewer) => Err("only the Ask bar or SIOS's windows can give an agent a task".into()),
@@ -315,6 +332,18 @@ fn main() {
     match cmd.as_str() {
         "serve" => serve(),
         "mcp" => mcp::run(Brain::new()),
+        // the desktop widgets' view: suggestion headlines (and dismissing one)
+        "suggestions" => {
+            let a: Vec<String> = std::env::args().collect();
+            let (m, p) = if a.get(2).map(String::as_str) == Some("--dismiss") { ("suggest.dismiss", json!({ "id": a.get(3) })) } else { ("suggest.headlines", json!({})) };
+            match capd::brain_call_cli(&runtime_dir().join("brain.sock"), m, p) {
+                Ok(v) => println!("{v}"),
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         "brief" => println!("{}", briefing::build(&root_dir(), &state_dir(), &std::env::args().nth(2).unwrap_or_default()).text),
         _ => println!("brain-d serve | mcp | brief [request]"),
     }

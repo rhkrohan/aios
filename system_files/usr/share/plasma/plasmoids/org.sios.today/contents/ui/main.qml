@@ -2,8 +2,9 @@
     The right-hand column of the desktop, like the preview's Widgets.tsx:
       - greeting card: good morning/afternoon/evening, the date, your to-dos
       - recent activity: the files you used last (from KDE's activity history)
-    The preview's "Suggestion" card needs the assistant (brain-d) running on
-    the machine, so it arrives with Stage B.
+      - suggestions: what SIOS noticed and offers to do (A7). Headlines are
+        written by SIOS (no file contents); "Do it" opens the Ask bar on that
+        card, which runs it as a normal goal (plan, OK, undo).
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
@@ -14,6 +15,7 @@ import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.private.kicker as Kicker
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.plasma5support as P5Support
 
 PlasmoidItem {
     id: root
@@ -43,6 +45,25 @@ PlasmoidItem {
     function toggle(i) { const l = todos.slice(); l[i] = { done: !l[i].done, text: l[i].text }; save(l); }
     function add(text) { if (text.trim()) save(todos.concat([{ done: false, text: text.trim() }])); }
     function clearDone() { save(todos.filter(t => !t.done)); }
+
+    // SIOS's suggestion cards: headlines only, from brain-d
+    property var cards: []
+    P5Support.DataSource {
+        id: sh
+        engine: "executable"
+        onNewData: (source, data) => {
+            if (source === root.readCards) {
+                try { root.cards = JSON.parse(String(data.stdout)) || []; } catch (e) { root.cards = []; }
+            }
+            disconnectSource(source);
+        }
+    }
+    readonly property string readCards: "brain-d suggestions 2>/dev/null"
+    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: sh.connectSource(root.readCards) }
+    // ids are plain hex from brain-d; anything else never reaches the shell
+    function safe(id) { return /^s[0-9a-f]{1,40}$/.test(id); }
+    function doIt(id) { if (safe(id)) sh.connectSource("sios-ask --suggestion " + id); }
+    function notNow(id) { if (safe(id)) { sh.connectSource("brain-d suggestions --dismiss " + id); root.cards = root.cards.filter(c => c.id !== id); } }
 
     Kicker.RecentUsageModel {
         id: recent
@@ -167,6 +188,44 @@ PlasmoidItem {
         }
 
         // ---- recent activity
+        // what SIOS noticed (A7)
+        Card {
+            visible: root.cards.length > 0
+            Layout.fillWidth: true
+            implicitHeight: sugCol.implicitHeight + 32
+            ColumnLayout {
+                id: sugCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
+                spacing: 10
+                Text { Layout.leftMargin: 4; text: "SIOS noticed"; color: root.fg; font.family: root.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                Repeater {
+                    model: root.cards.slice(0, 3)
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        Layout.rightMargin: 4
+                        spacing: 6
+                        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: modelData.headline; color: root.fg; font.family: root.ui; font.pixelSize: 13 }
+                        RowLayout {
+                            spacing: 8
+                            Rectangle {
+                                implicitWidth: doT.implicitWidth + 22; implicitHeight: 28; radius: 14
+                                color: doM.containsMouse ? "#3f68e0" : "#4f7bf7"
+                                Text { id: doT; anchors.centerIn: parent; text: "Do it"; color: "white"; font.family: root.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+                                MouseArea { id: doM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.doIt(modelData.id) }
+                            }
+                            Text {
+                                text: "Not now"
+                                color: root.fg2; font.family: root.ui; font.pixelSize: 12
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.notNow(modelData.id) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Card {
             Layout.fillWidth: true
             implicitHeight: rec.implicitHeight + 32

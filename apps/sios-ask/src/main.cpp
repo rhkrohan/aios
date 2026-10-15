@@ -30,9 +30,11 @@ public:
 public Q_SLOTS:
     Q_SCRIPTABLE void toggle() { Q_EMIT toggled(); }
     Q_SCRIPTABLE void showApps() { Q_EMIT appsRequested(); }
+    Q_SCRIPTABLE void doSuggestion(const QString &id) { Q_EMIT suggestionRequested(id); }
 Q_SIGNALS:
     void toggled();
     void appsRequested();
+    void suggestionRequested(const QString &id);
 };
 
 // the app's line icons in any colour ("image://icon/<name>/<rrggbb>"), and
@@ -95,13 +97,17 @@ int main(int argc, char *argv[])
     QCommandLineParser args;
     args.addOption({QStringLiteral("background"), QStringLiteral("Start hidden and wait for the orb or Ctrl+Space")});
     args.addOption({QStringLiteral("apps"), QStringLiteral("Show all apps (the top bar's Apps)")});
+    args.addOption({QStringLiteral("suggestion"), QStringLiteral("Do what a suggestion card offers (from the desktop)"), QStringLiteral("id")});
     args.process(app);
 
     // already running: tell it to show (or hide) and leave
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerService(QStringLiteral("org.sios.Ask"))) {
         QDBusInterface running(QStringLiteral("org.sios.Ask"), QStringLiteral("/Ask"), QStringLiteral("org.sios.Ask"));
-        running.call(args.isSet(QStringLiteral("apps")) ? QStringLiteral("showApps") : QStringLiteral("toggle"));
+        if (args.isSet(QStringLiteral("suggestion")))
+            running.call(QStringLiteral("doSuggestion"), args.value(QStringLiteral("suggestion")));
+        else
+            running.call(args.isSet(QStringLiteral("apps")) ? QStringLiteral("showApps") : QStringLiteral("toggle"));
         return 0;
     }
     Toggle toggle;
@@ -116,6 +122,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("toggler"), &toggle);
     engine.rootContext()->setContextProperty(QStringLiteral("startHidden"), args.isSet(QStringLiteral("background")));
     engine.rootContext()->setContextProperty(QStringLiteral("startApps"), args.isSet(QStringLiteral("apps")));
+    engine.rootContext()->setContextProperty(QStringLiteral("startSuggestion"), args.value(QStringLiteral("suggestion")));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("org.sios.ask", "Main");
     return app.exec();

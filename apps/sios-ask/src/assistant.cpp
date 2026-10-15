@@ -115,3 +115,40 @@ void Assistant::poll()
         }
     });
 }
+
+void Assistant::refreshCards()
+{
+    send(QStringLiteral("suggest.headlines"), {}, [this](const QVariant &ok, const QString &err) {
+        m_cards = err.isEmpty() ? ok.toList() : QVariantList();
+        Q_EMIT cardsChanged();
+    });
+}
+
+void Assistant::act(const QString &card)
+{
+    m_events.clear();
+    m_next = 0;
+    m_running = true;
+    m_request = QStringLiteral("…");
+    Q_EMIT eventsChanged();
+    send(QStringLiteral("suggest.act"), {{QStringLiteral("id"), card}}, [this](const QVariant &ok, const QString &err) {
+        if (!err.isEmpty()) {
+            m_events.append(QVariantMap{{QStringLiteral("t"), QStringLiteral("error")}, {QStringLiteral("message"), err}});
+            m_running = false;
+            Q_EMIT eventsChanged();
+            return;
+        }
+        const QVariantMap m = ok.toMap();
+        m_request = m.value(QStringLiteral("request")).toString();
+        m_goal = m.value(QStringLiteral("goal")).toString();
+        m_thread = m.value(QStringLiteral("thread")).toString();
+        Q_EMIT eventsChanged();
+        m_poll.start();
+        refreshCards();
+    });
+}
+
+void Assistant::dismiss(const QString &card)
+{
+    send(QStringLiteral("suggest.dismiss"), {{QStringLiteral("id"), card}}, [this](const QVariant &, const QString &) { refreshCards(); });
+}

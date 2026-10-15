@@ -27,7 +27,7 @@ Window {
     property var results: []
     property int current: 0
     // typed text: "Ask SIOS" first, then what the search finds
-    readonly property var rows: input.text.trim() === "" ? search.suggestions : [{ kind: "ask", title: "Ask SIOS: \u201c" + input.text.trim() + "\u201d", sub: "Plan it, check it, and do it after your OK", icon: "sparkles" }].concat(results)
+    readonly property var rows: input.text.trim() === "" ? assistant.cards.map(c => ({ kind: "card", id: c.id, title: c.headline, sub: "SIOS noticed this. Enter to do it.", icon: "sparkles" })).concat(search.suggestions) : [{ kind: "ask", title: "Ask SIOS: \u201c" + input.text.trim() + "\u201d", sub: "Plan it, check it, and do it after your OK", icon: "sparkles" }].concat(results)
 
     // the apps view was what opened, so an emptied search goes back to it
     property bool fromApps: false
@@ -38,6 +38,7 @@ Window {
         apps = search.allApps("");
     }
     function open() {
+        assistant.refreshCards();
         fromApps = false;
         mode = "search";
         input.text = "";
@@ -52,6 +53,7 @@ Window {
         const item = rows[i];
         if (!item) return;
         if (item.kind === "ask") { askNow(input.text); return; }
+        if (item.kind === "card") { mode = "assistant"; assistant.act(item.id); return; }
         search.run(item);
         close();
     }
@@ -82,10 +84,14 @@ Window {
         target: toggler
         function onToggled() { bar.visible ? bar.close() : bar.open(); }
         function onAppsRequested() { bar.visible && bar.mode === "apps" ? bar.close() : bar.showApps(); }
+        function onSuggestionRequested(id) { bar.open(); bar.mode = "assistant"; assistant.act(id); }
     }
     // the approval window takes focus while SIOS works; stay open for it then
     onActiveChanged: if (!active && visible && mode !== "assistant") close()
-    Component.onCompleted: if (visible) { if (startApps) showApps(); else open(); }
+    Component.onCompleted: {
+        if (startSuggestion) { open(); mode = "assistant"; assistant.act(startSuggestion); }
+        else if (visible) { if (startApps) showApps(); else open(); }
+    }
 
     // a soft shadow, drawn as faint rings so it needs no GPU
     Repeater {

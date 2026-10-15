@@ -56,3 +56,17 @@ impl Capd {
         self.call("call", json!({ "cap": cap, "tool": tool, "args": args, "dry_run": dry_run }))
     }
 }
+
+/// A one-off call to brain-d's socket, for the command line (widgets).
+pub fn brain_call_cli(sock: &std::path::Path, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    use std::io::{BufRead, BufReader, Write};
+    let mut s = std::os::unix::net::UnixStream::connect(sock).map_err(|_| "SIOS's brain isn't running".to_string())?;
+    writeln!(s, "{}", serde_json::json!({ "method": method, "params": params })).map_err(|e| e.to_string())?;
+    let mut line = String::new();
+    BufReader::new(s).read_line(&mut line).map_err(|e| e.to_string())?;
+    let v: serde_json::Value = serde_json::from_str(&line).map_err(|e| e.to_string())?;
+    match v.get("error") {
+        Some(e) => Err(e.as_str().unwrap_or("error").into()),
+        None => Ok(v["ok"].clone()),
+    }
+}

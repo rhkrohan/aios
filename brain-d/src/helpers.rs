@@ -16,7 +16,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::Brain;
 
-fn now() -> u64 {
+pub fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
@@ -83,7 +83,7 @@ impl Helper {
 }
 
 /// Minutes since local midnight, and which local day it is (for daily jobs).
-fn local_now(t: u64) -> (u64, i64) {
+pub fn local_now(t: u64) -> (u64, i64) {
     #[cfg(target_os = "linux")]
     {
         // SAFETY: localtime_r fills `tm` from `secs`; both live on this stack.
@@ -228,9 +228,15 @@ pub fn status(brain: &Brain) -> Value {
 pub fn spawn(brain: Arc<Brain>) {
     std::thread::spawn(move || {
         let mut seen: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut tick = 0u64;
         loop {
             std::thread::sleep(Duration::from_secs(3));
             sync_agents(&brain);
+            // look around for things to offer, once a minute (A7)
+            tick += 1;
+            if tick % 20 == 1 {
+                brain.suggestions.lock().unwrap().detect(&brain.ctx.root, now(), local_now(now()).0);
+            }
             let list = brain.helpers.lock().unwrap().list.clone();
             for h in list {
                 // finish bookkeeping for a run that just ended: that's the report
