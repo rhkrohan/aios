@@ -239,6 +239,36 @@ pub fn end_agents() {
     let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", "sios-agents.slice"], None, Duration::from_secs(10));
 }
 
+/// An agent's desk: a terminal following its live log, moved to the agent's own
+/// desktop (made if missing). Never switches the owner's view.
+pub fn show_on_desk(name: &str, run_file: &str) {
+    if !run_file.chars().all(|c| c.is_ascii_alphanumeric() || "/._-".contains(c)) {
+        return;
+    }
+    let title = format!("{name} at work");
+    let Ok(child) = std::process::Command::new("/usr/bin/konsole")
+        .args(["--hold", "--hide-menubar", "-p", &format!("tabtitle={title}"), "-e", "/usr/bin/capd", "agent-log", run_file])
+        .stdin(std::process::Stdio::null())
+        .spawn()
+    else {
+        return;
+    };
+    let pid = child.id();
+    // the window shows up a moment later: place it once it does
+    for _ in 0..20 {
+        std::thread::sleep(Duration::from_millis(500));
+        if let Ok(v) = crate::kwin::ask("desk", json!({ "name": name, "pid": pid, "show": false })) {
+            if v["placed"].as_u64().unwrap_or(0) > 0 {
+                break;
+            }
+        }
+    }
+    std::thread::spawn(move || {
+        let mut child = child;
+        let _ = child.wait();
+    });
+}
+
 /// Is an agent's unit still running?
 pub fn unit_active(unit: &str) -> bool {
     crate::exec::run("/usr/bin/systemctl", &["--user", "is-active", "--quiet", &format!("{unit}.service")], None, Duration::from_secs(5)).is_ok_and(|o| o.code == Some(0))

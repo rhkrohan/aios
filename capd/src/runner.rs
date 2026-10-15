@@ -130,7 +130,11 @@ pub fn outcome(run_file: &Path) -> (String, Option<String>, bool) {
 /// One stream-json line as a line a person reads in the agent's live log.
 pub fn describe(line: &str) -> Vec<String> {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else { return vec![] };
-    let cut = |s: &str, n: usize| -> String { let t: String = s.chars().filter(|c| !c.is_control() || *c == '\n').take(n).collect(); t.trim().to_string() };
+    // no control characters at all (escape sequences, C1 codes), no bidi tricks; newlines kept
+    let cut = |s: &str, n: usize| -> String {
+        let t: String = s.chars().filter(|c| (!c.is_control() || *c == '\n') && !('\u{202a}'..='\u{202e}').contains(c) && !('\u{2066}'..='\u{2069}').contains(c)).take(n).collect();
+        t.trim().to_string()
+    };
     match v["type"].as_str().unwrap_or("") {
         "system" if v["subtype"] == "init" => vec!["Workspace ready. Starting.".into()],
         "assistant" => v["message"]["content"].as_array().into_iter().flatten().filter_map(|c| match c["type"].as_str()? {
@@ -138,7 +142,8 @@ pub fn describe(line: &str) -> Vec<String> {
             "tool_use" => {
                 let i = &c["input"];
                 let what = i["file_path"].as_str().or(i["command"].as_str()).or(i["pattern"].as_str()).or(i["path"].as_str()).map(|x| cut(x, 160)).unwrap_or_default();
-                Some(format!("  -> {} {}", c["name"].as_str().unwrap_or("tool"), what))
+                // every piece of agent text is stripped of control characters: no terminal escapes
+                Some(format!("  -> {} {}", cut(c["name"].as_str().unwrap_or("tool"), 40), what))
             }
             _ => None,
         }).collect(),
@@ -205,5 +210,12 @@ mod tests {
         assert_eq!(describe(r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Adding tests."}]}}"#), vec!["Claude: Adding tests."]);
         assert_eq!(describe(r#"{"type":"result","is_error":false,"result":"Added 3 tests."}"#), vec!["Done: Added 3 tests."]);
         assert!(describe("not json").is_empty());
+    }
+
+    #[test]
+    fn agent_text_never_reaches_the_terminal_as_codes() {
+        let line = "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Edit\\u001b]52;c;ZXZpbA==\\u0007\",\"input\":{\"file_path\":\"a\\u001b[2Jb\"}}]}}";
+        let out = describe(line).join("");
+        assert!(!out.chars().any(|c| c.is_control()), "{out:?}");
     }
 }

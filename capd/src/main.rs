@@ -83,7 +83,7 @@ const HELP: &str = "capd: SIOS capability daemon
   capd audit [n]                  verify the log and show the last n decisions
   capd stop                       stop every AI at once (anyone; only the owner resumes)
   capd ai-resume                  let AI act again (owner)
-  capd windows [focus APP | arrange LEFT RIGHT]
+  capd windows [focus APP | arrange LEFT RIGHT | desk NAME [PID] | desk-remove NAME]
                                   windows through KWin (A3 check; no closing here)
   capd extract FILE               the words search would index from FILE (sandbox check)
   capd window approve|settings [page]
@@ -143,6 +143,8 @@ fn main() {
         "windows" => match match args.get(1).map(String::as_str) {
             Some("focus") => kwin::ask("focus", json!({ "app": args.get(2) })),
             Some("arrange") => kwin::ask("arrange", json!({ "left": args.get(2), "right": args.get(3) })),
+            Some("desk") => kwin::ask("desk", json!({ "name": args.get(2), "pid": args.get(3).and_then(|p| p.parse::<u32>().ok()), "show": false })),
+            Some("desk-remove") => kwin::ask("desk_remove", json!({ "name": args.get(2) })),
             _ => kwin::ask("list", json!({})),
         } {
             Ok(v) => println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default()),
@@ -490,6 +492,11 @@ fn serve() {
                             let (st, ok) = (Arc::clone(&st), resp["ok"].clone());
                             std::thread::spawn(move || {
                                 let unit = ok["unit"].as_str().unwrap_or("").to_string();
+                                // its desk (A6): a terminal with its live log, on a desktop named after
+                                // it; the owner's view never switches without a click (D67)
+                                if by_peer {
+                                    security::show_on_desk(ok["name"].as_str().unwrap_or("Agent"), ok["run_file"].as_str().unwrap_or(""));
+                                }
                                 std::thread::sleep(std::time::Duration::from_secs(3));
                                 while security::unit_active(&unit) {
                                     std::thread::sleep(std::time::Duration::from_secs(3));

@@ -489,6 +489,7 @@ impl State {
                         for x in self.pending.values_mut().filter(|x| x.answer.is_none() && x.cap.principal == id) {
                             x.answer = Some(Err("that agent was removed".into()));
                         }
+                        let _ = crate::kwin::ask("desk_remove", json!({ "name": a.name }));
                         self.record(&Self::owner_cap(), "agents.remove", &id, "you", &format!("you removed the agent {}", a.name), &json!([]));
                         Ok(json!({ "removed": id }))
                     }
@@ -511,6 +512,12 @@ impl State {
             // a task for a coding agent: from SIOS's windows or SIOS's brain, inside a lease
             "agents.run" if !(viewer || service || owner) => Err("only SIOS's own windows can give an agent a task".into()),
             "agents.run" => self.agent_run(p["id"].as_str().unwrap_or(""), p["task"].as_str().unwrap_or("")),
+            // "Show its desk": only from SIOS's windows, only on the owner's click (D67)
+            "agents.peek" if !viewer => Err("only SIOS's own windows can do that".into()),
+            "agents.peek" => match self.agents.get(p["id"].as_str().unwrap_or("")) {
+                Some(a) => crate::kwin::ask("desk", json!({ "name": a.name, "show": true })),
+                None => Err("no such agent".into()),
+            },
             "agents.view" | "reports.read" if !viewer => Err("only SIOS's own windows can see agents".into()),
             "agents.view" => Ok(self.agents.view()),
             "reports.read" => {
@@ -1228,6 +1235,10 @@ impl State {
         if !project.real.is_dir() {
             return Err(format!("{} isn't a folder", project.rel));
         }
+        // another agent's workspace is never a project: its git config and hooks are an agent's
+        if project.rel == "Agents" || project.rel.starts_with("Agents/") {
+            return Err("pick one of your own projects, not an agent's workspace".into());
+        }
         let name = project.real.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "project".into());
         let root = self.root.canonicalize().map_err(|e| e.to_string())?;
         let worktree = root.join("Agents").join(a.slug()).join(name);
@@ -1243,7 +1254,12 @@ impl State {
             return Ok(json!({ "git": "already a git project" }));
         }
         let p = project.to_string_lossy().to_string();
-        let git = |args: &[&str]| crate::exec::run("/usr/bin/git", args, None, std::time::Duration::from_secs(60)).and_then(|o| if o.code == Some(0) { Ok(()) } else { Err(o.stderr.trim().chars().take(200).collect()) });
+        // no hooks, no fsmonitor: nothing in a repository's own config runs as the broker
+        let git = |args: &[&str]| {
+            let mut all = vec!["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"];
+            all.extend_from_slice(args);
+            crate::exec::run("/usr/bin/git", &all, None, std::time::Duration::from_secs(60)).and_then(|o| if o.code == Some(0) { Ok(()) } else { Err(o.stderr.trim().chars().take(200).collect()) })
+        };
         git(&["-C", &p, "init", "-q"])?;
         git(&["-C", &p, "add", "-A"])?;
         git(&["-C", &p, "-c", "user.name=SIOS", "-c", "user.email=sios@localhost", "commit", "-q", "--allow-empty", "-m", "Start (made a git project for SIOS agents)"])?;
@@ -1278,6 +1294,11 @@ impl State {
             };
             git(&["clone", "-q", "--no-hardlinks", &p, &w])?;
             git(&["-C", &w, "checkout", "-q", "-B", &b])?;
+        }
+        // its workspace must really be where it should be: no link anywhere on the way
+        let real = worktree.canonicalize().map_err(|e| e.to_string())?;
+        if real != worktree {
+            return Err("its workspace folder leads somewhere else (a link on the way); remove ~/Agents and try again".into());
         }
         // its pairing: a fresh token each run, as a systemd credential (never in the project)
         let token = format!("sios_pair_{}", random_hex(20));
@@ -1350,7 +1371,7 @@ impl State {
         }
         self.agents.report(id, "run", &format!("Started: {}", task.chars().take(300).collect::<String>()), false, &run_id, now())?;
         self.record(&Self::owner_cap(), "agents.run", id, "allow", &format!("{} started a task in its workspace", a.name), &json!([]));
-        Ok(json!({ "agent": id, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file }))
+        Ok(json!({ "agent": id, "name": a.name, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file }))
     }
 
     /// When a run's unit is gone: its outcome becomes the report, its session is kept for next time.

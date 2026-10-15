@@ -350,6 +350,7 @@ QQC2.ApplicationWindow {
                                 RowLayout {
                                     spacing: 6
                                     Button { visible: !parent.parent.leased; text: "Let it work 2 h"; onClicked: broker.request("agents.lease", { id: modelData.id, hours: 2 }, modelData.name + " may work for 2 hours") }
+                                    Button { visible: !!modelData.run; text: "Show its desk"; onClicked: broker.request("agents.peek", { id: modelData.id }, "Switched to its desk") }
                                     Button { text: "Sign in"; kind: "plain"; onClicked: broker.request("agents.signin", { id: modelData.id }, "A terminal opened in its workspace: sign in with /login") }
                                     Button { text: "Make it a git project"; kind: "plain"; onClicked: broker.request("agents.git_init", { id: modelData.id }, "Done") }
                                 }
