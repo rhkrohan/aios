@@ -15,6 +15,7 @@ QQC2.MenuItem {
         Text {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
             text: row.text
             color: !row.enabled ? Theme.fg3 : row.danger ? Theme.danger : row.highlighted ? Theme.aiInk : Theme.fg
             font.family: Theme.ui
@@ -25,6 +26,7 @@ QQC2.MenuItem {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             visible: row.hint !== ""
+            textFormat: Text.PlainText
             text: row.hint
             color: Theme.fg3
             font.family: Theme.ui

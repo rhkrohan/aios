@@ -26,10 +26,10 @@ Rectangle {
         RowLayout {
             spacing: 8
             Icon { name: card.icon; size: 15; color: Theme.fg2 }
-            Text { text: card.label; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+            Text { textFormat: Text.PlainText; text: card.label; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
         }
-        Text { text: card.value; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 26; font.weight: Font.DemiBold }
-        Text { visible: card.sub !== ""; text: card.sub; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+        Text { textFormat: Text.PlainText; text: card.value; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 26; font.weight: Font.DemiBold }
+        Text { visible: card.sub !== ""; textFormat: Text.PlainText; text: card.sub; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
         Item { Layout.fillHeight: true }
 
         // the last minute

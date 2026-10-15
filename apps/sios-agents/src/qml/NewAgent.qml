@@ -73,8 +73,8 @@ Window {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 3
-                Text { text: ch.heading; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: ch.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                Text { textFormat: Text.PlainText; text: ch.heading; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: ch.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
             }
         }
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { na.brain = ch.key; na.job = ch.key === "claude-code" ? "project" : "on-demand"; } }
@@ -92,7 +92,7 @@ Window {
                 width: sl.implicitWidth + 26; height: 32
                 color: on ? Theme.accent : Theme.surface
                 border.width: 1; border.color: Theme.lineStrong
-                Text { id: sl; anchors.centerIn: parent; text: modelData[1]; color: parent.on ? "white" : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: parent.on ? Font.DemiBold : Font.Normal }
+                Text { id: sl; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData[1]; color: parent.on ? "white" : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: parent.on ? Font.DemiBold : Font.Normal }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: sg.picked(modelData[0]) }
             }
         }
@@ -135,7 +135,7 @@ Window {
             Choice { key: "claude-code"; icon: "logo-claude"; iconColor: "#d97757"; heading: "Claude Code"; sub: "Builds and changes code in a project, in its own copy. Signs in once, in its own sandbox." }
             Choice { key: "builtin"; icon: "bot"; iconColor: Theme.ai; heading: "SIOS"; sub: "Sorts and moves files, watches folders, reminds you. Can't write code." }
         }
-        Label { text: na.brain === "claude-code" ? "Project" : "When it works" }
+        Label { textFormat: Text.PlainText; text: na.brain === "claude-code" ? "Project" : "When it works" }
         Flow {
             visible: na.brain === "builtin"
             Layout.fillWidth: true
@@ -148,7 +148,7 @@ Window {
                     implicitWidth: jl.implicitWidth + 26; implicitHeight: 32; radius: 16
                     color: on ? Theme.accent : Theme.surface
                     border.width: 1; border.color: on ? Theme.accent : Theme.lineStrong
-                    Text { id: jl; anchors.centerIn: parent; text: modelData[1]; color: parent.on ? "white" : Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
+                    Text { id: jl; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData[1]; color: parent.on ? "white" : Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: na.job = modelData[0] }
                 }
             }
@@ -163,6 +163,7 @@ Window {
             visible: na.brain === "claude-code"
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
             text: "It works on its own branch in its own copy; your files change only when you bring its work in. A folder that isn't a git project yet can become one from its Settings."
             color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
         }

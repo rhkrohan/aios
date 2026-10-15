@@ -285,6 +285,7 @@ PlasmoidItem {
                     visible: root.mood === "confused" || root.mood === "think" || root.mood === "proud"
                     x: faceCanvas.x + faceCanvas.width * 0.70
                     y: faceCanvas.y + faceCanvas.height * 0.12
+                    textFormat: Text.PlainText
                     text: root.mood === "confused" ? "?" : root.mood === "think" ? "\u2026" : "\u2726"
                     color: root.mood === "proud" ? "#ffe08a" : "white"
                     font.pixelSize: Math.round(root.size * 0.2)
@@ -432,6 +433,7 @@ PlasmoidItem {
                 id: label
                 anchors.centerIn: parent
                 width: Math.min(236, implicitWidth)
+                textFormat: Text.PlainText
                 text: root.bubble
                 wrapMode: Text.WordWrap
                 color: "#1d1d1f"

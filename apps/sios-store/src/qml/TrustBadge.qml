@@ -15,5 +15,5 @@ Rectangle {
     border.width: 1
     border.color: Qt.rgba(tone.r, tone.g, tone.b, 0.3)
     Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; name: badge.level === 2 ? "shield-alert" : "shield-check"; size: 13; color: badge.tone }
-    Text { id: text; x: 26; anchors.verticalCenter: parent.verticalCenter; text: badge.label; color: badge.tone; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
+    Text { id: text; x: 26; anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: badge.label; color: badge.tone; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
 }

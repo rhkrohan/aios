@@ -37,6 +37,7 @@ Flickable {
                 width: column.width
                 spacing: 10
                 Text {
+                    textFormat: Text.PlainText
                     text: modelData.title
                     color: Theme.fg2
                     font.family: Theme.ui
@@ -101,6 +102,7 @@ Flickable {
                 visible: !tile.renaming
                 width: 124
                 horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
                 text: tile.item.name
                 color: tile.selected ? Theme.aiInk : Theme.fg
                 font.family: Theme.ui
@@ -128,6 +130,7 @@ Flickable {
             Text {
                 width: 124
                 horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
                 text: tile.item.isDir ? ((tile.item.stats ? tile.item.stats.total : 0) + ((tile.item.stats && tile.item.stats.total === 1) ? " item" : " items")) : tile.item.sizeText
                 color: Theme.fg3
                 font.family: Theme.ui

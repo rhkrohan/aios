@@ -53,9 +53,9 @@ Rectangle {
                         Rectangle {
                             width: 22; height: 22; radius: 11
                             color: index <= parent.at ? Theme.accent : Theme.surface3
-                            Text { anchors.centerIn: parent; text: index + 1; color: index <= parent.parent.at ? "white" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold }
+                            Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: index + 1; color: index <= parent.parent.at ? "white" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold }
                         }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: modelData[1]; color: index <= parent.at ? Theme.fg : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
+                        Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: modelData[1]; color: index <= parent.at ? Theme.fg : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
                         Rectangle { visible: index < 2; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 1; color: Theme.line }
                     }
                 }
@@ -66,8 +66,8 @@ Rectangle {
                 AppIcon { source: sheet.app ? sheet.app.icon || "" : ""; name: sheet.app ? sheet.app.name : ""; size: 56 }
                 ColumnLayout {
                     spacing: 2
-                    Text { text: sheet.app ? sheet.app.name : ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.DemiBold }
-                    Text { text: sheet.app && sheet.app.developer ? sheet.app.developer : "From Flathub"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                    Text { textFormat: Text.PlainText; text: sheet.app ? sheet.app.name : ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.DemiBold }
+                    Text { textFormat: Text.PlainText; text: sheet.app && sheet.app.developer ? sheet.app.developer : "From Flathub"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                 }
             }
 
@@ -84,7 +84,7 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: 10
                         Icon { name: modelData.icon; size: 15; color: Theme.fg2 }
-                        Text { Layout.fillWidth: true; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
+                        Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
                     }
                 }
                 Text {
@@ -102,7 +102,7 @@ Rectangle {
                 visible: sheet.step === "installing"
                 Layout.fillWidth: true
                 spacing: 8
-                Text { text: sheet.job && sheet.job.progress >= 0 ? "Installing… " + sheet.job.progress + "%" : "Installing…"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                Text { textFormat: Text.PlainText; text: sheet.job && sheet.job.progress >= 0 ? "Installing… " + sheet.job.progress + "%" : "Installing…"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 6
@@ -130,6 +130,7 @@ Rectangle {
                 visible: sheet.step === "failed"
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
+                textFormat: Text.PlainText
                 text: "That didn't install. " + (sheet.error || "Flatpak didn't say why.")
                 color: Theme.danger
                 font.family: Theme.ui

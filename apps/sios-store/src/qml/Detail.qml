@@ -52,9 +52,9 @@ Flickable {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 4
-                Text { text: page.app.name || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 26; font.weight: Font.DemiBold }
-                Text { Layout.fillWidth: true; text: page.app.summary || ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14; wrapMode: Text.WordWrap }
-                Text { visible: !!page.app.developer; text: page.app.developer || ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
+                Text { textFormat: Text.PlainText; text: page.app.name || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 26; font.weight: Font.DemiBold }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: page.app.summary || ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14; wrapMode: Text.WordWrap }
+                Text { visible: !!page.app.developer; textFormat: Text.PlainText; text: page.app.developer || ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
                 TrustBadge { Layout.topMargin: 6; level: page.perms ? page.perms.level : 0; label: page.perms && page.perms.known ? page.perms.label : "" }
             }
             ColumnLayout {
@@ -131,8 +131,8 @@ Flickable {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 1
-                            Text { text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; text: modelData.body; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; wrapMode: Text.WordWrap }
+                            Text { textFormat: Text.PlainText; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: modelData.body; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; wrapMode: Text.WordWrap }
                         }
                     }
                 }
@@ -161,8 +161,8 @@ Flickable {
                     required property var modelData
                     visible: modelData[1] !== ""
                     spacing: 2
-                    Text { text: modelData[0]; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
-                    Text { text: modelData[1]; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
+                    Text { textFormat: Text.PlainText; text: modelData[0]; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                    Text { textFormat: Text.PlainText; text: modelData[1]; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
                 }
             }
         }

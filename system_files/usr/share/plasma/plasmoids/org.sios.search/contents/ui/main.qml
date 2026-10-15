@@ -110,6 +110,7 @@ PlasmoidItem {
                     }
                     Text {
                         Layout.fillWidth: true
+                        textFormat: Text.PlainText
                         text: root.stopped ? "All AI stopped" : root.waiting > 0 ? (root.waiting === 1 ? "1 request waits for your OK" : root.waiting + " requests wait for your OK") : "Search or ask SIOS"
                         color: root.stopped ? "#ffb3b3" : root.waiting > 0 ? "#ffd19a" : "#c9cfe0"
                         elide: Text.ElideRight
@@ -126,6 +127,7 @@ PlasmoidItem {
                             id: key
                             anchors.centerIn: parent
                             // the key, or what's going on: stopped (resume in Approvals), approvals open
+                            textFormat: Text.PlainText
                             text: root.stopped ? "Resume…" : root.session ? "Approvals open" : "Ctrl Space"
                             color: "#c8ced6"
                             font.family: "Instrument Sans"

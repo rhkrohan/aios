@@ -45,6 +45,7 @@ Rectangle {
                 spacing: 10
                 Text {
                     Layout.fillWidth: true
+                    textFormat: Text.PlainText
                     text: look.item ? look.item.name : ""
                     color: Theme.fg
                     font.family: Theme.ui
@@ -52,7 +53,7 @@ Rectangle {
                     font.weight: Font.DemiBold
                     elide: Text.ElideMiddle
                 }
-                Text { text: look.item ? [look.item.sizeText, look.item.modifiedText].filter(x => x).join("   ") : ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                Text { textFormat: Text.PlainText; text: look.item ? [look.item.sizeText, look.item.modifiedText].filter(x => x).join("   ") : ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                 Rectangle {
                     implicitWidth: openText.implicitWidth + 20
                     implicitHeight: 28
@@ -116,7 +117,7 @@ Rectangle {
                     spacing: 12
                     Disc { visible: !!look.item && look.item.isDir; anchors.horizontalCenter: parent.horizontalCenter; size: 160; name: look.item ? look.item.name : ""; stats: look.item && look.item.stats ? look.item.stats : ({ total: 0, segments: [] }); open: true }
                     FileIcon { visible: !!look.item && !look.item.isDir; anchors.horizontalCenter: parent.horizontalCenter; size: 160; kind: look.item ? look.item.kind : "text"; ext: look.item ? look.item.ext : ""; thumbnail: false }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: look.item ? (look.item.isDir ? "Folder" : (look.item.mimeComment || "")) : ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; textFormat: Text.PlainText; text: look.item ? (look.item.isDir ? "Folder" : (look.item.mimeComment || "")) : ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                 }
             }
         }

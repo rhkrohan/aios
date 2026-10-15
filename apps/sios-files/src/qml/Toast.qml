@@ -34,7 +34,7 @@ Rectangle {
         id: row
         anchors.centerIn: parent
         spacing: 14
-        Text { text: toast.text; color: toast.error ? "#f4b0a6" : "white"; font.family: Theme.ui; font.pixelSize: 13 }
+        Text { textFormat: Text.PlainText; text: toast.text; color: toast.error ? "#f4b0a6" : "white"; font.family: Theme.ui; font.pixelSize: 13 }
         Text {
             visible: toast.undoable
             text: "Undo"

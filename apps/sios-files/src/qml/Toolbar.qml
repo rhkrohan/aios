@@ -116,6 +116,7 @@ Rectangle {
                                     Text {
                                         id: crumbText
                                         anchors.centerIn: parent
+                                        textFormat: Text.PlainText
                                         text: modelData.name
                                         color: parent.last ? Theme.fg : Theme.fg2
                                         font.family: Theme.ui

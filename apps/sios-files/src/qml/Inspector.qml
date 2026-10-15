@@ -20,8 +20,8 @@ Rectangle {
         visible: value !== ""
         Layout.fillWidth: true
         spacing: 1
-        Text { text: parent.label; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
-        Text { Layout.fillWidth: true; text: parent.value; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; wrapMode: Text.WrapAnywhere; maximumLineCount: 3; elide: Text.ElideRight }
+        Text { textFormat: Text.PlainText; text: parent.label; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+        Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: parent.value; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; wrapMode: Text.WrapAnywhere; maximumLineCount: 3; elide: Text.ElideRight }
     }
 
     // nothing chosen
@@ -31,6 +31,7 @@ Rectangle {
         width: parent.width - 40
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
+        textFormat: Text.PlainText
         text: panel.selectedCount > 1 ? panel.selectedCount + " items selected" : "Select something to see its details."
         color: Theme.fg3
         font.family: Theme.ui
@@ -54,6 +55,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
+            textFormat: Text.PlainText
             text: panel.item ? panel.item.name : ""
             color: Theme.fg
             font.family: Theme.ui
@@ -81,6 +83,7 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 1
                     Text {
+                        textFormat: Text.PlainText
                         text: panel.item && panel.item.origin ? "From the web" : (panel.item && panel.item.isDir ? "On this computer" : "Made on this computer")
                         color: Theme.fg
                         font.family: Theme.ui
@@ -90,6 +93,7 @@ Rectangle {
                     Text {
                         visible: !!(panel.item && panel.item.origin)
                         Layout.fillWidth: true
+                        textFormat: Text.PlainText
                         text: panel.item && panel.item.origin ? panel.item.origin.replace(/^https?:\/\//, "") : ""
                         color: Theme.fg2
                         font.family: Theme.ui

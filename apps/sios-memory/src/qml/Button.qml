@@ -27,6 +27,7 @@ Rectangle {
     Text {
         id: label
         anchors.centerIn: parent
+        textFormat: Text.PlainText
         text: b.busy ? (b.progress >= 0 ? b.progress + "%" : "Working…") : b.text
         color: b.kind === "primary" ? "white" : b.kind === "danger" ? Theme.danger : Theme.fg
         font.family: Theme.ui

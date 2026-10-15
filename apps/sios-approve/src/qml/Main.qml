@@ -61,7 +61,7 @@ QQC2.ApplicationWindow {
         property color ink: Theme.fg2
         implicitWidth: t.implicitWidth + 16; implicitHeight: 22; radius: 11
         color: Theme.surface2; border.width: 1; border.color: Theme.line
-        Text { id: t; anchors.centerIn: parent; text: parent.text; color: parent.ink; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
+        Text { id: t; anchors.centerIn: parent; textFormat: Text.PlainText; text: parent.text; color: parent.ink; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
     }
 
     ColumnLayout {
@@ -75,10 +75,11 @@ QQC2.ApplicationWindow {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
-                Text { text: win.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.DemiBold }
+                Text { textFormat: Text.PlainText; text: win.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.DemiBold }
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: approvals.sessionOpen
                           ? "Approvals are open until you lock the screen: SIOS's own changes that can be undone need just a click. Sending, deleting for good and other AIs still ask for your password."
                           : "Nothing happens until you say yes. Yes asks for your password; after that, SIOS's own undoable changes are a click until you lock the screen."
@@ -109,6 +110,7 @@ QQC2.ApplicationWindow {
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: "Every AI was stopped: their passes are cancelled, waiting requests were declined, and no AI can act or use the AI connection. Resume when you're ready; each AI will have to ask again."
                     color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13
                 }
@@ -151,6 +153,7 @@ QQC2.ApplicationWindow {
                         visible: card.modelData.goal !== ""
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
+                        textFormat: Text.PlainText
                         text: "“" + card.modelData.goal + "”"
                         color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.italic: true
                     }
@@ -160,7 +163,7 @@ QQC2.ApplicationWindow {
                             required property var modelData
                             Layout.fillWidth: true
                             spacing: 8
-                            Text { Layout.fillWidth: true; text: modelData.about || modelData.name; wrapMode: Text.WordWrap; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: modelData.about || modelData.name; wrapMode: Text.WordWrap; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                             Chip { text: win.risk(modelData)[0]; ink: win.risk(modelData)[1] }
                             Chip { visible: modelData.egress; text: "Sends out"; ink: Theme.danger }
                         }
@@ -174,6 +177,7 @@ QQC2.ApplicationWindow {
                             wrapMode: Text.WrapAnywhere
                             maximumLineCount: 4
                             elide: Text.ElideRight
+                            textFormat: Text.PlainText
                             text: modelData + ": " + JSON.stringify(card.modelData.args[modelData])
                             color: Theme.fg2; font.family: "JetBrains Mono"; font.pixelSize: 12
                         }
@@ -182,6 +186,7 @@ QQC2.ApplicationWindow {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
                         color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
+                        textFormat: Text.PlainText
                         text: card.isPass
                               ? "Where: " + win.places(card.modelData.paths) + ". For " + win.minutes(card.modelData.expires_in) + (card.modelData.uses ? ", up to " + card.modelData.uses + " actions" : "") + (card.modelData.sends_out ? ". May send things off this computer (asks again each time)." : ". Nothing leaves this computer.")
                               : "Why it asks: " + card.modelData.reason
@@ -205,6 +210,7 @@ QQC2.ApplicationWindow {
             visible: win.note !== ""
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
             text: win.note
             color: win.noteError ? Theme.danger : Theme.ok
             font.family: Theme.ui; font.pixelSize: 13

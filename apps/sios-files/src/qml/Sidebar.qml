@@ -62,6 +62,7 @@ Rectangle {
             }
             Text {
                 Layout.fillWidth: true
+                textFormat: Text.PlainText
                 text: place.label
                 color: Theme.fg
                 font.family: Theme.ui
@@ -69,7 +70,7 @@ Rectangle {
                 font.weight: place.current ? Font.DemiBold : Font.Normal
                 elide: Text.ElideRight
             }
-            Text { visible: place.count !== ""; text: place.count; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+            Text { visible: place.count !== ""; textFormat: Text.PlainText; text: place.count; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
         }
         MouseArea {
             id: hover
@@ -99,7 +100,7 @@ Rectangle {
         height: 26
         radius: 8
         color: "#1b2027"
-        Text { id: tipText; anchors.centerIn: parent; text: parent.text; color: "white"; font.family: Theme.ui; font.pixelSize: 12 }
+        Text { id: tipText; anchors.centerIn: parent; textFormat: Text.PlainText; text: parent.text; color: "white"; font.family: Theme.ui; font.pixelSize: 12 }
     }
 
     ColumnLayout {
@@ -144,7 +145,7 @@ Rectangle {
                     color: Theme.accent
                 }
             }
-            Text { text: fileOps.storage.text || ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+            Text { textFormat: Text.PlainText; text: fileOps.storage.text || ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
         }
     }
 }

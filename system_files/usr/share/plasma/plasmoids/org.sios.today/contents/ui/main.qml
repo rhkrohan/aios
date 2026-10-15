@@ -103,12 +103,13 @@ PlasmoidItem {
                     Item { Layout.fillWidth: true }
                     ColumnLayout {
                         spacing: 0
-                        Text { Layout.alignment: Qt.AlignRight; text: root.now.toLocaleDateString(Qt.locale(), "dddd"); color: root.fg; font.family: root.ui; font.pixelSize: 15; font.weight: Font.Medium }
-                        Text { Layout.alignment: Qt.AlignRight; text: root.now.toLocaleDateString(Qt.locale(), "MMMM d"); color: root.fg2; font.family: root.ui; font.pixelSize: 12 }
+                        Text { Layout.alignment: Qt.AlignRight; textFormat: Text.PlainText; text: root.now.toLocaleDateString(Qt.locale(), "dddd"); color: root.fg; font.family: root.ui; font.pixelSize: 15; font.weight: Font.Medium }
+                        Text { Layout.alignment: Qt.AlignRight; textFormat: Text.PlainText; text: root.now.toLocaleDateString(Qt.locale(), "MMMM d"); color: root.fg2; font.family: root.ui; font.pixelSize: 12 }
                     }
                 }
                 Text {
                     Layout.topMargin: 8
+                    textFormat: Text.PlainText
                     text: root.greeting(root.now.getHours())
                     color: root.fg
                     font.family: root.ui
@@ -116,6 +117,7 @@ PlasmoidItem {
                     font.weight: Font.DemiBold
                 }
                 Text {
+                    textFormat: Text.PlainText
                     text: root.todos.length === 0 ? "Nothing on your list yet." : root.remaining ? root.remaining + (root.remaining === 1 ? " thing" : " things") + " left today." : "You're all set for today."
                     color: root.fg2
                     font.family: root.ui
@@ -146,6 +148,7 @@ PlasmoidItem {
                             }
                             Text {
                                 Layout.fillWidth: true
+                                textFormat: Text.PlainText
                                 text: modelData.text
                                 elide: Text.ElideRight
                                 color: modelData.done ? root.fg2 : root.fg
@@ -281,8 +284,8 @@ PlasmoidItem {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 0
-                                Text { Layout.fillWidth: true; text: model.display; elide: Text.ElideRight; color: root.fg; font.family: root.ui; font.pixelSize: 14; font.weight: Font.Medium }
-                                Text { Layout.fillWidth: true; text: model.description || ""; elide: Text.ElideMiddle; color: root.fg2; font.family: root.ui; font.pixelSize: 12 }
+                                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: model.display; elide: Text.ElideRight; color: root.fg; font.family: root.ui; font.pixelSize: 14; font.weight: Font.Medium }
+                                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: model.description || ""; elide: Text.ElideMiddle; color: root.fg2; font.family: root.ui; font.pixelSize: 12 }
                             }
                         }
                         MouseArea { id: hover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: recent.trigger(index, "", null) }

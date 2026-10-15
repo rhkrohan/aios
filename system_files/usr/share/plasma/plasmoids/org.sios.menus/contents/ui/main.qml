@@ -57,6 +57,7 @@ PlasmoidItem {
         Text {
             id: t
             anchors.centerIn: parent
+            textFormat: Text.PlainText
             text: b.label
             color: Kirigami.Theme.textColor
             font.family: "Instrument Sans"

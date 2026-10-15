@@ -208,6 +208,7 @@ QQC2.ApplicationWindow {
                     Text {
                         width: parent.width
                         horizontalAlignment: Text.AlignHCenter
+                        textFormat: Text.PlainText
                         text: folder.filter ? "Nothing matches “" + folder.filter + "”" : folder.location === "web:" ? "Nothing from the web yet" : folder.isTrash ? "Trash is empty" : "This folder is empty"
                         color: Theme.fg2
                         font.family: Theme.ui
@@ -218,6 +219,7 @@ QQC2.ApplicationWindow {
                         width: parent.width
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
+                        textFormat: Text.PlainText
                         text: folder.filter ? "Try fewer letters." : folder.location === "web:" ? "Files you download or save from email show up here, so you always know what came from outside." : folder.isTrash ? "Things you delete wait here until you empty it." : "Drag files here, or make a new folder."
                         color: Theme.fg3
                         font.family: Theme.ui
@@ -237,6 +239,7 @@ QQC2.ApplicationWindow {
                     anchors.leftMargin: 24
                     anchors.rightMargin: 24
                     Text {
+                        textFormat: Text.PlainText
                         text: app.selected.length > 1 ? app.selected.length + " selected" : folder.count + (folder.count === 1 ? " item" : " items")
                         color: Theme.fg2
                         font.family: Theme.ui

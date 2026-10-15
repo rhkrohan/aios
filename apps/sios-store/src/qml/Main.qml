@@ -59,14 +59,14 @@ QQC2.ApplicationWindow {
             anchors.rightMargin: 12
             spacing: 10
             Icon { name: nav.icon; size: 17; color: nav.on ? Theme.fg : Theme.fg2 }
-            Text { Layout.fillWidth: true; text: nav.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: nav.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal }
             Rectangle {
                 visible: nav.count !== ""
                 implicitWidth: Math.max(20, c.implicitWidth + 10)
                 implicitHeight: 20
                 radius: 10
                 color: nav.badge ? Theme.ai : "transparent"
-                Text { id: c; anchors.centerIn: parent; text: nav.count; color: nav.badge ? "white" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: nav.badge ? Font.DemiBold : Font.Normal }
+                Text { id: c; anchors.centerIn: parent; textFormat: Text.PlainText; text: nav.count; color: nav.badge ? "white" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: nav.badge ? Font.DemiBold : Font.Normal }
             }
         }
         MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: nav.clicked() }
@@ -182,8 +182,8 @@ QQC2.ApplicationWindow {
                             anchors { left: parent.left; top: parent.top; bottom: parent.bottom; right: heroIcon.left; margins: 28 }
                             spacing: 8
                             Text { text: "Featured"; color: Qt.rgba(1, 1, 1, 0.7); font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.Medium }
-                            Text { text: catalog.featured.name || ""; color: "white"; font.family: Theme.ui; font.pixelSize: 32; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; text: catalog.featured.summary || ""; color: Qt.rgba(1, 1, 1, 0.85); font.family: Theme.ui; font.pixelSize: 15; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
+                            Text { textFormat: Text.PlainText; text: catalog.featured.name || ""; color: "white"; font.family: Theme.ui; font.pixelSize: 32; font.weight: Font.DemiBold }
+                            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: catalog.featured.summary || ""; color: Qt.rgba(1, 1, 1, 0.85); font.family: Theme.ui; font.pixelSize: 15; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
                             Item { Layout.fillHeight: true }
                             Rectangle {
                                 implicitWidth: lm.implicitWidth + 32
@@ -200,6 +200,7 @@ QQC2.ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
+                            textFormat: Text.PlainText
                             text: win.page === "discover" ? "Popular" : win.page === "category" && win.category ? win.category.label : "Results for “" + search.text + "”"
                             color: Theme.fg
                             font.family: Theme.ui
@@ -212,6 +213,7 @@ QQC2.ApplicationWindow {
 
                     Text {
                         visible: !catalog.ready || browse.items.length === 0
+                        textFormat: Text.PlainText
                         text: !catalog.ready ? (catalog.refreshing ? "Getting the catalog…" : "Loading…") : win.page === "search" ? "No apps match. Try another word." : "Nothing here yet."
                         color: Theme.fg3
                         font.family: Theme.ui
@@ -251,12 +253,13 @@ QQC2.ApplicationWindow {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.bottomMargin: 6
-                        Text { text: win.page === "updates" ? "Updates" : "Installed"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold }
+                        Text { textFormat: Text.PlainText; text: win.page === "updates" ? "Updates" : "Installed"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold }
                         Item { Layout.fillWidth: true }
                         Button { visible: win.page === "updates" && mine.items.length > 1; text: "Update all"; onClicked: catalog.updateAll() }
                     }
                     Text {
                         visible: mine.items.length === 0
+                        textFormat: Text.PlainText
                         text: win.page === "updates" ? "Everything is up to date." : "Apps you install show up here."
                         color: Theme.fg3
                         font.family: Theme.ui
@@ -283,8 +286,8 @@ QQC2.ApplicationWindow {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 1
-                                    Text { text: row.modelData.name || row.modelData.id; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                    Text { Layout.fillWidth: true; text: [row.modelData.summary || "", row.modelData.version ? "Version " + row.modelData.version : ""].filter(x => x).join("  ·  "); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; elide: Text.ElideRight }
+                                    Text { textFormat: Text.PlainText; text: row.modelData.name || row.modelData.id; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                    Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: [row.modelData.summary || "", row.modelData.version ? "Version " + row.modelData.version : ""].filter(x => x).join("  ·  "); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; elide: Text.ElideRight }
                                 }
                                 Button { visible: !!row.modelData.update; text: "Update"; busy: !!row.job; progress: row.job ? row.job.progress : -1; onClicked: catalog.update(row.modelData.id) }
                                 Button { visible: !row.modelData.update; text: "Open"; kind: "plain"; onClicked: catalog.open(row.modelData.id) }

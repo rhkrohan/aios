@@ -124,8 +124,8 @@ QQC2.ApplicationWindow {
             anchors { fill: parent; leftMargin: 9; rightMargin: 12 }
             spacing: 12
             Rectangle { implicitWidth: 28; implicitHeight: 28; radius: 8; color: nav.on ? Qt.rgba(1, 1, 1, 0.18) : nav.tile; Icon { anchors.centerIn: parent; name: nav.icon; size: 16; color: "#ffffff" } }
-            Text { Layout.fillWidth: true; text: nav.label; color: nav.on ? "#ffffff" : Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal }
-            Text { visible: nav.count > 0; text: nav.count; color: nav.on ? "#ffffff" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: nav.label; color: nav.on ? "#ffffff" : Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal }
+            Text { visible: nav.count > 0; textFormat: Text.PlainText; text: nav.count; color: nav.on ? "#ffffff" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
         }
         MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { win.page = nav.key; win.sel = ""; } }
         Accessible.role: Accessible.Button
@@ -145,7 +145,7 @@ QQC2.ApplicationWindow {
             anchors.centerIn: parent
             spacing: 6
             Rectangle { visible: parent.parent.dot; anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; radius: 3.5; color: parent.parent.ink }
-            Text { text: parent.parent.text; color: parent.parent.ink; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { textFormat: Text.PlainText; text: parent.parent.text; color: parent.parent.ink; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
         }
     }
     component Pet: Rectangle {
@@ -173,7 +173,7 @@ QQC2.ApplicationWindow {
             anchors.centerIn: parent
             spacing: 5
             Icon { anchors.verticalCenter: parent.verticalCenter; name: parent.parent.coder ? "logo-claude" : "bot"; size: 13; color: parent.parent.coder ? "#d97757" : Theme.ai }
-            Text { text: parent.parent.coder ? "Claude Code" : "SIOS"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+            Text { textFormat: Text.PlainText; text: parent.parent.coder ? "Claude Code" : "SIOS"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
         }
     }
     component Meter: ColumnLayout {
@@ -184,8 +184,8 @@ QQC2.ApplicationWindow {
         Layout.fillWidth: true
         spacing: 6
         RowLayout {
-            Text { Layout.fillWidth: true; text: parent.parent.label; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
-            Text { text: parent.parent.value; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: parent.parent.label; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+            Text { textFormat: Text.PlainText; text: parent.parent.value; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
         }
         Rectangle {
             Layout.fillWidth: true
@@ -233,7 +233,7 @@ QQC2.ApplicationWindow {
                 color: on ? Theme.accent : Theme.surface
                 border.width: 1; border.color: Theme.lineStrong
                 radius: 0
-                Text { id: sl; anchors.centerIn: parent; text: modelData[1]; color: parent.on ? "white" : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: parent.on ? Font.DemiBold : Font.Normal }
+                Text { id: sl; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData[1]; color: parent.on ? "white" : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: parent.on ? Font.DemiBold : Font.Normal }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: sg.picked(modelData[0]) }
             }
         }
@@ -269,8 +269,8 @@ QQC2.ApplicationWindow {
         property string sub
         Layout.fillWidth: true
         spacing: 6
-        Text { text: parent.title; color: Theme.fg; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.DemiBold }
-        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 15 }
+        Text { textFormat: Text.PlainText; text: parent.title; color: Theme.fg; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.DemiBold }
+        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 15 }
     }
 
     RowLayout {
@@ -295,6 +295,7 @@ QQC2.ApplicationWindow {
                 Text {
                     Layout.leftMargin: 6
                     readonly property int busy: win.agents.filter(a => a.run).length
+                    textFormat: Text.PlainText
                     text: busy + " working · " + (win.agents.length - busy) + " resting"
                     color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
                 }
@@ -311,7 +312,7 @@ QQC2.ApplicationWindow {
                         anchors.centerIn: parent
                         spacing: 8
                         Icon { name: "octagon-x"; size: 15; color: Theme.danger }
-                        Text { text: broker.status.stopped ? "All AI is stopped" : "Stop all AI"; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text { textFormat: Text.PlainText; text: broker.status.stopped ? "All AI is stopped" : "Stop all AI"; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
                     }
                     MouseArea { id: stopM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; enabled: !broker.status.stopped; onClicked: win.ask("ai.stop", {}, "All AI stopped", "Couldn't stop", "Resume from the approval window.") }
                 }
@@ -377,7 +378,7 @@ QQC2.ApplicationWindow {
                                             spacing: 3
                                             RowLayout {
                                                 spacing: 8
-                                                Text { text: card.a.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 16; font.weight: Font.DemiBold }
+                                                Text { textFormat: Text.PlainText; text: card.a.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 16; font.weight: Font.DemiBold }
                                                 BrainBadge { coder: card.coder }
                                             }
                                             Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: card.a.run && card.r ? card.r.task : win.jobText(card.a); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
@@ -455,7 +456,7 @@ QQC2.ApplicationWindow {
                         spacing: 6
                         Text { text: "Team"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.sel = "" } }
                         Icon { name: "chevron-right"; size: 13; color: Theme.fg3 }
-                        Text { text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                        Text { textFormat: Text.PlainText; text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
                         Item { Layout.fillWidth: true }
                         Tab { key: "now"; text: "Now" }
                         Tab { key: "history"; text: "Activity" }
@@ -485,14 +486,14 @@ QQC2.ApplicationWindow {
                                 Pet { tint: agentPage.a.color || "mint"; size: 56; sleepy: !agentPage.a.active }
                                 ColumnLayout {
                                     spacing: 4
-                                    Text { text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.display; font.pixelSize: 26; font.weight: Font.DemiBold }
+                                    Text { textFormat: Text.PlainText; text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.display; font.pixelSize: 26; font.weight: Font.DemiBold }
                                     RowLayout { spacing: 6; BrainBadge { coder: agentPage.coder } Pill { text: win.current ? win.stateOf(agentPage.a)[0] : ""; kind: win.current ? win.stateOf(agentPage.a)[1] : "muted"; dot: !!agentPage.a.run } }
                                 }
                             }
                             ColumnLayout {
                                 spacing: 8
-                                RowLayout { spacing: 8; Icon { name: "folder-open"; size: 15; color: Theme.fg3 } Text { Layout.fillWidth: true; elide: Text.ElideRight; text: agentPage.coder ? agentPage.a.folder : win.jobText(agentPage.a); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } }
-                                RowLayout { visible: agentPage.coder; spacing: 8; Icon { name: "git-branch"; size: 15; color: Theme.fg3 } Text { text: "Its own copy, branch sios/" + String(agentPage.a.id || "").replace("agent:", ""); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } }
+                                RowLayout { spacing: 8; Icon { name: "folder-open"; size: 15; color: Theme.fg3 } Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: agentPage.coder ? agentPage.a.folder : win.jobText(agentPage.a); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } }
+                                RowLayout { visible: agentPage.coder; spacing: 8; Icon { name: "git-branch"; size: 15; color: Theme.fg3 } Text { textFormat: Text.PlainText; text: "Its own copy, branch sios/" + String(agentPage.a.id || "").replace("agent:", ""); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } }
                             }
                             Box {
                                 visible: agentPage.coder
@@ -516,7 +517,7 @@ QQC2.ApplicationWindow {
                             }
                             Box {
                                 visible: agentPage.coder && !!agentPage.r && agentPage.r.files.length > 0
-                                Text { text: agentPage.r ? agentPage.r.files.length + (agentPage.r.files.length === 1 ? " file changed" : " files changed") : ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                Text { textFormat: Text.PlainText; text: agentPage.r ? agentPage.r.files.length + (agentPage.r.files.length === 1 ? " file changed" : " files changed") : ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
                                 Repeater {
                                     model: agentPage.r ? agentPage.r.files.slice(0, 6) : []
                                     delegate: Text { required property string modelData; Layout.fillWidth: true; elide: Text.ElideMiddle; textFormat: Text.PlainText; text: modelData; color: Theme.fg2; font.family: "JetBrains Mono"; font.pixelSize: 12 }
@@ -547,8 +548,8 @@ QQC2.ApplicationWindow {
                             Layout.leftMargin: 24
                             Layout.rightMargin: 24
                             spacing: 10
-                            Text { text: agentPage.coder ? "Live output" : "Reports"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
-                            Text { text: agentPage.a.run && agentPage.r ? "working for " + win.span(win.now - agentPage.r.started) : agentPage.r ? "last task " + win.ago(agentPage.r.started) : ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                            Text { textFormat: Text.PlainText; text: agentPage.coder ? "Live output" : "Reports"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
+                            Text { textFormat: Text.PlainText; text: agentPage.a.run && agentPage.r ? "working for " + win.span(win.now - agentPage.r.started) : agentPage.r ? "last task " + win.ago(agentPage.r.started) : ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             Item { Layout.fillWidth: true }
                             Text { visible: agentPage.coder; text: "Follows along"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             Rectangle {
@@ -608,13 +609,14 @@ QQC2.ApplicationWindow {
                                         color: "#1f2328"
                                         Text { id: dt; anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 10 } wrapMode: Text.WrapAnywhere; textFormat: Text.PlainText; text: ln.modelData.detail || ""; color: ln.modelData.failed ? "#f4b0a6" : "#d6dbe0"; font.family: "JetBrains Mono"; font.pixelSize: 11 }
                                     }
-                                    Text { visible: ln.k === "ask"; text: "Answer in the box below; it continues from there."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Text { visible: ln.k === "ask"; textFormat: Text.PlainText; text: "Answer in the box below; it continues from there."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                                 }
                             }
                             Text {
                                 anchors.centerIn: parent
                                 visible: lines.count === 0
                                 width: 380; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+                                textFormat: Text.PlainText
                                 text: agentPage.coder ? (win.leftOf(agentPage.a) > 0 ? "Nothing yet. Give it a task below and its work shows here as it happens." : "Let it work first (asks for your password), then give it a task.") : "Nothing reported yet."
                                 color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13
                             }
@@ -661,7 +663,7 @@ QQC2.ApplicationWindow {
                                     }
                                 }
                             }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Continues the same conversation. What the agent writes is shown as text; SIOS never takes it as instructions."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Continues the same conversation. What the agent writes is shown as text; SIOS never takes it as instructions."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                         }
                     }
                 }
@@ -701,8 +703,8 @@ QQC2.ApplicationWindow {
                                     ColumnLayout {
                                         anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 16 }
                                         spacing: 0
-                                        Text { text: String(modelData[0]); color: Theme.fg; font.family: Theme.display; font.pixelSize: 26; font.weight: Font.DemiBold }
-                                        Text { text: modelData[1]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                                        Text { textFormat: Text.PlainText; text: String(modelData[0]); color: Theme.fg; font.family: Theme.display; font.pixelSize: 26; font.weight: Font.DemiBold }
+                                        Text { textFormat: Text.PlainText; text: modelData[1]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
                                     }
                                 }
                             }
@@ -733,11 +735,11 @@ QQC2.ApplicationWindow {
                                             RowLayout {
                                                 anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
                                                 spacing: 12
-                                                Text { Layout.preferredWidth: 92; text: win.ago(modelData.started); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
+                                                Text { Layout.preferredWidth: 92; textFormat: Text.PlainText; text: win.ago(modelData.started); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
                                                 Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: modelData.task; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                                Text { Layout.preferredWidth: 64; text: win.span((modelData.ended || win.now) - modelData.started); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
-                                                Text { Layout.preferredWidth: 48; text: win.tok(modelData.tokens); color: Theme.fg; font.family: "JetBrains Mono"; font.pixelSize: 12 }
-                                                Text { Layout.preferredWidth: 54; text: (modelData.files || []).length + " files"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                                Text { Layout.preferredWidth: 64; textFormat: Text.PlainText; text: win.span((modelData.ended || win.now) - modelData.started); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                                Text { Layout.preferredWidth: 48; textFormat: Text.PlainText; text: win.tok(modelData.tokens); color: Theme.fg; font.family: "JetBrains Mono"; font.pixelSize: 12 }
+                                                Text { Layout.preferredWidth: 54; textFormat: Text.PlainText; text: (modelData.files || []).length + " files"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                                                 Item {
                                                     // a fixed column, so the others line up whatever the result says
                                                     Layout.preferredWidth: 160
@@ -788,11 +790,11 @@ QQC2.ApplicationWindow {
                                                     implicitHeight: 90
                                                     Rectangle { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(parent.width, 56); height: Math.max(2, 90 * modelData[1] / bars.peak); radius: 4; color: index === 6 ? "#c1457d" : Qt.rgba(0.76, 0.27, 0.49, 0.3) }
                                                 }
-                                                Text { Layout.alignment: Qt.AlignHCenter; text: modelData[0]; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11 }
+                                                Text { Layout.alignment: Qt.AlignHCenter; textFormat: Text.PlainText; text: modelData[0]; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11 }
                                             }
                                         }
                                     }
-                                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Limits: " + win.tok(agentPage.a.max_task_tokens) + " per task, " + win.tok(agentPage.a.max_day_tokens) + " per 24 hours. SIOS stops it at either."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Limits: " + win.tok(agentPage.a.max_task_tokens) + " per task, " + win.tok(agentPage.a.max_day_tokens) + " per 24 hours. SIOS stops it at either."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                                 }
                             }
                         }
@@ -849,8 +851,8 @@ QQC2.ApplicationWindow {
                             }
                         }
                         Box {
-                            Text { text: agentPage.a.active ? "Pause or remove" : "It's paused"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Pausing keeps it and its work; it does nothing until you resume it. Removing ends its identity, its passes and its reports."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            Text { textFormat: Text.PlainText; text: agentPage.a.active ? "Pause or remove" : "It's paused"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Pausing keeps it and its work; it does nothing until you resume it. Removing ends its identity, its passes and its reports."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                             RowLayout {
                                 spacing: 8
                                 Button { text: agentPage.a.active ? "Pause" : "Resume"; kind: "plain"; onClicked: win.ask("agents.update", { id: agentPage.a.id, active: !agentPage.a.active }, agentPage.a.active ? agentPage.a.name + " paused" : agentPage.a.name + " is on again", "Couldn't change " + agentPage.a.name) }
@@ -895,10 +897,10 @@ QQC2.ApplicationWindow {
                                 spacing: 4
                                 RowLayout {
                                     spacing: 8
-                                    Text { text: win.nameOf(modelData.agent); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                    Text { textFormat: Text.PlainText; text: win.nameOf(modelData.agent); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
                                     Pill { text: modelData.kind === "question" ? "Asks you" : modelData.failed ? "Didn't finish" : modelData.kind === "done" ? "Done" : modelData.kind === "run" ? "Started" : "Progress"; kind: modelData.failed ? "danger" : modelData.kind === "question" ? "warn" : "muted" }
                                     Item { Layout.fillWidth: true }
-                                    Text { text: win.ago(modelData.at); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Text { textFormat: Text.PlainText; text: win.ago(modelData.at); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                                 }
                                 // the agent's own words: plain text, never rich text or links
                                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: modelData.text; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
@@ -926,7 +928,7 @@ QQC2.ApplicationWindow {
                             implicitWidth: fl.implicitWidth + 24; implicitHeight: 30; radius: 15
                             color: on ? Theme.accent : Theme.surface
                             border.width: 1; border.color: on ? Theme.accent : Theme.lineStrong
-                            Text { id: fl; anchors.centerIn: parent; text: modelData ? win.nameOf(modelData) : "Everyone"; color: parent.on ? "white" : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+                            Text { id: fl; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData ? win.nameOf(modelData) : "Everyone"; color: parent.on ? "white" : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.filter = modelData }
                         }
                     }
@@ -947,10 +949,10 @@ QQC2.ApplicationWindow {
                         RowLayout {
                             anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
                             spacing: 10
-                            Text { Layout.preferredWidth: 84; text: win.ago(modelData.at); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
-                            Text { Layout.preferredWidth: 130; elide: Text.ElideRight; text: win.nameOf(modelData.principal.split(" ")[0]); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.Medium }
+                            Text { Layout.preferredWidth: 84; textFormat: Text.PlainText; text: win.ago(modelData.at); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                            Text { Layout.preferredWidth: 130; elide: Text.ElideRight; textFormat: Text.PlainText; text: win.nameOf(modelData.principal.split(" ")[0]); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.Medium }
                             Pill { text: modelData.decision; kind: ["blocked", "denied", "deny", "error"].indexOf(modelData.decision) >= 0 ? "danger" : modelData.decision === "asked" ? "warn" : "ok" }
-                            Text { Layout.preferredWidth: 150; elide: Text.ElideRight; text: modelData.tool; color: Theme.fg2; font.family: "JetBrains Mono"; font.pixelSize: 11 }
+                            Text { Layout.preferredWidth: 150; elide: Text.ElideRight; textFormat: Text.PlainText; text: modelData.tool; color: Theme.fg2; font.family: "JetBrains Mono"; font.pixelSize: 11 }
                             Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: modelData.reason; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                         }
                         MouseArea { id: hov; anchors.fill: parent; hoverEnabled: true }
@@ -987,8 +989,8 @@ QQC2.ApplicationWindow {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 2
-                                Text { text: modelData.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                Text { text: modelData.kind + (modelData.roles && modelData.roles.length ? " · roles: " + modelData.roles.join(", ") : ""); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { textFormat: Text.PlainText; text: modelData.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                Text { textFormat: Text.PlainText; text: modelData.kind + (modelData.roles && modelData.roles.length ? " · roles: " + modelData.roles.join(", ") : ""); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             }
                             Pill { visible: modelData.paused; text: "Paused"; kind: "warn" }
                             Button {

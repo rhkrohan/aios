@@ -61,12 +61,12 @@ QQC2.ApplicationWindow {
             anchors.rightMargin: 12
             spacing: 12
             Icon { name: nav.icon; size: 16; color: nav.on ? Theme.aiInk : Theme.fg2 }
-            Text { Layout.fillWidth: true; text: nav.label; color: nav.on ? Theme.aiInk : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: nav.on ? Font.Medium : Font.Normal }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: nav.label; color: nav.on ? Theme.aiInk : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: nav.on ? Font.Medium : Font.Normal }
             Rectangle {
                 visible: nav.count > 0
                 implicitWidth: Math.max(20, c.implicitWidth + 10); implicitHeight: 20; radius: 10
                 color: nav.key === "waiting" ? Theme.ai : "transparent"
-                Text { id: c; anchors.centerIn: parent; text: nav.count; color: nav.key === "waiting" ? "white" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold }
+                Text { id: c; anchors.centerIn: parent; textFormat: Text.PlainText; text: nav.count; color: nav.key === "waiting" ? "white" : Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold }
             }
         }
         MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.page = nav.key }
@@ -79,7 +79,7 @@ QQC2.ApplicationWindow {
         property color ink: Theme.fg2
         implicitWidth: t.implicitWidth + 14; implicitHeight: 20; radius: 10
         color: Theme.surface3
-        Text { id: t; anchors.centerIn: parent; text: parent.text; color: parent.ink; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
+        Text { id: t; anchors.centerIn: parent; textFormat: Text.PlainText; text: parent.text; color: parent.ink; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
     }
 
     component IconButton: Rectangle {
@@ -124,6 +124,7 @@ QQC2.ApplicationWindow {
                     visible: !card.editing
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: card.modelData.text
                     color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14
                 }
@@ -143,6 +144,7 @@ QQC2.ApplicationWindow {
                     Text {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
+                        textFormat: Text.PlainText
                         text: (card.modelData.source || "") + (card.modelData.by ? " · " + card.modelData.by : "") + " · " + win.when(card.modelData.created)
                         color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11
                     }
@@ -154,7 +156,7 @@ QQC2.ApplicationWindow {
                         required property var modelData
                         spacing: 6
                         Icon { name: "history"; size: 13; color: Theme.fg3 }
-                        Text { Layout.fillWidth: true; elide: Text.ElideRight; text: "Replaced: " + modelData.text; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                        Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: "Replaced: " + modelData.text; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                         Text {
                             text: "Use the old one"
                             color: Theme.accent; font.family: Theme.ui; font.pixelSize: 12
@@ -200,7 +202,7 @@ QQC2.ApplicationWindow {
                     ColumnLayout {
                         spacing: 0
                         Text { text: "Memory"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
-                        Text { text: win.live.length + " things SIOS knows"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                        Text { textFormat: Text.PlainText; text: win.live.length + " things SIOS knows"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                     }
                 }
                 NavItem { icon: "user"; label: "About you"; key: "about"; count: win.about.length }
@@ -213,6 +215,7 @@ QQC2.ApplicationWindow {
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
                     text: broker.sessionOpen
                           ? "Approvals are open: changes here are a click until you lock the screen. Sharing still asks for your password."
                           : "Changes ask for your password once; then they're a click until you lock the screen."
@@ -229,6 +232,7 @@ QQC2.ApplicationWindow {
             spacing: 14
 
             Text {
+                textFormat: Text.PlainText
                 text: ({ about: "About you", people: "People", timeline: "Timeline", waiting: "Waiting for your OK", sharing: "Sharing", bin: "Bin" })[win.page] || ""
                 color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold
             }
@@ -236,6 +240,7 @@ QQC2.ApplicationWindow {
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                textFormat: Text.PlainText
                 text: ({
                     about: "What you told SIOS. A newer fact about the same thing replaces the old one, and you can always go back.",
                     people: "People SIOS can find for you: “my accountant”, “Sara”.",
@@ -291,6 +296,7 @@ QQC2.ApplicationWindow {
                 Text {
                     anchors.centerIn: parent
                     visible: parent.count === 0
+                    textFormat: Text.PlainText
                     text: win.page === "bin" ? "The bin is empty." : "Nothing yet. Say “remember …” to SIOS, or add something above."
                     color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13
                 }
@@ -308,7 +314,7 @@ QQC2.ApplicationWindow {
                     RowLayout {
                         anchors.fill: parent
                         anchors.margins: 14
-                        Text { Layout.fillWidth: true; elide: Text.ElideRight; text: parent.parent.parent ? parent.parent.parent.item.text : ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
+                        Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: parent.parent.parent ? parent.parent.parent.item.text : ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
                         Button { text: "Put back"; kind: "plain"; onClicked: win.act("memory.revert", { id: parent.parent.parent.item.id }, "Put back") }
                     }
                 }
@@ -338,8 +344,8 @@ QQC2.ApplicationWindow {
                             id: col
                             Layout.fillWidth: true
                             spacing: 4
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "SIOS noticed: " + modelData.text; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14 }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Why: " + modelData.why + " · " + modelData.group; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "SIOS noticed: " + modelData.text; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14 }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Why: " + modelData.why + " · " + modelData.group; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                         }
                         Button { text: "Not now"; kind: "plain"; onClicked: win.act("memory.dismiss", { id: modelData.id }, "Dismissed") }
                         Button { text: "Keep it"; onClicked: win.act("memory.confirm", { id: modelData.id }, "Remembered") }
@@ -378,7 +384,7 @@ QQC2.ApplicationWindow {
                         id: rc
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
                         spacing: 8
-                        Text { text: row.modelData.name + (row.modelData.paused ? " (paused)" : ""); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.Medium }
+                        Text { textFormat: Text.PlainText; text: row.modelData.name + (row.modelData.paused ? " (paused)" : ""); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.Medium }
                         Flow {
                             Layout.fillWidth: true
                             spacing: 8
@@ -391,7 +397,7 @@ QQC2.ApplicationWindow {
                                     color: on ? Theme.aiSoft : Theme.surface2
                                     border.width: 1
                                     border.color: on ? Theme.ai : Theme.line
-                                    Text { id: g; anchors.centerIn: parent; text: modelData; color: parent.on ? Theme.aiInk : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Text { id: g; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData; color: parent.on ? Theme.aiInk : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor

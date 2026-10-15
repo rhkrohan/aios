@@ -45,6 +45,7 @@ Flickable {
                 required property var modelData
                 width: column.width
                 Text {
+                    textFormat: Text.PlainText
                     text: modelData.title
                     color: Theme.fg2
                     font.family: Theme.ui
@@ -85,6 +86,7 @@ Flickable {
                             Text {
                                 Layout.fillWidth: true
                                 visible: list.app.renaming !== row.item.location
+                                textFormat: Text.PlainText
                                 text: row.item.name
                                 color: row.selected ? Theme.aiInk : Theme.fg
                                 font.family: Theme.ui
@@ -103,9 +105,9 @@ Flickable {
                                 onAccepted: list.app.finishRename(row.item.location, text)
                                 Keys.onEscapePressed: list.app.renaming = ""
                             }
-                            Text { Layout.preferredWidth: 110; text: row.item.modifiedText; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
-                            Text { Layout.preferredWidth: 80; horizontalAlignment: Text.AlignRight; text: row.item.isDir ? ((row.item.stats ? row.item.stats.total : 0) + " items") : row.item.sizeText; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
-                            Text { Layout.preferredWidth: 140; text: row.item.isDir ? "Folder" : (row.item.mimeComment || row.item.kind); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; elide: Text.ElideRight }
+                            Text { Layout.preferredWidth: 110; textFormat: Text.PlainText; text: row.item.modifiedText; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                            Text { Layout.preferredWidth: 80; horizontalAlignment: Text.AlignRight; textFormat: Text.PlainText; text: row.item.isDir ? ((row.item.stats ? row.item.stats.total : 0) + " items") : row.item.sizeText; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                            Text { Layout.preferredWidth: 140; textFormat: Text.PlainText; text: row.item.isDir ? "Folder" : (row.item.mimeComment || row.item.kind); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; elide: Text.ElideRight }
                         }
                         MouseArea {
                             id: m

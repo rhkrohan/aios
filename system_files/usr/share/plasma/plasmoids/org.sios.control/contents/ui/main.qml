@@ -62,6 +62,7 @@ PlasmoidItem {
             spacing: 6
             Text {
                 visible: root.batteryPercent >= 0
+                textFormat: Text.PlainText
                 text: root.batteryPercent + "%"
                 color: Kirigami.Theme.textColor
                 font.family: root.ui
@@ -203,8 +204,8 @@ PlasmoidItem {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0
-                Text { Layout.fillWidth: true; text: pill.label; color: pill.on ? root.pillOnInk : root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                Text { Layout.fillWidth: true; text: pill.sub; color: pill.on ? Qt.rgba(root.pillOnInk.r, root.pillOnInk.g, root.pillOnInk.b, 0.7) : root.fg2; font.family: root.ui; font.pixelSize: 11; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: pill.label; color: pill.on ? root.pillOnInk : root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: pill.sub; color: pill.on ? Qt.rgba(root.pillOnInk.r, root.pillOnInk.g, root.pillOnInk.b, 0.7) : root.fg2; font.family: root.ui; font.pixelSize: 11; elide: Text.ElideRight }
             }
             Rectangle {
                 visible: pill.more
@@ -305,8 +306,8 @@ PlasmoidItem {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0
-                Text { Layout.fillWidth: true; text: cr.label; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                Text { Layout.fillWidth: true; text: cr.sub; color: root.fg2; font.family: root.ui; font.pixelSize: 12; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: cr.label; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: cr.sub; color: root.fg2; font.family: root.ui; font.pixelSize: 12; elide: Text.ElideRight }
             }
             Kirigami.Icon { visible: cr.more; width: 14; height: 14; Layout.preferredWidth: 14; Layout.preferredHeight: 14; source: root.icon("chevron-right" + root.ink); opacity: 0.5 }
         }
@@ -332,8 +333,8 @@ PlasmoidItem {
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 12 }
             spacing: 6
             Round { iconName: sq.iconName; on: sq.on; onClicked: sq.toggled() }
-            Text { Layout.fillWidth: true; text: sq.label; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
-            Text { Layout.fillWidth: true; text: sq.sub; color: root.fg2; font.family: root.ui; font.pixelSize: 11; elide: Text.ElideRight }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: sq.label; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold; elide: Text.ElideRight }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: sq.sub; color: root.fg2; font.family: root.ui; font.pixelSize: 11; elide: Text.ElideRight }
         }
         MouseArea { id: sqm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: sq.toggled() }
         Accessible.role: Accessible.CheckBox
@@ -349,7 +350,7 @@ PlasmoidItem {
         property int value
         signal moved(int v)
         signal iconClicked()
-        Text { text: lc.title; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+        Text { textFormat: Text.PlainText; text: lc.title; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
@@ -374,10 +375,11 @@ PlasmoidItem {
         property string action
         signal acted()
         Layout.fillWidth: true
-        Text { text: sh2.title; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+        Text { textFormat: Text.PlainText; text: sh2.title; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
         Item { Layout.fillWidth: true }
         Text {
             visible: sh2.action !== ""
+            textFormat: Text.PlainText
             text: sh2.action
             color: root.fg2
             font.family: root.ui
@@ -492,6 +494,7 @@ PlasmoidItem {
                         Text {
                             Layout.fillWidth: true
                             elide: Text.ElideRight
+                            textFormat: Text.PlainText
                             text: (root.aiName ? root.aiName + " connected" : "No AI connected yet") + (root.waiting > 0 ? " · " + root.waiting + (root.waiting === 1 ? " request waiting" : " requests waiting") : "")
                             color: root.fg2; font.family: root.ui; font.pixelSize: 12
                         }
@@ -499,7 +502,7 @@ PlasmoidItem {
                     Rectangle {
                         implicitWidth: btn.implicitWidth + 20; implicitHeight: 28; radius: 9
                         color: root.blue
-                        Text { id: btn; anchors.centerIn: parent; text: root.waiting > 0 ? "Review" : (root.aiName ? "Brain" : "Set up"); color: "white"; font.family: root.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+                        Text { id: btn; anchors.centerIn: parent; textFormat: Text.PlainText; text: root.waiting > 0 ? "Review" : (root.aiName ? "Brain" : "Set up"); color: "white"; font.family: root.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
                         MouseArea {
                             id: sr
                             anchors.fill: parent
@@ -579,8 +582,8 @@ PlasmoidItem {
                             spacing: 1
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { Layout.fillWidth: true; text: root.plain(model.summary || model.applicationName); color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.Medium; elide: Text.ElideRight }
-                                Text { text: model.applicationName || ""; color: root.fg3; font.family: root.ui; font.pixelSize: 11 }
+                                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.plain(model.summary || model.applicationName); color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: Font.Medium; elide: Text.ElideRight }
+                                Text { textFormat: Text.PlainText; text: model.applicationName || ""; color: root.fg3; font.family: root.ui; font.pixelSize: 11 }
                             }
                             Text { visible: text !== ""; Layout.fillWidth: true; text: root.plain(model.body); textFormat: Text.PlainText; color: root.fg2; font.family: root.ui; font.pixelSize: 12; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
                         }
@@ -623,7 +626,7 @@ PlasmoidItem {
                     Accessible.role: Accessible.Button
                     Accessible.name: "Back"
                 }
-                Text { Layout.fillWidth: true; text: root.wifiHere ? "Wi-Fi" : "Network"; color: root.fg; font.family: root.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.wifiHere ? "Wi-Fi" : "Network"; color: root.fg; font.family: root.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
                 QQC2.Switch {
                     visible: root.wifiHere
                     checked: nm.wirelessEnabled
@@ -639,6 +642,7 @@ PlasmoidItem {
                     Layout.fillWidth: true
                     Layout.margins: 10
                     horizontalAlignment: Text.AlignHCenter
+                    textFormat: Text.PlainText
                     text: root.wifiHere && !nm.wirelessEnabled ? "Wi-Fi is off" : "Looking for networks…"
                     color: root.fg3
                     font.family: root.ui
@@ -677,15 +681,16 @@ PlasmoidItem {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 0
-                                    Text { Layout.fillWidth: true; text: net.model.ItemUniqueName || ""; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: net.connected ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
+                                    Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: net.model.ItemUniqueName || ""; color: root.fg; font.family: root.ui; font.pixelSize: 13; font.weight: net.connected ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
                                     Text {
                                         Layout.fillWidth: true
+                                        textFormat: Text.PlainText
                                         text: net.busy ? "Connecting…" : net.connected ? "Connected" : net.model.Uuid ? "Saved" : (net.secure ? "Needs a password" : "Open")
                                         color: root.fg2; font.family: root.ui; font.pixelSize: 11; elide: Text.ElideRight
                                     }
                                 }
                                 Kirigami.Icon { visible: net.secure; width: 13; height: 13; Layout.preferredWidth: 13; Layout.preferredHeight: 13; source: root.icon("lock" + root.ink); opacity: 0.5 }
-                                Text { text: net.connected ? "Disconnect" : "Connect"; visible: nm2.containsMouse; color: root.blue; font.family: root.ui; font.pixelSize: 12; font.weight: Font.Medium }
+                                Text { textFormat: Text.PlainText; text: net.connected ? "Disconnect" : "Connect"; visible: nm2.containsMouse; color: root.blue; font.family: root.ui; font.pixelSize: 12; font.weight: Font.Medium }
                             }
                             MouseArea {
                                 id: nm2

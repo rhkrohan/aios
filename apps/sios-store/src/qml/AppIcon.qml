@@ -25,6 +25,7 @@ Rectangle {
     Text {
         anchors.centerIn: parent
         visible: img.status !== Image.Ready
+        textFormat: Text.PlainText
         text: (tile.name || "?").charAt(0).toUpperCase()
         color: Theme.accent
         font.family: Theme.ui

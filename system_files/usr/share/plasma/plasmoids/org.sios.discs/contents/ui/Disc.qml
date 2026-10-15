@@ -99,6 +99,7 @@ Item {
         anchors.top: body.bottom
         anchors.topMargin: 6
         anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
         text: disc.label
         color: "white"
         font.family: "Instrument Sans"
@@ -113,6 +114,7 @@ Item {
         width: parent.width
         horizontalAlignment: Text.AlignHCenter
         elide: Text.ElideRight
+        textFormat: Text.PlainText
         text: disc.hovered ? disc.summary() : disc.total + (disc.total === 1 ? " item" : " items")
         color: Qt.rgba(1, 1, 1, 0.85)
         font.family: "Instrument Sans"

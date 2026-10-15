@@ -93,8 +93,8 @@ QQC2.ApplicationWindow {
                 color: nav.on ? Qt.rgba(1, 1, 1, 0.18) : nav.tile
                 Icon { anchors.centerIn: parent; name: nav.icon; size: 16; color: "#ffffff" }
             }
-            Text { Layout.fillWidth: true; text: nav.label; color: nav.on ? "#ffffff" : Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
-            Text { visible: nav.badge !== ""; text: nav.badge; color: nav.on ? "#ffffff" : Theme.fg3; opacity: 0.85; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: nav.label; color: nav.on ? "#ffffff" : Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
+            Text { visible: nav.badge !== ""; textFormat: Text.PlainText; text: nav.badge; color: nav.on ? "#ffffff" : Theme.fg3; opacity: 0.85; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
             Icon { visible: nav.kcm !== ""; name: "external-link"; size: 13; color: Theme.fg3 }
         }
         MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: nav.kcm ? system.openKdePage(nav.kcm) : (win.page = nav.key) }
@@ -147,8 +147,8 @@ QQC2.ApplicationWindow {
         Layout.fillWidth: true
         Layout.bottomMargin: 8
         spacing: 6
-        Text { text: parent.title; color: Theme.fg; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.DemiBold }
-        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 15 }
+        Text { textFormat: Text.PlainText; text: parent.title; color: Theme.fg; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.DemiBold }
+        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 15 }
     }
     component Soon: Rectangle {
         property string text
@@ -162,7 +162,7 @@ QQC2.ApplicationWindow {
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 18 }
             spacing: 12
             Icon { name: "sparkles"; size: 16; color: Theme.aiInk }
-            Text { id: soonText; Layout.fillWidth: true; text: parent.parent.text; wrapMode: Text.WordWrap; color: Theme.aiInk; font.family: Theme.ui; font.pixelSize: 13 }
+            Text { id: soonText; Layout.fillWidth: true; textFormat: Text.PlainText; text: parent.parent.text; wrapMode: Text.WordWrap; color: Theme.aiInk; font.family: Theme.ui; font.pixelSize: 13 }
         }
     }
 
@@ -184,7 +184,7 @@ QQC2.ApplicationWindow {
         implicitHeight: 24
         radius: 12
         color: kind === "ok" ? Theme.okSoft : kind === "danger" ? Theme.dangerSoft : Theme.surface3
-        Text { id: pt; anchors.centerIn: parent; text: parent.text; color: parent.kind === "ok" ? Theme.ok : parent.kind === "danger" ? Theme.danger : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+        Text { id: pt; anchors.centerIn: parent; textFormat: Text.PlainText; text: parent.text; color: parent.kind === "ok" ? Theme.ok : parent.kind === "danger" ? Theme.danger : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
     }
     component ListRow: Rectangle {
         id: lr
@@ -211,8 +211,8 @@ QQC2.ApplicationWindow {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 1
-                Text { Layout.fillWidth: true; text: lr.name; elide: Text.ElideRight; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
-                Text { Layout.fillWidth: true; text: lr.sub; elide: Text.ElideRight; color: lr.subColor; font.family: Theme.ui; font.pixelSize: 13 }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: lr.name; elide: Text.ElideRight; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
+                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: lr.sub; elide: Text.ElideRight; color: lr.subColor; font.family: Theme.ui; font.pixelSize: 13 }
             }
             RowLayout { id: tail; spacing: 8 }
             Icon { visible: lr.chevron; name: "chevron-right"; size: 16; color: Theme.fg3; rotation: lr.expanded ? 90 : 0 }
@@ -349,11 +349,12 @@ QQC2.ApplicationWindow {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 2
-                                Text { text: brainPage.active ? "SIOS uses " + brainPage.active.label : "No AI connected yet"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                Text { textFormat: Text.PlainText; text: brainPage.active ? "SIOS uses " + brainPage.active.label : "No AI connected yet"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
                                 Text {
                                     Layout.fillWidth: true
                                     wrapMode: Text.WordWrap
                                     color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                                    textFormat: Text.PlainText
                                     text: (brainPage.active ? "Model " + brainPage.active.model + ". " : "Add a key below, allow it, and choose it. ")
                                           + (brainPage.ai.calls_today || 0) + " of " + (brainPage.ai.max_calls_per_day || 0) + " requests used today. Each change asks for your password."
                                 }
@@ -370,7 +371,7 @@ QQC2.ApplicationWindow {
                             RowLayout {
                                 spacing: 10
                                 Logo { key: pc.modelData.id; size: 36 }
-                                Text { Layout.fillWidth: true; text: pc.modelData.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: pc.modelData.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
                                 Repeater {
                                     model: [
                                         [pc.modelData.online ? "Online" : "On this computer", Theme.fg2],
@@ -381,7 +382,7 @@ QQC2.ApplicationWindow {
                                         required property var modelData
                                         implicitWidth: chip.implicitWidth + 16; implicitHeight: 22; radius: 11
                                         color: Theme.surface2; border.width: 1; border.color: Theme.line
-                                        Text { id: chip; anchors.centerIn: parent; text: modelData[0]; color: modelData[1]; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
+                                        Text { id: chip; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData[0]; color: modelData[1]; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
                                     }
                                 }
                             }
@@ -429,6 +430,7 @@ QQC2.ApplicationWindow {
                                 }
                                 Text {
                                     Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                    textFormat: Text.PlainText
                                     text: pc.modelData.online ? "Allow SIOS to send requests to " + pc.modelData.label + ". Files marked Sensitive are never sent." : "Allow SIOS to use this model."
                                     color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
                                 }
@@ -568,15 +570,17 @@ QQC2.ApplicationWindow {
                                     spacing: 12
                                     Text {
                                         Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                        textFormat: Text.PlainText
                                         text: (cc.modelData.verified ? "Verified, from " : "From ") + cc.modelData.publisher + ". Talks only to " + (cc.modelData.destinations || []).join(", ") + "."
                                         color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
                                     }
                                     Text {
                                         Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                        textFormat: Text.PlainText
                                         text: "What SIOS may do with it: " + (cc.modelData.tools || []).map(t => t.about.replace(/[.:].*$/, "").toLowerCase()).join("; ") + "."
                                         color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
                                     }
-                                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !!cc.modelData.disabled; text: cc.modelData.disabled || ""; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13 }
+                                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !!cc.modelData.disabled; textFormat: Text.PlainText; text: cc.modelData.disabled || ""; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13 }
                                     RowLayout {
                                         spacing: 8
                                         visible: !!cc.modelData.signin
@@ -592,6 +596,7 @@ QQC2.ApplicationWindow {
                                         spacing: 8
                                         Text {
                                             Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                            textFormat: Text.PlainText
                                             text: cc.modelData.installed ? "Used by " + (cc.modelData.ais || []).map(a => a === "sios" ? "SIOS" : a).join(", ") + ". SIOS asks you before each use."
                                                                          : "Installing checks the service and pins its tools; if they ever change, SIOS switches it off."
                                             color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
@@ -692,7 +697,7 @@ QQC2.ApplicationWindow {
                                     implicitWidth: rl.implicitWidth + 24; implicitHeight: 30; radius: 15
                                     color: on ? Theme.accentSoft : Theme.surface
                                     border.width: 1; border.color: on ? Theme.accent : Theme.line
-                                    Text { id: rl; anchors.centerIn: parent; text: modelData.name; color: parent.on ? Theme.accent : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
+                                    Text { id: rl; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData.name; color: parent.on ? Theme.accent : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.Medium }
                                     MouseArea {
                                         anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                         onClicked: {
@@ -719,7 +724,7 @@ QQC2.ApplicationWindow {
                     // the token, once
                     Card {
                         visible: appsPage.token !== ""
-                        Text { text: "Paired " + appsPage.tokenFor + ". Copy this now; it isn't shown again."; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                        Text { textFormat: Text.PlainText; text: "Paired " + appsPage.tokenFor + ". Copy this now; it isn't shown again."; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         Text { text: "For Claude Code, run this in a terminal:"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                         Rectangle {
                             Layout.fillWidth: true
@@ -729,6 +734,7 @@ QQC2.ApplicationWindow {
                                 id: cmd
                                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 10 }
                                 readOnly: true; selectByMouse: true; wrapMode: TextEdit.WrapAnywhere
+                                textFormat: TextEdit.PlainText
                                 text: "claude mcp add --scope user sios --env SIOS_PAIR_TOKEN=" + appsPage.token + " -- /usr/bin/brain-d mcp"
                                 color: Theme.fg; font.family: "JetBrains Mono"; font.pixelSize: 12
                             }
@@ -756,9 +762,10 @@ QQC2.ApplicationWindow {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 2
-                                    Text { text: ac.modelData.name + (ac.modelData.paused ? "  (paused)" : ""); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                    Text { textFormat: Text.PlainText; text: ac.modelData.name + (ac.modelData.paused ? "  (paused)" : ""); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
                                     Text {
                                         Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                        textFormat: Text.PlainText
                                         text: ac.modelData.roles.length ? "Roles: " + ac.modelData.roles.map(r => appsPage.roleName(r)).join(", ") : "No roles: it can only hand SIOS whole goals."
                                         color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
                                     }
@@ -796,7 +803,7 @@ QQC2.ApplicationWindow {
                                         anchors.centerIn: parent
                                         spacing: 8
                                         Icon { anchors.horizontalCenter: parent.horizontalCenter; name: modelData[2]; size: 22; color: modelData[0] ? "#ececea" : "#1d1d1f" }
-                                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData[1]; color: modelData[0] ? "#ececea" : "#1d1d1f"; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.Medium }
+                                        Text { anchors.horizontalCenter: parent.horizontalCenter; textFormat: Text.PlainText; text: modelData[1]; color: modelData[0] ? "#ececea" : "#1d1d1f"; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.Medium }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: system.setDark(modelData[0]) }
                                 }
@@ -825,7 +832,7 @@ QQC2.ApplicationWindow {
                                         Image { anchors.fill: parent; anchors.margins: 2; source: modelData.preview; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 400 }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: system.setWallpaper(modelData.id) }
                                     }
-                                    Text { text: modelData.name; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Text { textFormat: Text.PlainText; text: modelData.name; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
                                 }
                             }
                         }
@@ -841,7 +848,7 @@ QQC2.ApplicationWindow {
                     Card {
                         RowLayout {
                             Icon { name: system.wifiEnabled ? "wifi" : "wifi-off"; size: 18; color: Theme.fg2 }
-                            Text { Layout.fillWidth: true; text: system.wifiHardware ? "Wi-Fi" : "No Wi-Fi on this computer"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: system.wifiHardware ? "Wi-Fi" : "No Wi-Fi on this computer"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
                             Toggle { visible: system.wifiHardware; on: system.wifiEnabled; onToggled: system.setWifi(!system.wifiEnabled) }
                         }
                     }
@@ -869,7 +876,7 @@ QQC2.ApplicationWindow {
                                     RowLayout {
                                         spacing: 10
                                         Icon { name: "wifi"; size: 16; color: net.modelData.signal > 60 ? Theme.fg : Theme.fg3 }
-                                        Text { Layout.fillWidth: true; text: net.modelData.ssid; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: net.modelData.connected ? Font.DemiBold : Font.Normal }
+                                        Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: net.modelData.ssid; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: net.modelData.connected ? Font.DemiBold : Font.Normal }
                                         Icon { visible: net.modelData.secure; name: "lock"; size: 13; color: Theme.fg3 }
                                         Text { visible: net.modelData.connected; text: "Connected"; color: Theme.ok; font.family: Theme.ui; font.pixelSize: 12 }
                                     }
@@ -921,12 +928,13 @@ QQC2.ApplicationWindow {
                                 Layout.fillWidth: true
                                 spacing: 2
                                 Text {
+                                    textFormat: Text.PlainText
                                     text: ({ checking: "Checking for updates…", current: "SIOS is up to date", available: "An update is ready to download", installing: "Downloading and installing…", ready: "Restart to finish updating" })[system.update.state || ""] || ("SIOS " + (system.update.version || ""))
                                     color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold
                                 }
-                                Text { text: "Version " + (system.update.version || "?") + (system.update.built ? ", built " + system.update.built : ""); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
-                                Text { visible: !!system.update.staged; text: "Waiting for a restart: " + (system.update.staged || ""); color: Theme.accent; font.family: Theme.ui; font.pixelSize: 12 }
-                                Text { visible: !!system.update.checked; text: "Last checked at " + (system.update.checked || ""); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { textFormat: Text.PlainText; text: "Version " + (system.update.version || "?") + (system.update.built ? ", built " + system.update.built : ""); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { visible: !!system.update.staged; textFormat: Text.PlainText; text: "Waiting for a restart: " + (system.update.staged || ""); color: Theme.accent; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { visible: !!system.update.checked; textFormat: Text.PlainText; text: "Last checked at " + (system.update.checked || ""); color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             }
                             Button {
                                 readonly property string st: system.update.state || ""
@@ -960,8 +968,8 @@ QQC2.ApplicationWindow {
                             delegate: RowLayout {
                                 required property var modelData
                                 Layout.fillWidth: true
-                                Text { text: modelData[0]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 140 }
-                                Text { Layout.fillWidth: true; text: modelData[1] || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; elide: Text.ElideRight }
+                                Text { textFormat: Text.PlainText; text: modelData[0]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 140 }
+                                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: modelData[1] || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; elide: Text.ElideRight }
                             }
                         }
                     }

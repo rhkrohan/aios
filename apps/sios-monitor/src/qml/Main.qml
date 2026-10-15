@@ -34,7 +34,7 @@ QQC2.ApplicationWindow {
             anchors.centerIn: parent
             spacing: 8
             Icon { name: tab.icon; size: 15; color: win.page === tab.key ? Theme.fg : Theme.fg2 }
-            Text { text: tab.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: win.page === tab.key ? Font.DemiBold : Font.Normal }
+            Text { textFormat: Text.PlainText; text: tab.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: win.page === tab.key ? Font.DemiBold : Font.Normal }
         }
         MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.page = tab.key }
     }
@@ -57,7 +57,7 @@ QQC2.ApplicationWindow {
                 Tab { icon: "gauge"; label: "Overview"; key: "overview" }
                 Tab { icon: "sparkles"; label: "Goals"; key: "goals" }
                 Item { Layout.fillWidth: true }
-                Text { text: "On for " + sampler.uptime; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                Text { textFormat: Text.PlainText; text: "On for " + sampler.uptime; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
             }
         }
 
@@ -168,10 +168,11 @@ QQC2.ApplicationWindow {
                                     Rectangle {
                                         implicitWidth: 28; implicitHeight: 28; radius: 8
                                         color: Theme.accentSoft
-                                        Text { anchors.centerIn: parent; text: row.modelData.name.charAt(0); color: Theme.accent; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                        Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: row.modelData.name.charAt(0); color: Theme.accent; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
                                     }
                                     Text {
                                         Layout.fillWidth: true
+                                        textFormat: Text.PlainText
                                         text: row.modelData.name + (row.modelData.count > 1 ? "  (" + row.modelData.count + ")" : "")
                                         color: Theme.fg
                                         font.family: Theme.ui
@@ -191,9 +192,9 @@ QQC2.ApplicationWindow {
                                             color: Theme.surface3
                                             Rectangle { width: parent.width * Math.min(1, row.modelData.cpu / 100); height: parent.height; radius: 3; color: Theme.ai }
                                         }
-                                        Text { text: row.modelData.cpu.toFixed(row.modelData.cpu < 10 ? 1 : 0) + "%"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; Layout.preferredWidth: 40; horizontalAlignment: Text.AlignRight }
+                                        Text { textFormat: Text.PlainText; text: row.modelData.cpu.toFixed(row.modelData.cpu < 10 ? 1 : 0) + "%"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12; Layout.preferredWidth: 40; horizontalAlignment: Text.AlignRight }
                                     }
-                                    Text { Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; text: row.modelData.memory; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Text { Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight; textFormat: Text.PlainText; text: row.modelData.memory; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
                                     Item {
                                         Layout.preferredWidth: 72
                                         implicitHeight: 28
@@ -244,9 +245,9 @@ QQC2.ApplicationWindow {
                             RowLayout {
                                 spacing: 8
                                 Icon { name: modelData[0]; size: 14; color: Theme.fg2 }
-                                Text { text: modelData[1]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                Text { textFormat: Text.PlainText; text: modelData[1]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                             }
-                            Text { text: modelData[1] === "Average time" ? "--" : "0"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold }
+                            Text { textFormat: Text.PlainText; text: modelData[1] === "Average time" ? "--" : "0"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold }
                         }
                     }
                 }

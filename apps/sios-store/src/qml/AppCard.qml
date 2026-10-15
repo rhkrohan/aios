@@ -23,9 +23,9 @@ Rectangle {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 2
-            Text { Layout.fillWidth: true; text: card.app.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
-            Text { Layout.fillWidth: true; text: card.app.summary || ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
-            Text { Layout.fillWidth: true; visible: !!card.app.developer; text: card.app.developer || ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; elide: Text.ElideRight }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: card.app.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
+            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: card.app.summary || ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+            Text { Layout.fillWidth: true; visible: !!card.app.developer; textFormat: Text.PlainText; text: card.app.developer || ""; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; elide: Text.ElideRight }
         }
         Button {
             readonly property var job: catalog.busy[card.app.id]
