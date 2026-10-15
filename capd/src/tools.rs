@@ -156,17 +156,23 @@ pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
     out
 }
 
-/// Settings the owner can just ask SIOS for (D57): each is undone by setting it back.
-pub const SETTINGS: &[&str] = &[
+/// What SIOS's own assistant may do without asking the owner first (D57), named
+/// one by one so a tool added later is never let in by accident.
+/// Looking things up (names, folders, the system's state) and settings that are
+/// undone by setting them back. Not reading a file's contents (that text can go
+/// to an online model), not joining a Wi-Fi network (it decides where all
+/// traffic goes), never a file change, nothing irreversible, nothing sent out.
+pub const ACTS_WITHOUT_ASKING: &[&str] = &[
+    // looking up
+    "files.list", "files.find", "files.show", "files.preview", "apps.list", "apps.open", "apps.focus", "apps.arrange",
+    "system.state", "system.notify", "network.list", "memory.search", "people.resolve",
+    // settings
     "settings.set_theme", "settings.set_volume", "settings.set_brightness", "settings.set_wallpaper", "settings.dnd",
-    "network.wifi_power", "network.bluetooth_power", "network.connect_wifi", "system.lock", "system.remind",
+    "network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind",
 ];
 
-/// May SIOS's own assistant use this tool without asking the owner first (D57)?
-/// Reads that send nothing out, and the settings above. Never a file change,
-/// never anything irreversible or sending data off the computer.
 pub fn acts_without_asking(name: &str) -> bool {
-    spec(name).is_some_and(|s| !s.egress && (s.level == Level::Read || SETTINGS.contains(&s.name)))
+    ACTS_WITHOUT_ASKING.contains(&name) && spec(name).is_some_and(|s| !s.egress && s.level != Level::Irreversible)
 }
 
 pub fn spec(name: &str) -> Option<&'static ToolSpec> {
@@ -621,6 +627,23 @@ pub fn undo(u: &Undo, meta: &mut Store) -> Result<(), String> {
                 undo(x, meta)?;
             }
             Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn what_sios_does_without_asking_is_safe() {
+        for t in ACTS_WITHOUT_ASKING {
+            let s = spec(t).unwrap_or_else(|| panic!("{t} isn't a tool"));
+            assert!(!s.egress && s.level != Level::Irreversible, "{t}");
+            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind"].contains(t), "{t}: only look-ups and settings");
+        }
+        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send"] {
+            assert!(!acts_without_asking(t), "{t} must ask");
         }
     }
 }

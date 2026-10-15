@@ -470,7 +470,7 @@ impl State {
                     // SIOS's own assistant reads and changes settings without asking (D57);
                     // every call is still checked, logged and undoable
                     None if cap.principal == crate::iam::SIOS && Self::bounded(&cap) && !cap.tools.is_empty() && cap.tools.iter().all(|t| tools::acts_without_asking(t)) => {
-                        self.record(&cap, "pass.grant", &cap.paths.join(", "), "allow", &format!("SIOS acts for you without asking on settings and reads (D57): {}", cap.tools.join(", ")), &json!([]));
+                        self.record(&cap, "pass.grant", &cap.paths.join(", "), "allow", &format!("SIOS acts for you without asking on settings and look-ups (D57): {}", cap.tools.join(", ")), &json!([]));
                         v["state"] = json!("granted: settings and reads");
                     }
                     None => {
@@ -1625,7 +1625,9 @@ mod tests {
         let mut r = rig();
         let go = |r: &mut Rig, who: &str, tools: Value| r.agent("request_pass", json!({ "principal": who, "goal": "g", "tools": tools, "paths": ["Downloads"], "ttl": 900, "uses": 8 }))["ok"]["state"].as_str().unwrap_or("").to_string();
         assert!(go(&mut r, "sios", json!(["settings.set_theme"])).starts_with("granted"), "dark mode just happens");
-        assert!(go(&mut r, "sios", json!(["files.find", "files.read", "files.show"])).starts_with("granted"), "finding things just happens");
+        assert!(go(&mut r, "sios", json!(["files.find", "files.list", "files.show"])).starts_with("granted"), "finding things just happens");
+        assert_eq!(go(&mut r, "sios", json!(["files.find", "files.read"])), "waiting for the owner", "a file's contents can go to an online model: ask");
+        assert_eq!(go(&mut r, "sios", json!(["network.connect_wifi"])), "waiting for the owner", "joining a network decides where all traffic goes");
         assert_eq!(go(&mut r, "sios", json!(["files.find", "files.move"])), "waiting for the owner", "file changes show the plan");
         assert_eq!(go(&mut r, "sios", json!(["files.read", "mail.send"])), "waiting for the owner", "sending out always asks");
         assert_eq!(go(&mut r, "sios", json!(["apps.close"])), "waiting for the owner", "closing an app can lose work");
@@ -1877,7 +1879,7 @@ mod tests {
         // no paths, or the whole home, only when asked for plainly
         assert!(r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.list"], "paths": [""], "uses": 3 }))["error"].is_string());
         assert!(r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.list"], "uses": 3 }))["error"].is_string());
-        // SIOS reading across the whole home just happens (D57); changing it there asks
+        // SIOS looking things up across the whole home just happens (D57); changing it there asks
         let whole = r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.list"], "paths": [""], "uses": 3, "whole_home": true }))["ok"].clone();
         assert_eq!(whole["state"], "granted: settings and reads");
         let whole = r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.move"], "paths": [""], "uses": 3, "whole_home": true }))["ok"].clone();
