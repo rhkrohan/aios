@@ -95,6 +95,11 @@ void Broker::request(const QString &method, const QVariantMap &params, const QSt
     });
 }
 
+void Broker::look(const QString &method, const QVariantMap &params, const QString &tag)
+{
+    send(QStringLiteral("capd.sock"), method, params, [this, tag](const QVariant &ok, const QString &err) { Q_EMIT done(tag, ok, err); });
+}
+
 void Broker::brain(const QString &method, const QVariantMap &params, const QString &tag)
 {
     send(QStringLiteral("brain.sock"), method, params, [this, tag](const QVariant &ok, const QString &err) {

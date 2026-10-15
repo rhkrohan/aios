@@ -26,6 +26,8 @@ public:
     Q_INVOKABLE void refresh();
     // a broker method; answered by `done(tag, ok, error)`, then a refresh
     Q_INVOKABLE void request(const QString &method, const QVariantMap &params, const QString &tag);
+    // a read the window repeats (the live log): answered by `done`, no refresh after
+    Q_INVOKABLE void look(const QString &method, const QVariantMap &params, const QString &tag);
     // a brain method (Run now)
     Q_INVOKABLE void brain(const QString &method, const QVariantMap &params, const QString &tag);
 

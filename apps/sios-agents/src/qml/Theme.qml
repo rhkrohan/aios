@@ -26,6 +26,22 @@ QtObject {
     readonly property color danger: dark ? "#dc9696" : "#9a4b4b"
     readonly property color ok: dark ? "#94c29a" : "#4d7a52"
 
+    // Daylight (the owner's pick, docs/design/settings-daylight.html): a warm
+    // side list beside a white page; dark mode keeps the same shapes
+    readonly property color sidebar: dark ? "#1b1d20" : "#f4f4f1"
+    readonly property color navOn: "#2f5d8a"
+    readonly property color okSoft: dark ? "#22301f" : "#e8f1e9"
+    readonly property color dangerSoft: dark ? "#3a2622" : "#fbe9e4"
+
+    // logos of the AIs and services (Simple Icons, CC0) in their own colours;
+    // the black ones follow the text colour so they show in dark mode
+    readonly property var logos: ({
+        anthropic: ["logo-claude", "#d97757"], openai: ["logo-openai", ""], gemini: ["logo-googlegemini", "#8e75b2"],
+        local: ["cpu", ""], custom: ["cloud", ""],
+        github: ["logo-github", ""], gmail: ["logo-gmail", "#ea4335"], calendar: ["logo-googlecalendar", "#4285f4"],
+        linear: ["logo-linear", "#5e6ad2"], notion: ["logo-notion", ""], slack: ["logo-slack", "#4a154b"]
+    })
+
     readonly property string ui: "Instrument Sans"
     readonly property string display: "Jost"
 

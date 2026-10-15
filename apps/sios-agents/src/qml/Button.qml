@@ -1,4 +1,4 @@
-// The preview's buttons: "primary" (filled accent), "plain" (outlined), "danger".
+// Daylight's pill buttons: "primary" (filled accent), "plain" (outlined), "danger".
 import QtQuick
 
 Rectangle {
@@ -10,7 +10,7 @@ Rectangle {
     signal clicked()
     implicitWidth: Math.max(72, label.implicitWidth + 28)
     implicitHeight: 32
-    radius: 10
+    radius: height / 2
     color: kind === "primary" ? (m.containsMouse ? Qt.darker(Theme.accent, 1.12) : Theme.accent) : (m.containsMouse ? Theme.surface2 : Theme.surface)
     border.width: kind === "primary" ? 0 : 1
     border.color: kind === "danger" ? Qt.rgba(Theme.danger.r, Theme.danger.g, Theme.danger.b, 0.4) : Theme.line
