@@ -204,10 +204,11 @@ pub struct Env<'a> {
     pub state: &'a Path,
     pub op: &'a str,
     pub principal: &'a str,
-    /// May this caller learn what's inside files? SIOS's own assistant and the
-    /// owner, or an AI whose pass also allows files.read. Search matches the words
-    /// inside files only for them (security review 2026-10-15).
-    pub may_read: bool,
+    /// May this caller learn what's inside the file at this path? Exactly what a
+    /// files.read call there would be allowed: by the pass's tools and folders and
+    /// by the caller's roles. Search matches the words inside a file only then
+    /// (security reviews 2026-10-15).
+    pub can_read: &'a dyn Fn(&str) -> bool,
 }
 
 pub struct Outcome {
@@ -491,7 +492,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                     // Finance), and for callers that may not read files: those match by name
                     // and label only, so a search can't probe what files say
                     let flows = labels.iter().any(|l| crate::policy::FLOW_LABELS.contains(&l.as_str()));
-                    let text = if flows || !env.may_read {
+                    let text = if flows || !(env.can_read)(&p) {
                         None
                     } else {
                         crate::search::open_checked(&root_real, &e.path(), |rel| meta.is_blocked(rel).is_none()).and_then(|f| index.text(&p, f, deadline))
@@ -544,7 +545,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
                 let to = m.get("to").and_then(|v| v.as_str()).unwrap_or("");
                 let shared = seen.get(to.trim_end_matches('/')).copied().unwrap_or(0) > 1;
                 let one = json!({ "from": m.get("from"), "to": to, "into_folder": shared });
-                let sub = Env { root: env.root, state: env.state, op: &format!("{}-{i}", env.op), principal: env.principal, may_read: env.may_read };
+                let sub = Env { root: env.root, state: env.state, op: &format!("{}-{i}", env.op), principal: env.principal, can_read: env.can_read };
                 match run("files.move", &one, &sub, meta) {
                     Ok(o) => {
                         moved.push(o.result);

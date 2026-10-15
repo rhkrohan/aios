@@ -1061,8 +1061,16 @@ impl State {
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
         } else {
-            let may_read = cap.principal == crate::iam::SIOS || cap.tools.iter().any(|t| t == "files.read");
-            let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: &cap.principal, may_read };
+            // what a files.read here would be allowed: SIOS's own assistant or a pass with
+            // files.read, inside the pass's folders, and not denied by the caller's roles
+            let (iam, paths, principal) = (&self.iam, &cap.paths, &cap.principal);
+            let reads = cap.principal == crate::iam::SIOS || cap.tools.iter().any(|t| t == "files.read");
+            let can_read = |p: &str| {
+                reads
+                    && paths.iter().any(|cp| crate::token::within(p, cp))
+                    && iam.decide(principal, &crate::iam::Action { tool: "files.read", level: crate::policy::Level::Read, places: &[p.to_string()], tainted: false }).result != crate::policy::Res::Fail
+            };
+            let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: &cap.principal, can_read: &can_read };
             tools::run(tool, args, &env, &mut self.meta)?
         };
         for c in self.chain(&cap.id) {
@@ -1303,7 +1311,7 @@ impl State {
         }
         let cap = Self::owner_cap();
         let op = random_hex(6);
-        let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: "you", may_read: true };
+        let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: "you", can_read: &|_| true };
         let target = tools::spec(tool).map(|s| tools::targets_of(s, args).join(", ")).unwrap_or_default();
         let out = tools::run(tool, args, &env, &mut self.meta);
         let _ = self.meta.save();
@@ -1617,6 +1625,18 @@ mod tests {
 
     fn decision(v: &Value) -> &str {
         v["decision"].as_str().unwrap_or("?")
+    }
+
+    #[test]
+    fn search_matches_inside_files_only_where_the_caller_may_read() {
+        let mut r = rig();
+        std::fs::write(r.st.root.join("Projects/acme.txt"), "Invoice no 7. Amount due 300").unwrap();
+        let find = |r: &mut Rig, tools: Value| {
+            let t = r.mint(json!({ "principal": "a", "tools": tools, "paths": ["Projects"] }));
+            r.call(&t, "files.find", json!({ "path": "Projects", "query": "invoice" }))["result"]["matches"].as_array().unwrap().len()
+        };
+        assert_eq!(find(&mut r, json!(["files.find"])), 0, "search-only: names and labels, never what files say");
+        assert_eq!(find(&mut r, json!(["files.find", "files.read"])), 1, "may read here: the words inside count");
     }
 
     // ---- D57: SIOS acts without asking on settings and reads

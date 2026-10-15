@@ -17,7 +17,9 @@
 //! which runs in a sandbox: its own user, network and mount namespaces with
 //! empty /run, /tmp, /var and /home (no socket reachable: not the session bus,
 //! not capd), read-only /usr and /etc (Landlock), no file writes, 512 MB and 5
-//! seconds of CPU, at most 256 KB of output. Any part missing: nothing is read.
+//! seconds of CPU, at most 256 KB of output, no new processes, and it can't
+//! signal anything outside its sandbox (Landlock ABI 6 scopes, which also stop
+//! umounting the empty folders). Any part missing: nothing is read.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -175,6 +177,8 @@ fn sandboxed(prog: &str, args: &[&str], input: std::fs::File) -> Option<String> 
             lim(libc::RLIMIT_CPU, 5);
             lim(libc::RLIMIT_FSIZE, 0);
             lim(libc::RLIMIT_CORE, 0);
+            // no new processes: pdftotext needs none
+            lim(libc::RLIMIT_NPROC, 0);
             if libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || landlock::restrict_self(ruleset) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
@@ -213,10 +217,17 @@ mod landlock {
     const ALL_V1: u64 = (1 << 13) - 1;
     const RULE_PATH_BENEATH: libc::c_long = 1;
 
+    /// Landlock ABI 6: rights on files and network, and scopes (signals, abstract sockets).
     #[repr(C)]
     struct RulesetAttr {
         handled_access_fs: u64,
+        handled_access_net: u64,
+        scoped: u64,
     }
+    /// It may not signal processes outside its sandbox, nor reach their abstract sockets.
+    const SCOPE_ABSTRACT_UNIX_SOCKET: u64 = 1 << 0;
+    const SCOPE_SIGNAL: u64 = 1 << 1;
+    const CREATE_RULESET_VERSION: u32 = 1 << 0;
     #[repr(C, packed)]
     struct PathBeneath {
         allowed_access: u64,
@@ -224,7 +235,14 @@ mod landlock {
     }
 
     pub fn read_only_system() -> Option<i32> {
-        let attr = RulesetAttr { handled_access_fs: ALL_V1 };
+        // scopes arrived in ABI 6: without them a hijacked reader could still signal
+        // (kill) the owner's programs, so an older kernel means no reading
+        // SAFETY: with the VERSION flag the kernel only returns the ABI version.
+        let abi = unsafe { libc::syscall(libc::SYS_landlock_create_ruleset, std::ptr::null::<RulesetAttr>(), 0usize, CREATE_RULESET_VERSION) };
+        if abi < 6 {
+            return None;
+        }
+        let attr = RulesetAttr { handled_access_fs: ALL_V1, handled_access_net: 0, scoped: SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL };
         // SAFETY: the kernel reads `attr` of the size we pass and returns a new fd or -1.
         let fd = unsafe { libc::syscall(libc::SYS_landlock_create_ruleset, &attr as *const RulesetAttr, std::mem::size_of::<RulesetAttr>(), 0) } as i32;
         if fd < 0 {
