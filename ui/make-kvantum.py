@@ -1,6 +1,7 @@
 """The SIOS app style (Kvantum themes SIOS and SIOSDark), made from Kvantum's
 KvGnome and KvGnomeDark themes (GPL-3.0, github.com/tsujan/Kvantum) with the
-preview's colours (build_concept_html/src/app/globals.css).
+Daylight colours (the owner's pick, docs/design/settings-daylight.html): navy
+selection, flat toolbars and menu bars that sit on the window.
 
   python3 ui/make-kvantum.py <path to Kvantum/themes/kvthemes>
 
@@ -18,8 +19,8 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "system_files/usr/share/Kvan
 VARIANTS = {
     "SIOS": {
         "src": "KvGnome",
-        "ai": "#4f7bf7", "ink": "#2f56d0", "soft": "#e6ecfe",
-        "svg": {"#3584e4": "#4f7bf7", "#185fb4": "#2f56d0", "#4a90d9": "#7d9dff", "#f6f5f4": "#f7f7f5", "#f8f8f7": "#fafaf9"},
+        "ai": "#2f5d8a", "ink": "#1f4266", "soft": "#e8eef5",
+        "svg": {"#3584e4": "#2f5d8a", "#185fb4": "#1f4266", "#4a90d9": "#5b86b8", "#f6f5f4": "#f7f7f5", "#f8f8f7": "#fafaf9"},
         "blue": "#3584e4",
         "colors": {
             "window.color": "#f7f7f5", "inactive.window.color": "#f7f7f5",
@@ -35,8 +36,8 @@ VARIANTS = {
     },
     "SIOSDark": {
         "src": "KvGnomeDark",
-        "ai": "#7d9dff", "ink": "#a9bdff", "soft": "#26305a",
-        "svg": {"#15539e": "#4f7bf7", "#353535": "#24272b", "#2d2d2d": "#1e2023", "#373737": "#2c3034", "#393939": "#33373c"},
+        "ai": "#8fb3d9", "ink": "#b4cdea", "soft": "#233140",
+        "svg": {"#15539e": "#3f73a8", "#353535": "#24272b", "#2d2d2d": "#1e2023", "#373737": "#2c3034", "#393939": "#33373c"},
         "blue": "#15539e",
         "colors": {
             "window.color": "#24272b", "inactive.window.color": "#24272b",
@@ -94,5 +95,8 @@ for name, v in VARIANTS.items():
     cfg = re.sub(r"^\[MenuItem\][\s\S]*?(?=^\[)", menuitem, cfg, flags=re.M)
     # other plain black or white text in the theme follows our ink colour
     cfg = re.sub(r"=black$" if name == "SIOS" else r"=white$", "=" + v["text"], cfg, flags=re.M)
+    # Daylight: toolbars and menu bars are flat, on the window's own colour
+    for sec in ("Toolbar", "MenuBar"):
+        cfg = re.sub(rf"^\[{sec}\][\s\S]*?(?=^\[)", lambda m: re.sub(r"^(interior|frame)=true$", r"\1=false", m.group(0), flags=re.M), cfg, flags=re.M)
     open(os.path.join(out, name + ".kvconfig"), "w").write(cfg)
     print("wrote", out)
