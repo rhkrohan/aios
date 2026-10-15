@@ -119,8 +119,11 @@ impl Brain {
 
     /// Start a goal on its own thread, as part of a conversation; returns (goal, thread).
     pub fn start(&self, request: &str, principal: &str, own: bool, thread: Option<&str>) -> (String, String) {
-        let thread = thread.filter(|t| !t.is_empty()).map(String::from).unwrap_or_else(|| format!("t{:x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)));
-        let turns = self.threads.lock().unwrap().get(&thread).cloned().unwrap_or_default();
+        // a conversation belongs to whoever started it: the same thread id from someone
+        // else is a different conversation (no history, no "undo that" of their goals)
+        let thread = thread.filter(|t| !t.is_empty()).map(String::from).unwrap_or_else(|| format!("t{}", random_hex(12)));
+        let key = format!("{principal}\u{1}{thread}");
+        let turns = self.threads.lock().unwrap().get(&key).cloned().unwrap_or_default();
         let history = if turns.is_empty() {
             String::new()
         } else {
@@ -137,7 +140,7 @@ impl Brain {
         self.recent.lock().unwrap().push((id.clone(), request.to_string(), principal.to_string()));
         let ctx = self.ctx.clone();
         let threads = self.threads.clone();
-        let (request, principal, th) = (request.to_string(), principal.to_string(), thread.clone());
+        let (request, principal, th) = (request.to_string(), principal.to_string(), key);
         std::thread::spawn(move || {
             let turn = goal::run(&ctx, &shared, &request, &principal, own, &history, last_goal);
             threads.lock().unwrap().entry(th).or_default().push(turn);

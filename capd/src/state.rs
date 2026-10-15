@@ -1423,7 +1423,8 @@ impl State {
                 Ok(out(json!({ "people": found.iter().map(|m| json!({ "id": m.id, "text": m.text, "person": m.person })).collect::<Vec<_>>() }), None))
             }
             "memory.save" => {
-                let m = self.memory.add(args["text"].as_str().unwrap_or(""), args["kind"].as_str().unwrap_or("fact"), args["group"].as_str().unwrap_or(""), vec![], &format!("{}, for \"{}\"", cap.principal, cap.goal), now())?;
+                // an AI's memory never replaces the owner's; that waits for the owner's OK
+                let m = self.memory.add_from_ai(args["text"].as_str().unwrap_or(""), args["kind"].as_str().unwrap_or("fact"), args["group"].as_str().unwrap_or(""), vec![], &format!("{}, for \"{}\"", cap.principal, cap.goal), now())?;
                 if m.by.is_empty() {
                     self.memory.attach(&m.id, &cap.principal, &[]);
                 }
@@ -1457,7 +1458,7 @@ impl State {
                 let req = p["request"].as_str().unwrap_or("");
                 let found = self.memory.search(req, &v, p["limit"].as_u64().unwrap_or(12) as usize);
                 // the people this requester may see, so "Sara" or "my team" can be resolved
-                let people: Vec<&crate::memory::Memory> = self.memory.memories.iter().filter(|m| m.kind == "person" && (v.own || self.memory.shares.get(principal).is_some_and(|g| g.contains(&m.group))) && !m.labels.iter().any(|l| l == "Sensitive")).collect();
+                let people: Vec<&crate::memory::Memory> = self.memory.memories.iter().filter(|m| m.kind == "person" && m.live() && (v.own || self.memory.shares.get(principal).is_some_and(|g| g.contains(&m.group))) && !m.labels.iter().any(|l| l == "Sensitive")).collect();
                 Ok(json!({ "items": found, "people": people, "held_back_sensitive": self.memory.held_back(req, &v) }))
             }
             "memory.touch" => {

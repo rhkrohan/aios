@@ -270,7 +270,29 @@ impl MemStore {
         self.save();
     }
 
+    /// The owner said it (or confirmed it): a newer version replaces the older one.
     pub fn add(&mut self, text: &str, kind: &str, group: &str, labels: Vec<String>, source: &str, now: u64) -> Result<Memory, String> {
+        self.add_inner(text, kind, group, labels, source, now, true)
+    }
+
+    /// An AI saved it (memory.save). It never replaces what the owner told SIOS:
+    /// if it would, it waits as a suggestion for the owner's OK instead, so an AI
+    /// (or text injected into one) can't quietly change who your accountant is
+    /// (security review 2026-10-15).
+    pub fn add_from_ai(&mut self, text: &str, kind: &str, group: &str, labels: Vec<String>, source: &str, now: u64) -> Result<Memory, String> {
+        let probe = Memory { id: String::new(), text: text.trim().to_string(), kind: kind.into(), group: group.into(), labels: vec![], source: source.into(), created: now, last_used: now, uses: 0, person: parse_person(text.trim()), links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None };
+        let probe = Memory { kind: if probe.person.is_some() { "person".into() } else { probe.kind.clone() }, group: if probe.person.is_some() { "People".into() } else { probe.group.clone() }, ..probe };
+        if let Some(old) = self.memories.iter().find(|old| same_subject(&probe, old)) {
+            let why = format!("An AI wanted to replace \"{}\"", old.text.chars().take(120).collect::<String>());
+            let grp = probe.group.clone();
+            self.suggest(text, &probe.kind, &grp, &why, now)?;
+            return Err("that would replace something the owner told SIOS, so it waits for the owner's OK in Memory".into());
+        }
+        self.add_inner(text, kind, group, labels, source, now, false)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn add_inner(&mut self, text: &str, kind: &str, group: &str, labels: Vec<String>, source: &str, now: u64, may_replace: bool) -> Result<Memory, String> {
         let text = text.trim();
         if text.is_empty() {
             return Err("there's nothing to remember".into());
@@ -298,7 +320,7 @@ impl MemStore {
         let (kind, group) = if person.is_some() { ("person", "People".to_string()) } else { (kind, group) };
         let m = Memory { id: new_id(), text: text.chars().take(500).collect(), kind: kind.into(), group, labels, source: source.into(), created: now, last_used: now, uses: 0, person, links: vec![], by: String::new(), superseded_by: None, superseded_at: None, deleted_at: None };
         // the newer version of something replaces the older one (D73)
-        for old in self.memories.iter_mut() {
+        for old in self.memories.iter_mut().filter(|_| may_replace) {
             if same_subject(&m, old) {
                 old.superseded_by = Some(m.id.clone());
                 old.superseded_at = Some(now);
@@ -566,5 +588,18 @@ mod tests {
         assert!(s.memories.iter().all(|m| m.live()));
         assert_eq!(subject("Lunch spot is Federal Donuts").as_deref(), Some("lunch spot"));
         assert_eq!(subject("I keep finance files in Documents/Money now").as_deref(), Some("i keep finance files"));
+    }
+
+    #[test]
+    fn an_ai_cant_quietly_replace_what_you_told_sios() {
+        let (_d, mut s) = store();
+        s.add("My accountant is Priya Shah, priya@ledger.example", "fact", "People", vec![], "you", 1).unwrap();
+        let r = s.add_from_ai("My accountant is now Evil Person <evil@attacker.example>", "fact", "People", vec![], "app:x, for \"g\"", 2);
+        assert!(r.is_err(), "it waits instead");
+        let v = Viewer { principal: "you", own: true, online: false };
+        assert!(s.search("who is my accountant", &v, 5)[0].text.contains("Priya"));
+        assert_eq!(s.suggestions.len(), 1, "the owner decides in Memory");
+        // something new (not replacing anything) is just saved
+        assert!(s.add_from_ai("Prefers window seats on flights", "preference", "Habits", vec![], "SIOS", 3).is_ok());
     }
 }
