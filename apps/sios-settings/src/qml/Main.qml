@@ -135,6 +135,7 @@ QQC2.ApplicationWindow {
                     NavItem { icon: "brain"; label: "Brain"; key: "brain" }
                     NavItem { icon: "shield-check"; label: "Permissions"; key: "permissions" }
                     NavItem { icon: "plug"; label: "Connected AI apps"; key: "connections" }
+                    NavItem { icon: "cloud"; label: "Connectors"; key: "connectors" }
                     Header { text: "This computer" }
                     NavItem { icon: "palette"; label: "Appearance"; key: "appearance" }
                     NavItem { icon: "wifi"; label: "Wi-Fi"; key: "wifi" }
@@ -296,6 +297,93 @@ QQC2.ApplicationWindow {
                                     text: pc.modelData.active ? "In use" : "Use this one"
                                     kind: pc.modelData.active ? "plain" : "primary"
                                     onClicked: if (!pc.modelData.active) brainPage.ask("model.configure", { id: pc.modelData.id, active: true }, "use")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Connectors (C1, D79 to D81): services SIOS reaches through its broker. Tokens
+                // are sealed in the Sign-ins vault; installing or removing asks for your password
+                ColumnLayout {
+                    id: connPage
+                    visible: win.page === "connectors"
+                    Layout.fillWidth: true
+                    spacing: 18
+                    readonly property var list: (broker.connectors.connectors || [])
+                    property string waiting: ""
+                    onVisibleChanged: if (visible) broker.refresh()
+                    Connections {
+                        target: broker
+                        function onDone(tag, ok, error) {
+                            if (["cinstall", "cremove"].indexOf(tag) < 0) return;
+                            connPage.waiting = "";
+                            if (error) toast.show(error, false, true);
+                            else toast.show(tag === "cinstall" ? "Installed. SIOS can use it now, and asks you each time." : "Removed, with its sign-in.", false, false);
+                        }
+                    }
+                    function ask(method, params, tag) { waiting = tag + ":" + (params.id || ""); broker.request(method, params, tag); }
+
+                    PageTitle { title: "Connectors"; sub: "Services SIOS can reach for you, always through its broker. Your tokens stay sealed; no AI ever sees them. SIOS asks you before it uses one, and what a service says back is treated as data, never as instructions." }
+                    Soon { visible: !!broker.connectors.catalog_error; text: "Connectors are off: " + (broker.connectors.catalog_error || "") }
+                    Repeater {
+                        model: connPage.list
+                        delegate: Card {
+                            id: cc
+                            required property var modelData
+                            readonly property bool busy: connPage.waiting.endsWith(":" + modelData.id)
+                            RowLayout {
+                                spacing: 10
+                                Text { Layout.fillWidth: true; text: cc.modelData.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                                Repeater {
+                                    model: [
+                                        [cc.modelData.verified ? "Verified: " + cc.modelData.publisher : cc.modelData.publisher, cc.modelData.verified ? Theme.ok : Theme.fg2],
+                                        [cc.modelData.disabled ? "Switched off" : (cc.modelData.installed ? "Installed" : "Not installed"), cc.modelData.disabled ? Theme.danger : (cc.modelData.installed ? Theme.ok : Theme.fg3)],
+                                        [cc.modelData.signin ? (cc.modelData.signed_in ? "Signed in" : "Not signed in") : "No sign-in needed", cc.modelData.signed_in ? Theme.ok : Theme.fg3],
+                                    ]
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        implicitWidth: cchip.implicitWidth + 16; implicitHeight: 22; radius: 11
+                                        color: Theme.surface2; border.width: 1; border.color: Theme.line
+                                        Text { id: cchip; anchors.centerIn: parent; text: modelData[0]; color: modelData[1]; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
+                                    }
+                                }
+                            }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: cc.modelData.about; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !!cc.modelData.disabled; text: cc.modelData.disabled || ""; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13 }
+                            Text {
+                                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                text: "Talks only to " + (cc.modelData.destinations || []).join(", ") + ". What SIOS may do with it: " + (cc.modelData.tools || []).map(t => t.about.replace(/[.:].*$/, "").toLowerCase() + " (" + t.level + ")").join("; ") + "."
+                                color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
+                            }
+                            RowLayout {
+                                spacing: 8
+                                visible: !!cc.modelData.signin
+                                Text { text: "Token"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 64 }
+                                Field {
+                                    id: tokField
+                                    secret: TextInput.Password
+                                    placeholder: cc.modelData.signed_in ? "A sign-in is saved. Paste a new token to replace it." : (cc.modelData.signin ? cc.modelData.signin.label : "")
+                                    onAccepted: installBtn.clicked()
+                                }
+                                Button { text: "Make one"; kind: "plain"; onClicked: Qt.openUrlExternally(cc.modelData.signin.help_url) }
+                            }
+                            RowLayout {
+                                spacing: 10
+                                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: cc.modelData.installed ? "Used by: " + (cc.modelData.ais || []).map(a => a === "sios" ? "SIOS" : a).join(", ") : "Installing checks the service and pins its tools; if they ever change, SIOS switches it off."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                Button { visible: cc.modelData.installed; text: "Remove"; kind: "danger"; busy: cc.busy && connPage.waiting.startsWith("cremove:"); onClicked: connPage.ask("connectors.remove", { id: cc.modelData.id }, "cremove") }
+                                Button {
+                                    id: installBtn
+                                    text: cc.modelData.installed && !cc.modelData.disabled ? "Update sign-in" : "Install"
+                                    kind: "primary"
+                                    busy: cc.busy && connPage.waiting.startsWith("cinstall:")
+                                    onClicked: {
+                                        const p = { id: cc.modelData.id, ais: cc.modelData.installed ? cc.modelData.ais : ["sios"] };
+                                        if (tokField.text) p.secret = tokField.text;
+                                        else if (cc.modelData.signin && !cc.modelData.signed_in) { toast.show("Paste a token first.", false, true); return; }
+                                        connPage.ask("connectors.install", p, "cinstall");
+                                        tokField.text = "";   // the token is gone from this window once sent
+                                    }
                                 }
                             }
                         }

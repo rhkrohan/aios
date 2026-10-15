@@ -173,11 +173,25 @@ pub struct Registry {
 /// Connector tool specs, made once per tool name and kept for the life of capd
 /// (a handful of small strings), so `tools::spec` can hand out `&'static` like the built-ins.
 static SPECS: RwLock<Vec<&'static ToolSpec>> = RwLock::new(Vec::new());
-/// The installed tools right now (name -> the connector's args schema).
+/// The installed tools right now (name -> the connector's args schema). One per capd;
+/// in tests, one per test thread, since every test opens its own broker.
+#[cfg(not(test))]
 static LIVE: RwLock<BTreeMap<String, Value>> = RwLock::new(BTreeMap::new());
+#[cfg(not(test))]
+fn live<R>(f: impl FnOnce(&mut BTreeMap<String, Value>) -> R) -> R {
+    f(&mut LIVE.write().unwrap_or_else(|p| p.into_inner()))
+}
+#[cfg(test)]
+thread_local! {
+    static LIVE: std::cell::RefCell<BTreeMap<String, Value>> = const { std::cell::RefCell::new(BTreeMap::new()) };
+}
+#[cfg(test)]
+fn live<R>(f: impl FnOnce(&mut BTreeMap<String, Value>) -> R) -> R {
+    LIVE.with(|l| f(&mut l.borrow_mut()))
+}
 
 pub fn spec(name: &str) -> Option<&'static ToolSpec> {
-    if !LIVE.read().ok()?.contains_key(name) {
+    if !live(|l| l.contains_key(name)) {
         return None;
     }
     SPECS.read().ok()?.iter().find(|s| s.name == name).copied()
@@ -185,13 +199,13 @@ pub fn spec(name: &str) -> Option<&'static ToolSpec> {
 
 /// The argument schema SIOS wrote for an installed connector tool.
 pub fn args_schema(name: &str) -> Option<Value> {
-    LIVE.read().ok()?.get(name).cloned()
+    live(|l| l.get(name).cloned())
 }
 
 /// Every installed connector tool's spec.
 pub fn specs() -> Vec<&'static ToolSpec> {
-    let live = LIVE.read().map(|l| l.keys().cloned().collect::<Vec<_>>()).unwrap_or_default();
-    live.iter().filter_map(|n| spec(n)).collect()
+    let names = live(|l| l.keys().cloned().collect::<Vec<_>>());
+    names.iter().filter_map(|n| spec(n)).collect()
 }
 
 fn leak(s: &str) -> &'static str {
@@ -242,7 +256,8 @@ impl Registry {
                 live.insert(t.name.clone(), t.args.clone());
             }
         }
-        *LIVE.write().unwrap_or_else(|p| p.into_inner()) = live;
+        drop(specs);
+        self::live(|l| *l = live);
     }
 
     pub fn get(&self, id: &str) -> Option<&Installed> {

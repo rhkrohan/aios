@@ -70,6 +70,9 @@ struct Session {
     /// (path, labels, untrusted) of everything the goal has read.
     read: Vec<(String, Vec<String>, bool)>,
     actions: u32,
+    /// Done anything on this computer (found, listed, read, searched memory...): what it
+    /// learned could leave in a connector call's arguments (C1, fail closed).
+    local: Option<String>,
 }
 
 struct Assessed {
@@ -1226,8 +1229,8 @@ impl State {
         // the goal has read anything on this computer, each one asks (a "read" there is still
         // a way out for what was read here; mail always asks for the same reason)
         if decision == Decision::Allow && crate::connectors::spec(&tool).is_some() {
-            if let Some((what, _, _)) = session.and_then(|s| s.read.iter().find(|r| !r.0.starts_with("connector:"))) {
-                let why = format!("This goal read {what}, and this call sends words to an outside service.");
+            if let Some(what) = session.and_then(|s| s.local.clone()) {
+                let why = format!("This goal used {what} on this computer, and this call sends words to an outside service.");
                 checks.push(crate::policy::Check { id: "outside".into(), result: crate::policy::Res::Ask, detail: why.clone() });
                 reason = why;
                 decision = Decision::Ask;
@@ -1272,6 +1275,9 @@ impl State {
         }
         let session = self.sessions.entry(sid.clone()).or_default();
         session.actions += 1;
+        if crate::connectors::spec(tool).is_none() && session.local.is_none() {
+            session.local = Some(tool.to_string());
+        }
         for r in &out.read {
             session.tainted |= r.2;
             if !session.read.iter().any(|x| x.0 == r.0) {
@@ -2233,6 +2239,11 @@ mod tests {
         assert_eq!(dry(&mut r, &t), "allow", "nothing read here yet");
         assert_eq!(decision(&r.call(&t, "files.read", json!({ "path": "Downloads/budget.csv" }))), "allow");
         assert_eq!(dry(&mut r, &t), "ask", "what was read here could leave in the arguments");
+        // finding or listing counts too: names are local information (fail closed)
+        let m = r.owner("mint", json!({ "principal": "a", "tools": ["files.list", "testhub.search"], "paths": ["Downloads"] }));
+        let t2 = m["ok"]["token"].as_str().unwrap_or_else(|| panic!("{m}")).to_string();
+        assert_eq!(decision(&r.call(&t2, "files.list", json!({ "path": "Downloads" }))), "allow");
+        assert_eq!(dry(&mut r, &t2), "ask");
         // only the AIs the owner picked
         let other = r.mint(json!({ "principal": "b", "tools": ["testhub.search"], "paths": ["Downloads"] }));
         assert_eq!(dry(&mut r, &other), "block");

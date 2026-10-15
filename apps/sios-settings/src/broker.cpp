@@ -64,6 +64,12 @@ void Broker::refresh()
             m_ai = ok.toMap();
         Q_EMIT aiChanged();
     });
+    send(QStringLiteral("connectors.view"), {}, [this](const QVariant &ok, const QString &err) {
+        if (err.isEmpty()) {
+            m_connectors = ok.toMap();
+            Q_EMIT connectorsChanged();
+        }
+    });
 }
 
 void Broker::request(const QString &method, const QVariantMap &params, const QString &tag)
