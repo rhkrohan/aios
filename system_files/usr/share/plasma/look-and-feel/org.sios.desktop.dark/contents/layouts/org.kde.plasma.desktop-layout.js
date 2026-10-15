@@ -2,20 +2,29 @@
 // Desktop.tsx, TopBar.tsx, Dock.tsx, Widgets.tsx). Runs once, when a user's
 // desktop is first set up (or on "reset layout").
 
-// ---- top bar: logo (app launcher), Workspaces Files Apps System | SIOS | tray, date and time
-const top = new Panel;
-top.location = "top";
-top.height = 36;
-top.floating = false;
-top.hiding = "none";
-
-top.addWidget("org.sios.logo");
-top.addWidget("org.sios.menus");
-top.addWidget("org.kde.plasma.panelspacer");
-top.addWidget("org.sios.wordmark");
-top.addWidget("org.kde.plasma.panelspacer");
+// ---- top bar: three islands (owner's pick 2026-10-14), each its own floating
+// panel sized to what it holds: SIOS menu and Workspaces Files Apps System on the
+// left, search in the middle, bell, Control Center and the clock on the right
+const island = (align, opacity) => {
+    const p = new Panel;
+    p.location = "top";
+    p.height = 32;
+    p.floating = true;
+    p.hiding = "none";
+    p.lengthMode = "fit";
+    p.alignment = align;
+    p.opacity = opacity;
+    return p;
+};
+const left = island("left", "opaque");
+left.addWidget("org.sios.logo");
+left.addWidget("org.sios.menus");
+// the search draws its own glowing pill, so its panel has no background
+const middle = island("center", "translucent");
+middle.addWidget("org.sios.search");
 // the buddy floats above windows in its own little window; it takes no room here
-top.addWidget("org.sios.buddy");
+middle.addWidget("org.sios.buddy");
+const top = island("right", "opaque");
 top.addWidget("org.kde.plasma.systemtray");
 // Control Center: Wi-Fi, Bluetooth, Do not disturb, Dark mode, brightness, volume, notifications
 top.addWidget("org.sios.control");
