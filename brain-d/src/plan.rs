@@ -56,9 +56,9 @@ pub struct Look {
 /// What a plan may look up first: finding and listing, never reading contents.
 pub const LOOK_TOOLS: [&str; 2] = ["files.find", "files.list"];
 
-/// The lookups that may run: look tools only, at most 3 (one round, D72).
-pub fn look_calls(looks: &[Look]) -> Vec<&Look> {
-    looks.iter().filter(|l| LOOK_TOOLS.contains(&l.tool.as_str())).take(3).collect()
+/// The lookups that may run: look tools (and connectors' read tools) only, at most 3 (one round, D72).
+pub fn look_calls<'a>(looks: &'a [Look], connector_reads: &[String]) -> Vec<&'a Look> {
+    looks.iter().filter(|l| LOOK_TOOLS.contains(&l.tool.as_str()) || connector_reads.contains(&l.tool)).take(3).collect()
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -68,8 +68,11 @@ pub struct Manual {
     pub args_json: String,
 }
 
-pub fn schema() -> Value {
-    let tools: Vec<&str> = TOOLS.iter().map(|(n, _)| *n).chain([""]).collect();
+/// The plan's shape, with installed connectors' tools (C1) as valid names too;
+/// their read tools may also be looked up first.
+pub fn schema_with(connector_tools: &[String], connector_reads: &[String]) -> Value {
+    let tools: Vec<&str> = TOOLS.iter().map(|(n, _)| *n).chain(connector_tools.iter().map(String::as_str)).chain([""]).collect();
+    let look_tools: Vec<&str> = LOOK_TOOLS.iter().copied().chain(connector_reads.iter().map(String::as_str)).collect();
     json!({
         "type": "object",
         "additionalProperties": false,
@@ -103,7 +106,7 @@ pub fn schema() -> Value {
                     "additionalProperties": false,
                     "required": ["tool", "args_json"],
                     "properties": {
-                        "tool": { "type": "string", "enum": LOOK_TOOLS },
+                        "tool": { "type": "string", "enum": look_tools },
                         "args_json": { "type": "string", "description": "The arguments as a JSON object, e.g. {\"path\": \"\", \"query\": \"invoices\"}." }
                     }
                 }
@@ -275,8 +278,12 @@ mod look_tests {
     fn look_runs_only_finding_and_listing_three_at_most() {
         let l = |t: &str| Look { tool: t.into(), args_json: "{}".into() };
         let looks = vec![l("files.read"), l("mail.send"), l("files.find"), l("files.list"), l("files.find"), l("files.find")];
-        let ok = look_calls(&looks);
+        let ok = look_calls(&looks, &[]);
         assert_eq!(ok.len(), 3);
         assert!(ok.iter().all(|x| x.tool == "files.find" || x.tool == "files.list"));
+        // a connector's read tool may be looked up only when it's installed for this AI
+        let gh = vec![l("github.prs")];
+        assert!(look_calls(&gh, &[]).is_empty());
+        assert_eq!(look_calls(&gh, &["github.prs".to_string()]).len(), 1);
     }
 }
