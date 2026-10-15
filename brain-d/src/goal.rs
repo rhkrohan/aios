@@ -396,7 +396,15 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
             emit(r.g, json!({ "t": "step", "n": n, "kind": "compose", "decision": "allow", "chars": text.len(), "preview": text.chars().take(160).collect::<String>(), "ms": ms(t) }));
             continue;
         }
-        let args: Value = serde_json::from_str(&plan::fill(&s.args_json, &texts, true)).map_err(|e| format!("step {n} arguments: {e}"))?;
+        // a service's answer only ever goes in the reply to the owner, never into another
+        // step's arguments (a PR title can't become a file's contents or an email's body)
+        let usable: Vec<(usize, String)> = texts.iter().filter(|(k, _)| !plan.steps.get(k - 1).is_some_and(|p| r.is_conn(&p.tool))).cloned().collect();
+        // ...and what goes out to a service is exactly what the owner saw in the plan: nothing
+        // found or written on this computer is filled into its arguments
+        if r.is_conn(&s.tool) && s.args_json.contains("{{") {
+            return Ok(Outcome::Failed(format!("step {n} ({}) can't use earlier results: a service only gets words you saw in the plan", s.tool)));
+        }
+        let args: Value = serde_json::from_str(&plan::fill(&s.args_json, &usable, true)).map_err(|e| format!("step {n} arguments: {e}"))?;
         let mut res = r.ctx.capd.tool(token, &s.tool, &args, false)?;
         if res["decision"] == "ask" {
             let approval = res["approval"].as_str().unwrap_or_default().to_string();

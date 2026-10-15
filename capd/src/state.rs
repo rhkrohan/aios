@@ -1221,7 +1221,18 @@ impl State {
             tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted,
             carrying,
         };
-        let (decision, checks, reason) = evaluate(&facts);
+        let (mut decision, mut checks, mut reason) = evaluate(&facts);
+        // a connector call goes out to the internet with whatever arguments the AI chose: once
+        // the goal has read anything on this computer, each one asks (a "read" there is still
+        // a way out for what was read here; mail always asks for the same reason)
+        if decision == Decision::Allow && crate::connectors::spec(&tool).is_some() {
+            if let Some((what, _, _)) = session.and_then(|s| s.read.iter().find(|r| !r.0.starts_with("connector:"))) {
+                let why = format!("This goal read {what}, and this call sends words to an outside service.");
+                checks.push(crate::policy::Check { id: "outside".into(), result: crate::policy::Res::Ask, detail: why.clone() });
+                reason = why;
+                decision = Decision::Ask;
+            }
+        }
         let target = tlist.join(", ");
         Assessed { cap, decision, checks, reason, target }
     }
@@ -2204,6 +2215,30 @@ mod tests {
         assert!(r.agent("agents.report", json!({ "cap": cap, "agent": "agent:coder", "kind": "progress", "text": "2 of 5 tests" }))["ok"].is_object());
         assert!(r.agent("agents.report", json!({ "cap": cap, "agent": "agent:other", "text": "x" }))["error"].is_string());
         assert!(r.agent("agents.report", json!({ "cap": "forged", "agent": "agent:coder", "text": "x" }))["error"].is_string());
+    }
+
+    // ---- C1: connectors
+
+    #[test]
+    fn a_connector_call_asks_once_the_goal_read_local_files() {
+        let mut r = rig();
+        let cat: crate::connectors::Catalog = serde_json::from_value(json!({ "version": 1, "entries": [{
+            "id": "testhub", "name": "TestHub", "publisher": "x", "verified": true, "about": "", "url": "https://api.testhub.example/mcp", "signin": null,
+            "destinations": ["api.testhub.example"],
+            "tools": [{ "name": "testhub.search", "server_tool": "search", "level": "read", "about": "Search.", "args": { "type": "object", "properties": { "query": { "type": "string" } }, "required": ["query"], "additionalProperties": false } }] }] })).unwrap();
+        r.st.connectors.catalog = cat;
+        r.st.connectors.add("testhub", vec!["a".into()], Default::default(), 1);
+        let t = r.mint(json!({ "principal": "a", "tools": ["files.read", "testhub.search"], "paths": ["Downloads"] }));
+        let dry = |r: &mut Rig, t: &str| r.agent("call", json!({ "cap": t, "tool": "testhub.search", "args": { "query": "revenue" }, "dry_run": true }))["ok"]["decision"].as_str().unwrap_or("?").to_string();
+        assert_eq!(dry(&mut r, &t), "allow", "nothing read here yet");
+        assert_eq!(decision(&r.call(&t, "files.read", json!({ "path": "Downloads/budget.csv" }))), "allow");
+        assert_eq!(dry(&mut r, &t), "ask", "what was read here could leave in the arguments");
+        // only the AIs the owner picked
+        let other = r.mint(json!({ "principal": "b", "tools": ["testhub.search"], "paths": ["Downloads"] }));
+        assert_eq!(dry(&mut r, &other), "block");
+        // removed: its tools are gone everywhere
+        r.owner("connectors.remove", json!({ "id": "testhub" }));
+        assert_eq!(dry(&mut r, &t), "block");
     }
 
     // ---- D57: SIOS acts without asking on settings and reads
