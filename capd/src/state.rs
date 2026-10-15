@@ -1233,6 +1233,14 @@ impl State {
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
         } else if crate::connectors::spec(tool).is_some() {
+            // anything a service sends back, an answer or an error in its own words, is
+            // untrusted: the goal is tainted before it's asked, so no path skips that (D81)
+            let session = self.sessions.entry(sid.clone()).or_default();
+            session.tainted = true;
+            let src = format!("connector:{}", tool.split('.').next().unwrap_or(""));
+            if !session.read.iter().any(|x| x.0 == src) {
+                session.read.push((src, vec![], true));
+            }
             self.connector_call(tool, args)?
         } else {
             // what a files.read here would be allowed without asking: SIOS's own assistant or

@@ -417,7 +417,9 @@ fn rpc(p: &Prepared, session: Option<&str>, method: &str, params: Value, id: Opt
         serde_json::from_str(&text).map_err(|_| "the service's answer wasn't JSON")?
     };
     if let Some(e) = msg.get("error") {
-        return Err(format!("the service said no: {}", e["message"].as_str().unwrap_or("error").chars().take(200).collect::<String>()));
+        // its words, not SIOS's: one quoted string, marked as the service's
+        let said: String = e["message"].as_str().unwrap_or("error").chars().filter(|c| !c.is_control()).take(200).collect();
+        return Err(format!("the service said no (its own words, untrusted): {}", serde_json::to_string(&said).unwrap_or_default()));
     }
     Ok((msg["result"].clone(), sid))
 }
