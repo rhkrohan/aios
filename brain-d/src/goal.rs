@@ -421,7 +421,7 @@ fn found_text(result: &Value) -> String {
 /// Run a plan's lookups under their own small pass; their results as plain lines.
 /// Only finding and listing (never contents); SIOS gets these without asking (D57).
 fn look(r: &mut Run, looks: &[plan::Look]) -> Result<String, String> {
-    let looks: Vec<&plan::Look> = looks.iter().filter(|l| plan::LOOK_TOOLS.contains(&l.tool.as_str())).take(3).collect();
+    let looks = plan::look_calls(looks);
     if looks.is_empty() {
         return Ok("(nothing looked up)".into());
     }
@@ -441,7 +441,19 @@ fn look(r: &mut Run, looks: &[plan::Look]) -> Result<String, String> {
         } else if l.tool == "files.find" {
             found_text(&res["result"])
         } else {
-            res["result"]["entries"].as_array().map(|e| e.iter().take(60).filter_map(|x| x["name"].as_str().or(x["path"].as_str()).map(String::from)).collect::<Vec<_>>().join("; ")).unwrap_or_else(|| res["result"].to_string().chars().take(1500).collect())
+            // full paths, folders marked with a trailing /
+            let dir = res["result"]["path"].as_str().unwrap_or("");
+            let items = res["result"]["items"].as_array().cloned().unwrap_or_default();
+            let names: Vec<String> = items
+                .iter()
+                .take(60)
+                .filter_map(|x| {
+                    let n = x["name"].as_str()?;
+                    let p = if dir.is_empty() { n.to_string() } else { format!("{dir}/{n}") };
+                    Some(if x["kind"] == "folder" { format!("{p}/") } else { p })
+                })
+                .collect();
+            if names.is_empty() { "(empty)".into() } else { names.join("; ") }
         };
         out.push_str(&format!("- {} {}: {}\n", l.tool, l.args_json, text));
     }

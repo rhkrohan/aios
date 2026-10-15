@@ -56,6 +56,11 @@ pub struct Look {
 /// What a plan may look up first: finding and listing, never reading contents.
 pub const LOOK_TOOLS: [&str; 2] = ["files.find", "files.list"];
 
+/// The lookups that may run: look tools only, at most 3 (one round, D72).
+pub fn look_calls(looks: &[Look]) -> Vec<&Look> {
+    looks.iter().filter(|l| LOOK_TOOLS.contains(&l.tool.as_str())).take(3).collect()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Manual {
     pub label: String,
@@ -259,5 +264,19 @@ mod tests {
         let a = fill(r#"{"body":"{{1}}"}"#, &t, true);
         let v: Value = serde_json::from_str(&a).unwrap();
         assert_eq!(v["body"], "line \"one\"\nline two");
+    }
+}
+
+#[cfg(test)]
+mod look_tests {
+    use super::*;
+
+    #[test]
+    fn look_runs_only_finding_and_listing_three_at_most() {
+        let l = |t: &str| Look { tool: t.into(), args_json: "{}".into() };
+        let looks = vec![l("files.read"), l("mail.send"), l("files.find"), l("files.list"), l("files.find"), l("files.find")];
+        let ok = look_calls(&looks);
+        assert_eq!(ok.len(), 3);
+        assert!(ok.iter().all(|x| x.tool == "files.find" || x.tool == "files.list"));
     }
 }

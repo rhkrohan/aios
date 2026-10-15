@@ -1,7 +1,7 @@
 # Tasks
 
 ## Active
-- [ ] **Agents and connectors A0: install the S1 image and check it; then A1 viewer tier** - Phase 2 (`docs/plan/18-agents-and-connectors.md`)
+- [ ] **Agents and connectors: A1 to A7 built; next C1 MCP connector host, then A0 VM checks when the image lands** - Phase 2 (`docs/plan/18-agents-and-connectors.md`)
 - [ ] **Security engine S1: Stop switch and process hardening** - Phase 2 security track (`docs/plan/17-security-engine.md`); next image waits for S9
 - [ ] **AI OS layer M4: model gateway in the broker, keys encrypted, Settings > Brain** - Phase 2 (M2, M3 built 2026-10-14; check both on the VM after the next image)
 - [ ] **Install ISO in VirtualBox on the Windows PC; confirm desktop loads** - Phase 0 gate
