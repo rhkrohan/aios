@@ -90,6 +90,10 @@ test -x /usr/bin/sios-ask
 ### Memory: what SIOS remembers about you (A2), a broker-started window (D59)
 test -x /usr/bin/sios-memory
 test -f /usr/share/applications/org.sios.memory.desktop
+
+### Agents: the pet team (A4), a broker-started window (D59)
+test -x /usr/bin/sios-agents
+test -f /usr/share/applications/org.sios.agents.desktop
 test -f /usr/share/kglobalaccel/org.sios.ask.desktop
 test -f /etc/xdg/autostart/org.sios.ask.desktop
 

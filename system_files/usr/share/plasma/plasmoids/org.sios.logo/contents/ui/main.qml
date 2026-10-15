@@ -52,6 +52,8 @@ PlasmoidItem {
         // stopping is always safe, so it needs no password (D41)
         PlasmaExtras.MenuItem { text: "Stop all AI"; icon: "media-playback-stop"; onClicked: root.sh("capd stop") }
         PlasmaExtras.MenuItem { text: "Approvals"; icon: "security-high"; onClicked: root.sh("capd window approve") }
+        PlasmaExtras.MenuItem { text: "Agents"; icon: "org.sios.agents"; onClicked: root.sh("capd window agents") }
+        PlasmaExtras.MenuItem { text: "Memory"; icon: "org.sios.memory"; onClicked: root.sh("capd window memory") }
         PlasmaExtras.MenuItem { text: "Settings"; icon: "preferences-system"; onClicked: root.sh("sios-settings || systemsettings") }
         PlasmaExtras.MenuItem { separator: true }
         PlasmaExtras.MenuItem { text: "Sleep"; icon: "system-suspend"; onClicked: session.suspend() }
