@@ -1061,14 +1061,15 @@ impl State {
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
         } else {
-            // what a files.read here would be allowed: SIOS's own assistant or a pass with
-            // files.read, inside the pass's folders, and not denied by the caller's roles
+            // what a files.read here would be allowed without asking: SIOS's own assistant or
+            // a pass with files.read, inside the pass's folders, and a plain yes from the
+            // caller's roles (a role that asks first counts as no: a search never asks)
             let (iam, paths, principal) = (&self.iam, &cap.paths, &cap.principal);
             let reads = cap.principal == crate::iam::SIOS || cap.tools.iter().any(|t| t == "files.read");
             let can_read = |p: &str| {
                 reads
                     && paths.iter().any(|cp| crate::token::within(p, cp))
-                    && iam.decide(principal, &crate::iam::Action { tool: "files.read", level: crate::policy::Level::Read, places: &[p.to_string()], tainted: false }).result != crate::policy::Res::Fail
+                    && iam.decide(principal, &crate::iam::Action { tool: "files.read", level: crate::policy::Level::Read, places: &[p.to_string()], tainted: false }).result == crate::policy::Res::Pass
             };
             let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: &cap.principal, can_read: &can_read };
             tools::run(tool, args, &env, &mut self.meta)?
@@ -1637,6 +1638,15 @@ mod tests {
         };
         assert_eq!(find(&mut r, json!(["files.find"])), 0, "search-only: names and labels, never what files say");
         assert_eq!(find(&mut r, json!(["files.find", "files.read"])), 1, "may read here: the words inside count");
+        // a role that asks before reading means a search doesn't look inside
+        r.owner("iam.save_role", json!({ "role": { "id": "careful", "name": "Careful", "about": "", "statements": [{ "id": "s1", "effect": "allow", "tools": ["files.find", "files.read"], "places": ["Projects"], "mode": "ask" }] } }));
+        // a helper registers itself when SIOS's brain first asks a pass for it
+        r.agent("request_pass", json!({ "principal": "helper:careful", "goal": "g", "tools": ["files.find"], "paths": ["Projects"] }));
+        let set = r.owner("iam.set_roles", json!({ "id": "helper:careful", "roles": ["careful"] }));
+        assert!(set.get("ok").is_some(), "{set}");
+        let t = r.mint(json!({ "principal": "helper:careful", "tools": ["files.find", "files.read"], "paths": ["Projects"] }));
+        let v = r.call(&t, "files.find", json!({ "path": "Projects", "query": "invoice" }));
+        assert_eq!(v["result"]["matches"].as_array().map(|m| m.len()).unwrap_or(0), 0, "{v}");
     }
 
     // ---- D57: SIOS acts without asking on settings and reads
