@@ -365,6 +365,25 @@ impl State {
                 req["service"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), self.service_secret.as_bytes())),
             ),
         };
+        // SIOS's own windows (broker-started) may look without a password (D59)
+        if method == "memory.view" || method == "audit.view" {
+            if !viewer {
+                return json!({ "error": "only SIOS's own windows can see this" });
+            }
+            return match method {
+                "memory.view" => json!({ "ok": self.memory.as_json() }),
+                _ => {
+                    let verify = match audit::verify(&self.dir.join("audit.jsonl")) {
+                        Ok(n) => json!({ "intact": true, "entries": n }),
+                        Err((line, why)) => json!({ "intact": false, "line": line, "why": why }),
+                    };
+                    let who = p["principal"].as_str().unwrap_or("");
+                    let n = p["n"].as_u64().unwrap_or(100).min(200) as usize;
+                    let entries: Vec<_> = self.log.tail(5000).into_iter().filter(|e| who.is_empty() || e.principal == who || e.principal.starts_with(&format!("{who} "))).collect();
+                    json!({ "ok": { "verify": verify, "entries": entries[entries.len().saturating_sub(n)..] } })
+                }
+            };
+        }
         if method.starts_with("memory.") && !service && !owner {
             return json!({ "error": "only SIOS's own brain or the owner can do that" });
         }
@@ -1647,6 +1666,22 @@ mod tests {
         let t = r.mint(json!({ "principal": "helper:careful", "tools": ["files.find", "files.read"], "paths": ["Projects"] }));
         let v = r.call(&t, "files.find", json!({ "path": "Projects", "query": "invoice" }));
         assert_eq!(v["result"]["matches"].as_array().map(|m| m.len()).unwrap_or(0), 0, "{v}");
+    }
+
+    #[test]
+    fn sios_windows_look_without_a_password_and_nobody_else_does() {
+        use crate::peer::Who;
+        let mut r = rig();
+        r.owner("memory.add", json!({ "text": "Prefers mornings", "kind": "preference", "group": "Habits" }));
+        let ask = |r: &mut Rig, m: &str, who: Who| r.st.handle_as(&json!({ "method": m, "params": {} }), Some(who));
+        assert!(ask(&mut r, "memory.view", Who::OwnerApp)["ok"].to_string().contains("Prefers mornings"));
+        assert!(ask(&mut r, "audit.view", Who::OwnerApp)["ok"]["verify"]["intact"].as_bool().unwrap());
+        for who in [Who::Agent, Who::Service] {
+            assert!(ask(&mut r, "memory.view", who)["error"].is_string(), "{who:?}");
+            assert!(ask(&mut r, "audit.view", who)["error"].is_string(), "{who:?}");
+        }
+        // looking never changes anything: editing still needs the owner
+        assert!(ask(&mut r, "memory.add", Who::OwnerApp)["error"].is_string());
     }
 
     // ---- D57: SIOS acts without asking on settings and reads

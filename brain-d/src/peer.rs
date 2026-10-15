@@ -34,8 +34,8 @@ pub struct Proc {
     pub injected: bool,
 }
 
-/// The owner's shell on brain.sock: the Ask bar, Monitor and Settings.
-pub const OWNER_APPS: [&str; 3] = ["/usr/bin/sios-ask", "/usr/bin/sios-monitor", "/usr/bin/sios-settings"];
+/// The owner's shell on brain.sock: the Ask bar, Monitor, Settings, Agents and Memory.
+pub const OWNER_APPS: [&str; 5] = ["/usr/bin/sios-ask", "/usr/bin/sios-monitor", "/usr/bin/sios-settings", "/usr/bin/sios-agents", "/usr/bin/sios-memory"];
 /// Off for the same reason as capd's (capd/src/peer.rs): a copied connection can pose as the shell.
 pub const OWNER_BY_PROGRAM: bool = false;
 

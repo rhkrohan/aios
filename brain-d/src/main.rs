@@ -181,7 +181,7 @@ impl Brain {
     pub fn handle_from(&self, req: &Value, owner: bool, shell: bool) -> Value {
         let p = &req["params"];
         let method = req["method"].as_str().unwrap_or("");
-        const OWNER_ONLY: [&str; 9] = ["state.update", "routines.clear", "helpers.add", "helpers.update", "helpers.remove", "helpers.run_now", "watch.add", "watch.remove", "goals.recent"];
+        const OWNER_ONLY: [&str; 8] = ["state.update", "routines.clear", "helpers.add", "helpers.update", "helpers.remove", "helpers.run_now", "watch.add", "watch.remove"];
         if OWNER_ONLY.contains(&method) && !owner {
             return json!({ "error": "only the owner's shell can do that" });
         }
@@ -280,8 +280,24 @@ impl Brain {
                 let mems: Vec<String> = p["memories"].as_array().into_iter().flatten().filter_map(|e| e.as_str().map(String::from)).take(12).collect();
                 model::Model::from_env().and_then(|m| memory::answer_from(&m, p["question"].as_str().unwrap_or(""), &mems)).map(Value::from)
             }
+            // SIOS's own windows see every goal (D59); others never list them
+            "goals.recent" if !(owner || shell) => Err("only SIOS's own windows can list goals".into()),
             "goals.recent" => Ok(json!(self.recent.lock().unwrap().iter().rev().take(20).map(|(g, r, p)| json!({ "goal": g, "request": r, "principal": p })).collect::<Vec<_>>())),
-            "goal.events" => self.events(p["goal"].as_str().unwrap_or(""), p["since"].as_u64().unwrap_or(0) as usize).ok_or_else(|| "no such goal".into()),
+            // a goal's events can hold email bodies: only SIOS's windows, or the AI that
+            // started that goal (known by its pairing), may follow it
+            "goal.events" => {
+                let goal = p["goal"].as_str().unwrap_or("");
+                let started_by = self.recent.lock().unwrap().iter().find(|(g, _, _)| g == goal).map(|(_, _, who)| who.clone());
+                let mine = owner || shell || match (&started_by, self.requester(p, false)) {
+                    (Some(who), Ok((me, _))) => *who == me && !me.is_empty(),
+                    _ => false,
+                };
+                if mine {
+                    self.events(goal, p["since"].as_u64().unwrap_or(0) as usize).ok_or_else(|| "no such goal".into())
+                } else {
+                    Err("no such goal".into())
+                }
+            }
             other => Err(format!("unknown method {other}")),
         };
         match r {

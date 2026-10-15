@@ -135,7 +135,12 @@ pub fn watch_lock() {
 
 // ------------------------------------------------------- SIOS's own windows
 
-pub const WINDOWS: [(&str, &str); 2] = [("approve", "/usr/bin/sios-approve"), ("settings", "/usr/bin/sios-settings")];
+pub const WINDOWS: [(&str, &str); 4] = [
+    ("approve", "/usr/bin/sios-approve"),
+    ("settings", "/usr/bin/sios-settings"),
+    ("memory", "/usr/bin/sios-memory"),
+    ("agents", "/usr/bin/sios-agents"),
+];
 
 /// Windows capd started: pid -> (which window, start time).
 static KIDS: Mutex<Option<HashMap<u32, (&'static str, u64)>>> = Mutex::new(None);
@@ -209,10 +214,12 @@ pub fn wake_approval_window() {
 fn raise(name: &'static str, page: &str) {
     let page = page.to_string();
     std::thread::spawn(move || {
-        let (dest, path, method) = if name == "approve" { ("org.sios.Approve1", "/Approve", "org.sios.Approve1.Show") } else { ("org.sios.Settings1", "/Settings", "org.sios.Settings1.Show") };
-        let mut args = vec!["call", "--session", "--dest", dest, "--object-path", path, "--method", method];
+        // org.sios.<Name>1 at /<Name>, Show() for approvals, Show(page) for the others
+        let cap = format!("{}{}", name[..1].to_uppercase(), &name[1..]);
+        let (dest, path, method) = (format!("org.sios.{cap}1"), format!("/{cap}"), format!("org.sios.{cap}1.Show"));
+        let mut args = vec!["call", "--session", "--dest", dest.as_str(), "--object-path", path.as_str(), "--method", method.as_str()];
         let quoted = format!("'{page}'");
-        if name == "settings" {
+        if name != "approve" {
             args.push(&quoted);
         }
         let _ = crate::exec::run("/usr/bin/gdbus", &args, None, Duration::from_secs(10));
