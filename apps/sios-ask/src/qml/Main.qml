@@ -29,12 +29,16 @@ Window {
     // typed text: "Ask SIOS" first, then what the search finds
     readonly property var rows: input.text.trim() === "" ? search.suggestions : [{ kind: "ask", title: "Ask SIOS: \u201c" + input.text.trim() + "\u201d", sub: "Plan it, check it, and do it after your OK", icon: "sparkles" }].concat(results)
 
+    // the apps view was what opened, so an emptied search goes back to it
+    property bool fromApps: false
     function showApps() {
         open();
+        fromApps = true;
         mode = "apps";
         apps = search.allApps("");
     }
     function open() {
+        fromApps = false;
         mode = "search";
         input.text = "";
         results = [];
@@ -293,11 +297,14 @@ Window {
                     background: null
                     padding: 0
                     focus: true
-                    placeholderText: bar.mode === "apps" ? "Find an app…" : bar.mode === "assistant" ? "Ask a follow-up…" : "Ask SIOS, or search apps, files and settings…"
+                    placeholderText: bar.mode === "apps" ? "Search apps, files and settings, or ask SIOS…" : bar.mode === "assistant" ? "Ask a follow-up…" : "Ask SIOS, or search apps, files and settings…"
                     onTextChanged: {
                         if (bar.mode === "assistant") return;
-                        if (bar.mode === "apps") bar.apps = search.allApps(text);
-                        else bar.results = text.trim() ? search.find(text) : [];
+                        // opened on the apps (the orb, Apps): typing searches everything,
+                        // and clearing the text brings the apps back
+                        if (bar.mode === "apps" && text.trim()) { bar.fromApps = true; bar.mode = "search"; }
+                        else if (bar.mode === "search" && bar.fromApps && !text.trim()) { bar.mode = "apps"; bar.apps = search.allApps(""); }
+                        if (bar.mode === "search") bar.results = text.trim() ? search.find(text) : [];
                         bar.current = 0;
                     }
                     Keys.onEscapePressed: bar.close()

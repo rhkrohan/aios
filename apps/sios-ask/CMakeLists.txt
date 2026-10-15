@@ -1,6 +1,6 @@
 # The SIOS Ask bar: the preview's CommandBar (build_concept_html/src/
 # components/command/CommandBar.tsx) above the dock, opened by the orb or
-# Meta+Space. Finds apps, settings, actions and files now; asks the assistant
+# Ctrl+Space (or Meta+Space). Finds apps, settings, actions and files now; asks the assistant
 # once brain-d runs on the machine (Stage B).
 cmake_minimum_required(VERSION 3.22)
 project(sios-ask VERSION 0.1 LANGUAGES CXX)

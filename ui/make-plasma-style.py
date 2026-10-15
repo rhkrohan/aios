@@ -139,7 +139,8 @@ tip = dict(radius=10, margin=8, shadow=14, shadow_alpha=0.22)
 write("widgets/tooltip.svgz", frame(opacity=1.0, **tip))
 write("translucent/widgets/tooltip.svgz", frame(opacity=1.0, **tip))
 # panels: the floating dock gets the preview's 22px corners; the top bar is edge to edge
-panel = dict(radius=20, margin=6, shadow=20, shadow_alpha=0.26, shadow_dy=8)
+# the top islands have no rim or hairline (owner, 2026-10-14: "remove the white outline")
+panel = dict(radius=20, margin=6, shadow=20, shadow_alpha=0.26, shadow_dy=8, edge_opacity=0.0, outline=0.0)
 write("widgets/panel-background.svgz", frame(opacity=1.0, **panel))
 # the translucent panel is the dock (owner's pick "D5, no bar"): nothing at all behind
 # the icons. The top bar is set opaque in the layout, so it keeps the card above.

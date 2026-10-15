@@ -7,5 +7,5 @@ Icon=org.sios.ask
 Terminal=false
 NoDisplay=true
 Categories=Qt;KDE;Utility;
-X-KDE-Shortcuts=Meta+Space
+X-KDE-Shortcuts=Ctrl+Space,Meta+Space
 StartupNotify=false

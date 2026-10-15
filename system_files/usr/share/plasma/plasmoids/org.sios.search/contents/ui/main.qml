@@ -2,7 +2,7 @@
     The middle island of the top bar (owner's pick 2026-10-14: three islands,
     search "S2"): the orb and "Search or ask SIOS" in a glass pill whose edge is
     a slowly drifting SIOS gradient. Clicking it opens the Ask bar (apps, files,
-    settings, and Ask SIOS), the same as Meta+Space.
+    settings, and Ask SIOS), the same as Ctrl+Space.
     The edge also says how SIOS is: blue and calm when idle, amber when
     something waits for the owner's OK, grey when the broker isn't running.
     It reads only the broker's public status (`capd status`), never what waits.
@@ -49,8 +49,8 @@ PlasmoidItem {
         Layout.preferredWidth: 280
         Layout.fillHeight: true
 
-        // the glowing edge: a gradient pill, and the solid pill 1.5px inside it
-        // (siblings, so the edge can dim without the inside showing the wallpaper)
+        // the pill: the side islands' colour with a soft, slowly drifting wash of the
+        // state colours inside it (no outline: owner, 2026-10-14)
         Item {
             id: ring
             anchors.centerIn: parent
@@ -59,10 +59,11 @@ PlasmoidItem {
             property real drift: 0
             NumberAnimation on drift { from: 0; to: 1; duration: 9000; loops: Animation.Infinite; running: Kirigami.Units.longDuration > 0 }
 
+            // a thin ring in the state colours (owner, 2026-10-14: "add a pill around it")
             Rectangle {
                 anchors.fill: parent
                 radius: height / 2
-                opacity: hover.containsMouse ? 1 : 0.8
+                opacity: hover.containsMouse ? 0.75 : 0.5
                 Behavior on opacity { NumberAnimation { duration: 200 } }
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
@@ -74,11 +75,23 @@ PlasmoidItem {
 
             Rectangle {
                 anchors.fill: parent
-                anchors.margins: 1.5
+                anchors.margins: 1
                 radius: height / 2
-                // the side islands' colour (the theme's panel)
                 color: hover.pressed ? "#30343c" : hover.containsMouse ? "#2a2e35" : "#24272b"
                 Behavior on color { ColorAnimation { duration: 150 } }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    opacity: hover.containsMouse ? 0.42 : 0.3
+                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0; color: root.edge[0] }
+                        GradientStop { position: Math.min(0.98, 0.15 + 0.7 * Math.abs(Math.sin(ring.drift * Math.PI))); color: root.edge[1] }
+                        GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 0) }
+                    }
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -108,7 +121,7 @@ PlasmoidItem {
                         Text {
                             id: key
                             anchors.centerIn: parent
-                            text: "Meta Space"
+                            text: "Ctrl Space"
                             color: "#c8ced6"
                             font.family: "Instrument Sans"
                             font.pixelSize: 11

@@ -168,13 +168,13 @@ PlasmoidItem {
             PlasmaCore.ToolTipArea {
                 anchors.fill: parent
                 mainText: "Ask SIOS"
-                subText: "Meta+Space"
+                subText: "All apps, or type to search and ask (Ctrl+Space)"
                 location: PlasmaCore.Types.BottomEdge
                 MouseArea {
                     id: orbMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked: run.connectSource("sios-ask || qdbus-qt6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay")
+                    onClicked: run.connectSource("sios-ask --apps || qdbus-qt6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay")
                 }
             }
             Accessible.role: Accessible.Button

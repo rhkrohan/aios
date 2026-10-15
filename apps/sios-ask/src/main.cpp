@@ -1,5 +1,5 @@
 // The SIOS Ask bar: one copy waits in the background after login (started
-// with --background), so the orb or Meta+Space shows it at once. Running
+// with --background), so the orb or Ctrl+Space shows it at once. Running
 // sios-ask again tells that copy to show or hide (over D-Bus, org.sios.Ask).
 #include "assistant.h"
 #include "search.h"
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     QCommandLineParser args;
-    args.addOption({QStringLiteral("background"), QStringLiteral("Start hidden and wait for the orb or Meta+Space")});
+    args.addOption({QStringLiteral("background"), QStringLiteral("Start hidden and wait for the orb or Ctrl+Space")});
     args.addOption({QStringLiteral("apps"), QStringLiteral("Show all apps (the top bar's Apps)")});
     args.process(app);
 

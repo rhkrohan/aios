@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Ask SIOS
-Comment=Waits in the background so the orb and Meta+Space open it at once
+Comment=Waits in the background so the orb and Ctrl+Space open it at once
 Exec=sios-ask --background
 NoDisplay=true
 OnlyShowIn=KDE;
