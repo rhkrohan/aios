@@ -81,14 +81,15 @@ flowchart LR
 - **The sentinel is heuristic.** A slow, patient AI that stays under the thresholds and inside its granted rights is bounded by leases, daily caps and roles, not caught.
 - **Covert channels are only partly closed.** Timing, file names in shared places, and the model provider itself remain open. Write-then-read detection covers the obvious pattern.
 - **Stop can be pulled by any process.** We accept that, because stopping is always safe and resuming needs the password.
-- **Password fatigue** is a social risk. One dialog at a time, with clear wording per action.
+- **Password fatigue** is a social risk. Approval sessions (D56): one password until the screen locks, then one click, but only for SIOS's undoable actions.
+- **A faked click** (accessibility, KWin test input) can approve inside a session. That is why a click alone covers only SIOS's own undoable actions; everything else still needs the password.
 - **Kernel zero-days** that escape namespaces, seccomp or Landlock are out of scope. We never modify the kernel.
 
 ## Milestones
 | | What | Gate on the VM |
 | --- | --- | --- |
 | S0 | This document, D40 to D55, tasks | Docs merged |
-| S1 | Stop, process hardening (`ptrace_scope=1`, capd non-dumpable, the broker starts SIOS's own windows and trusts only those) | Shortcut stops Claude Code's next call; still stopped after a restart; resume needs the password; `gdb -p` on capd fails |
+| S1 | Stop, process hardening (`ptrace_scope=1`, capd non-dumpable, the broker starts SIOS's own windows and trusts only those), approval sessions (D56) | Shortcut stops Claude Code's next call; still stopped after a restart; resume needs the password; `gdb -p` on capd fails; in a session an undoable Allow is one click, an email still asks for the password, and locking the screen ends the session |
 | S2 | Signed, versioned policy; roles absorb rules and shares | Edited file means Stop; rollback works; audit has anchors |
 | S3 | Instances and bound leases; state survives restart | Replayed token blocked; leases die with the app |
 | S4 | Sentinel and freeze | Escape drill: 5th block freezes in the same request |
