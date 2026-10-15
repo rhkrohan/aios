@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-14: D57: SIOS reads, finds and changes settings without asking; file changes and anything risky still ask. Next: smarter local search (find by what a file is, not only its name), then S2.
 - 2026-10-14: D56 approval sessions (amends D39): one password until the screen locks, then one click for SIOS's undoable actions; part of S1. Photos and vision deferred; S1 to S9 next.
 - 2026-10-14: D55 amended: SIOS's windows and brain-d stay readable (hiding memory hid their identity and broke owner actions); S1 adds broker-started owner windows after a security review.
 - 2026-10-14: Security engine and agent IAM planned (17-security-engine.md, D40 to D55, milestones S0 to S9), built on the lessons of the 2026 OpenAI / Hugging Face incident. Owner chose all four parts for the first release and auto-freeze on anomalies. Comes before the next image.

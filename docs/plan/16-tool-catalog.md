@@ -15,7 +15,8 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 
 **Risk** is fixed by code, never by the model.
 - **Read**: allowed without asking.
-- **Change**: can be undone. It asks the first time, unless a pass or standing rule covers it.
+- **Change**: can be undone. Settings changes by SIOS's own assistant just happen (D57); file changes show the plan first, unless a pass or standing rule covers them.
+- Reads by SIOS's own assistant just happen too (D57).
 - **Always asks**: can't be undone. The owner says yes every time, and no rule can pre-approve it.
 
 **Status** says how far each tool has got.

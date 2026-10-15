@@ -467,6 +467,12 @@ impl State {
                         v["state"] = json!("granted by your rule");
                         v["rule"] = json!(rule.note);
                     }
+                    // SIOS's own assistant reads and changes settings without asking (D57);
+                    // every call is still checked, logged and undoable
+                    None if cap.principal == crate::iam::SIOS && Self::bounded(&cap) && !cap.tools.is_empty() && cap.tools.iter().all(|t| tools::acts_without_asking(t)) => {
+                        self.record(&cap, "pass.grant", &cap.paths.join(", "), "allow", &format!("SIOS acts for you without asking on settings and reads (D57): {}", cap.tools.join(", ")), &json!([]));
+                        v["state"] = json!("granted: settings and reads");
+                    }
                     None => {
                         self.ungranted.insert(id.clone());
                         self.waiting.insert(id, cap.clone());
@@ -1189,16 +1195,18 @@ impl State {
     }
 
     /// The standing rule that fully covers a pass, if any. Never for anything irreversible.
+    /// Could anything grant this pass without the owner (a rule, or D57)? Only
+    /// something short and bounded, that can be undone and sends nothing out,
+    /// and that doesn't read all of the owner's memory.
+    fn bounded(cap: &Cap) -> bool {
+        !(cap.uses.is_none_or(|u| u > 100)
+            || cap.expires_at.saturating_sub(now()) > 3600
+            || cap.tools.iter().any(|t| tools::spec(t).map(|s| s.level == crate::policy::Level::Irreversible || s.egress).unwrap_or(true))
+            || (cap.own && cap.tools.iter().any(|t| t.starts_with("memory.") || t == "people.resolve")))
+    }
+
     fn rule_for(&self, cap: &Cap) -> Option<Rule> {
-        // a rule only ever grants something short and bounded
-        if cap.uses.is_none_or(|u| u > 100) || cap.expires_at.saturating_sub(now()) > 3600 {
-            return None;
-        }
-        if cap.tools.iter().any(|t| tools::spec(t).map(|s| s.level == crate::policy::Level::Irreversible || s.egress).unwrap_or(true)) {
-            return None;
-        }
-        // a pass that would read all of your memory is never granted by a rule
-        if cap.own && cap.tools.iter().any(|t| t.starts_with("memory.") || t == "people.resolve") {
+        if !Self::bounded(cap) {
             return None;
         }
         self.rules
@@ -1610,6 +1618,24 @@ mod tests {
         v["decision"].as_str().unwrap_or("?")
     }
 
+    // ---- D57: SIOS acts without asking on settings and reads
+
+    #[test]
+    fn sios_reads_and_changes_settings_without_asking() {
+        let mut r = rig();
+        let go = |r: &mut Rig, who: &str, tools: Value| r.agent("request_pass", json!({ "principal": who, "goal": "g", "tools": tools, "paths": ["Downloads"], "ttl": 900, "uses": 8 }))["ok"]["state"].as_str().unwrap_or("").to_string();
+        assert!(go(&mut r, "sios", json!(["settings.set_theme"])).starts_with("granted"), "dark mode just happens");
+        assert!(go(&mut r, "sios", json!(["files.find", "files.read", "files.show"])).starts_with("granted"), "finding things just happens");
+        assert_eq!(go(&mut r, "sios", json!(["files.find", "files.move"])), "waiting for the owner", "file changes show the plan");
+        assert_eq!(go(&mut r, "sios", json!(["files.read", "mail.send"])), "waiting for the owner", "sending out always asks");
+        assert_eq!(go(&mut r, "sios", json!(["apps.close"])), "waiting for the owner", "closing an app can lose work");
+        assert_eq!(go(&mut r, "sios", json!(["memory.save"])), "waiting for the owner");
+        let long = r.agent("request_pass", json!({ "principal": "sios", "tools": ["settings.set_theme"], "paths": ["Downloads"], "ttl": 86400, "uses": 5 }))["ok"]["state"].clone();
+        assert_eq!(long, "waiting for the owner", "only short, bounded passes");
+        r.agent("iam.register", json!({ "id": "helper:tidy", "name": "tidy" }));
+        assert_eq!(go(&mut r, "helper:tidy", json!(["settings.set_theme"])), "waiting for the owner", "only SIOS's own assistant");
+    }
+
     // ---- S1: Stop (D41) and approval sessions (D56)
 
     #[test]
@@ -1851,7 +1877,10 @@ mod tests {
         // no paths, or the whole home, only when asked for plainly
         assert!(r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.list"], "paths": [""], "uses": 3 }))["error"].is_string());
         assert!(r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.list"], "uses": 3 }))["error"].is_string());
+        // SIOS reading across the whole home just happens (D57); changing it there asks
         let whole = r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.list"], "paths": [""], "uses": 3, "whole_home": true }))["ok"].clone();
+        assert_eq!(whole["state"], "granted: settings and reads");
+        let whole = r.agent("request_pass", json!({ "principal": "sios", "tools": ["files.move"], "paths": [""], "uses": 3, "whole_home": true }))["ok"].clone();
         assert_eq!(whole["state"], "waiting for the owner");
     }
 

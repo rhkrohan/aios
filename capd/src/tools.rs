@@ -156,6 +156,19 @@ pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
     out
 }
 
+/// Settings the owner can just ask SIOS for (D57): each is undone by setting it back.
+pub const SETTINGS: &[&str] = &[
+    "settings.set_theme", "settings.set_volume", "settings.set_brightness", "settings.set_wallpaper", "settings.dnd",
+    "network.wifi_power", "network.bluetooth_power", "network.connect_wifi", "system.lock", "system.remind",
+];
+
+/// May SIOS's own assistant use this tool without asking the owner first (D57)?
+/// Reads that send nothing out, and the settings above. Never a file change,
+/// never anything irreversible or sending data off the computer.
+pub fn acts_without_asking(name: &str) -> bool {
+    spec(name).is_some_and(|s| !s.egress && (s.level == Level::Read || SETTINGS.contains(&s.name)))
+}
+
 pub fn spec(name: &str) -> Option<&'static ToolSpec> {
     TOOLS.iter().find(|t| t.name == name)
 }
