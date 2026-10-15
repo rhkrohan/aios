@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-15: D85 Daylight design language for all SIOS apps and KDE windows (light default, logos, error windows), D86 agent token and time limits enforced by the broker and a systemd timer, D87 leftover KDE tools hidden and Konsole restyled as Terminal. Accepted by the owner.
 - 2026-10-15: Agents, workspaces, proactive SIOS, Memory app and MCP store planned (18-agents-and-connectors.md, D58 to D84, A0 to A10 and C1 to C3). S2 to S9 continue after.
 - 2026-10-14: D57: SIOS reads, finds and changes settings without asking; file changes and anything risky still ask. Next: smarter local search (find by what a file is, not only its name), then S2.
 - 2026-10-14: D56 approval sessions (amends D39): one password until the screen locks, then one click for SIOS's undoable actions; part of S1. Photos and vision deferred; S1 to S9 next.
