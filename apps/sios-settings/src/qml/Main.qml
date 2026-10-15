@@ -24,7 +24,50 @@ QQC2.ApplicationWindow {
         function onShown(p) { if (p) win.page = p; win.show(); win.raise(); win.requestActivate(); }
     }
 
-    Connections { target: system; function onMessage(text, error) { toast.show(text, false, error); } }
+    Connections {
+        target: system
+        function onMessage(text, error) {
+            if (error) alert.open({ heading: "That didn't work", body: win.sentence(text) });
+            else notices.add(text, "");
+        }
+    }
+
+    // what you typed in the side list's search
+    property string q: ""
+
+    // Errors open a window (Alert); small news goes to the corner (Notices).
+    // opts: {logo, name, retry}
+    function failed(heading, error, opts) {
+        const o = opts || {};
+        const e = String(error || "");
+        if (e === "not confirmed: the owner's password wasn't given") {
+            notices.add(heading, "You closed the password window. Nothing changed.", { logo: o.logo, error: true });
+            return;
+        }
+        const said = /the service said no \(its own words, untrusted\): ([\s\S]*)$/.exec(e);
+        if (said) {
+            let words = said[1];
+            try { words = JSON.parse(words); } catch (err) {}
+            const who = o.name || "The service";
+            alert.open({
+                kind: "service", logo: o.logo, heading: who + " said no", sub: heading,
+                body: "SIOS asked " + who + " and it said no. SIOS stopped there: nothing else ran, and nothing on your computer changed.",
+                quote: String(words), quoteFrom: who, retry: o.retry
+            });
+            return;
+        }
+        alert.open({ kind: "error", logo: o.logo, heading: heading, body: sentence(e), retry: o.retry });
+    }
+    // "Claude (Anthropic)" -> "Claude"; the two open-ended ones get plain names
+    function shortName(p) {
+        if (p.id === "local") return "Local model";
+        if (p.id === "custom") return "Another AI service";
+        return String(p.label || p.id).replace(/ \(.*\)$/, "");
+    }
+    function sentence(t) {
+        t = String(t || "");
+        return t ? t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? "" : ".") : "";
+    }
 
     component NavItem: Rectangle {
         id: nav
@@ -32,25 +75,33 @@ QQC2.ApplicationWindow {
         property string label
         property string key
         property string kcm: ""
+        property color tile: "#6b7480"
+        property string badge: ""
         Layout.fillWidth: true
-        implicitHeight: 40
+        visible: !win.q || label.toLowerCase().indexOf(win.q.toLowerCase()) >= 0
+        implicitHeight: 42
         radius: 10
         readonly property bool on: win.page === key
-        color: on ? Theme.aiSoft : (m.containsMouse ? Theme.surface3 : "transparent")
+        color: on ? Theme.navOn : (m.containsMouse ? Theme.surface3 : "transparent")
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
+            anchors.leftMargin: 9
             anchors.rightMargin: 12
             spacing: 12
-            Icon { name: nav.icon; size: 16; color: nav.on ? Theme.aiInk : Theme.fg2 }
-            Text { Layout.fillWidth: true; text: nav.label; color: nav.on ? Theme.aiInk : Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: nav.on ? Font.Medium : Font.Normal }
+            Rectangle {
+                implicitWidth: 28; implicitHeight: 28; radius: 8
+                color: nav.on ? Qt.rgba(1, 1, 1, 0.18) : nav.tile
+                Icon { anchors.centerIn: parent; name: nav.icon; size: 16; color: "#ffffff" }
+            }
+            Text { Layout.fillWidth: true; text: nav.label; color: nav.on ? "#ffffff" : Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
+            Text { visible: nav.badge !== ""; text: nav.badge; color: nav.on ? "#ffffff" : Theme.fg3; opacity: 0.85; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
             Icon { visible: nav.kcm !== ""; name: "external-link"; size: 13; color: Theme.fg3 }
         }
         MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: nav.kcm ? system.openKdePage(nav.kcm) : (win.page = nav.key) }
         Accessible.role: Accessible.Button
         Accessible.name: label
     }
-    component Header: Text { color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.leftMargin: 12; Layout.topMargin: 18; Layout.bottomMargin: 4 }
+    component Header: Text { visible: !win.q; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.7; Layout.leftMargin: 10; Layout.topMargin: 16; Layout.bottomMargin: 4 }
 
     component Card: Rectangle {
         default property alias content: inner.data
@@ -93,11 +144,11 @@ QQC2.ApplicationWindow {
     component PageTitle: ColumnLayout {
         property string title
         property string sub
-        spacing: 2
         Layout.fillWidth: true
         Layout.bottomMargin: 8
-        Text { text: parent.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 22; font.weight: Font.DemiBold }
-        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
+        spacing: 6
+        Text { text: parent.title; color: Theme.fg; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.DemiBold }
+        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 15 }
     }
     component Soon: Rectangle {
         property string text
@@ -115,6 +166,61 @@ QQC2.ApplicationWindow {
         }
     }
 
+    // a titled group of rows with a rounded frame, as in Daylight
+    component SectionLabel: Text { color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.8; Layout.leftMargin: 14; Layout.topMargin: 6 }
+    component Group: Item {
+        default property alias rows: col.data
+        Layout.fillWidth: true
+        implicitHeight: col.implicitHeight
+        Rectangle { anchors.fill: parent; radius: 14; color: Theme.surface }
+        ColumnLayout { id: col; width: parent.width; spacing: 0 }
+        // the frame sits on top so a row's hover colour never covers it
+        Rectangle { anchors.fill: parent; radius: 14; color: "transparent"; border.width: 1; border.color: Theme.line }
+    }
+    component Pill: Rectangle {
+        property string text
+        property string kind: "ok"   // ok, danger, muted
+        implicitWidth: pt.implicitWidth + 20
+        implicitHeight: 24
+        radius: 12
+        color: kind === "ok" ? Theme.okSoft : kind === "danger" ? Theme.dangerSoft : Theme.surface3
+        Text { id: pt; anchors.centerIn: parent; text: parent.text; color: parent.kind === "ok" ? Theme.ok : parent.kind === "danger" ? Theme.danger : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+    }
+    component ListRow: Rectangle {
+        id: lr
+        property string logo
+        property string name
+        property string sub
+        property color subColor: Theme.fg2
+        property bool chevron: true
+        property bool expanded: false
+        property bool first: false
+        default property alias trailing: tail.data
+        signal clicked()
+        Layout.fillWidth: true
+        implicitHeight: 68
+        color: "transparent"
+        // hover shows inside the row, so the group's rounded corners stay clean
+        Rectangle { anchors { fill: parent; margins: 4 } radius: 10; color: rm.containsMouse && lr.chevron ? Theme.surface2 : "transparent" }
+        Rectangle { visible: !lr.first; width: parent.width; height: 1; color: Theme.surface3 }
+        MouseArea { id: rm; anchors.fill: parent; hoverEnabled: true; enabled: lr.chevron; cursorShape: Qt.PointingHandCursor; onClicked: lr.clicked() }
+        RowLayout {
+            anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
+            spacing: 14
+            Logo { key: lr.logo }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+                Text { Layout.fillWidth: true; text: lr.name; elide: Text.ElideRight; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
+                Text { Layout.fillWidth: true; text: lr.sub; elide: Text.ElideRight; color: lr.subColor; font.family: Theme.ui; font.pixelSize: 13 }
+            }
+            RowLayout { id: tail; spacing: 8 }
+            Icon { visible: lr.chevron; name: "chevron-right"; size: 16; color: Theme.fg3; rotation: lr.expanded ? 90 : 0 }
+        }
+        Accessible.role: Accessible.Button
+        Accessible.name: name
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -122,37 +228,63 @@ QQC2.ApplicationWindow {
         // ---- sidebar
         Rectangle {
             Layout.fillHeight: true
-            implicitWidth: 232
-            color: Theme.surface2
+            implicitWidth: 260
+            color: Theme.sidebar
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
             QQC2.ScrollView {
                 anchors.fill: parent
-                anchors.margins: 12
+                anchors.margins: 18
+                anchors.rightMargin: 19
                 ColumnLayout {
-                    width: 212
-                    spacing: 2
-                    Header { text: "Assistant"; Layout.topMargin: 4 }
-                    NavItem { icon: "brain"; label: "Brain"; key: "brain" }
-                    NavItem { icon: "shield-check"; label: "Permissions"; key: "permissions" }
-                    NavItem { icon: "plug"; label: "Connected AI apps"; key: "connections" }
-                    NavItem { icon: "cloud"; label: "Connectors"; key: "connectors" }
+                    width: 223
+                    spacing: 3
+                    Text { text: "Settings"; color: Theme.fg; font.family: Theme.display; font.pixelSize: 30; font.weight: Font.DemiBold; Layout.leftMargin: 10; Layout.topMargin: 8; Layout.bottomMargin: 10 }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: 6
+                        implicitHeight: 36; radius: 10
+                        color: Theme.surface; border.width: 1; border.color: searchField.activeFocus ? Theme.accent : Theme.line
+                        RowLayout {
+                            anchors { fill: parent; leftMargin: 11; rightMargin: 6 }
+                            spacing: 8
+                            Icon { name: "search"; size: 14; color: Theme.fg3 }
+                            QQC2.TextField {
+                                id: searchField
+                                Layout.fillWidth: true
+                                placeholderText: "Search"
+                                leftPadding: 0
+                                placeholderTextColor: Theme.fg3; color: Theme.fg; background: null
+                                font.family: Theme.ui; font.pixelSize: 13
+                                onTextChanged: win.q = text.trim()
+                                Keys.onEscapePressed: text = ""
+                            }
+                        }
+                    }
+                    Header { text: "Assistant" }
+                    NavItem { icon: "brain-circuit"; tile: "#4f7bf7"; label: "Brain"; key: "brain" }
+                    NavItem { icon: "shield-check"; tile: "#4d7a52"; label: "Permissions"; key: "permissions" }
+                    NavItem {
+                        icon: "plug"; tile: "#2f5d8a"; label: "Connectors"; key: "connectors"
+                        badge: { const n = (broker.connectors.connectors || []).filter(c => c.installed && !c.disabled).length; return n ? n + " on" : ""; }
+                    }
+                    NavItem { icon: "bot"; tile: "#c1457d"; label: "Connected AI apps"; key: "connections" }
                     Header { text: "This computer" }
-                    NavItem { icon: "palette"; label: "Appearance"; key: "appearance" }
-                    NavItem { icon: "wifi"; label: "Wi-Fi"; key: "wifi" }
-                    NavItem { icon: "refresh-cw"; label: "Updates"; key: "updates" }
-                    NavItem { icon: "info"; label: "About"; key: "about" }
+                    NavItem { icon: "palette"; tile: "#7b62c4"; label: "Appearance"; key: "appearance" }
+                    NavItem { icon: "wifi"; tile: "#3b74bf"; label: "Wi-Fi"; key: "wifi" }
+                    NavItem { icon: "refresh-cw"; tile: "#56616e"; label: "Updates"; key: "updates" }
+                    NavItem { icon: "info"; tile: "#8b8b86"; label: "About"; key: "about" }
                     Header { text: "More" }
-                    NavItem { icon: "monitor"; label: "Display"; kcm: "kcm_kscreen" }
-                    NavItem { icon: "volume-2"; label: "Sound"; kcm: "kcm_pulseaudio" }
-                    NavItem { icon: "bluetooth"; label: "Bluetooth"; kcm: "kcm_bluetooth" }
-                    NavItem { icon: "bell"; label: "Notifications"; kcm: "kcm_notifications" }
-                    NavItem { icon: "users"; label: "Users"; kcm: "kcm_users" }
-                    NavItem { icon: "clock"; label: "Date & time"; kcm: "kcm_clock" }
-                    NavItem { icon: "keyboard"; label: "Keyboard"; kcm: "kcm_keyboard" }
-                    NavItem { icon: "mouse"; label: "Mouse & touchpad"; kcm: "kcm_mouse" }
-                    NavItem { icon: "battery"; label: "Power"; kcm: "kcm_powerdevilprofilesconfig" }
-                    NavItem { icon: "printer"; label: "Printers"; kcm: "kcm_printer_manager" }
-                    NavItem { icon: "accessibility"; label: "Accessibility"; kcm: "kcm_access" }
+                    NavItem { icon: "monitor"; tile: "#2e8d5c"; label: "Display"; kcm: "kcm_kscreen" }
+                    NavItem { icon: "volume-2"; tile: "#dc7637"; label: "Sound"; kcm: "kcm_pulseaudio" }
+                    NavItem { icon: "bluetooth"; tile: "#3b74bf"; label: "Bluetooth"; kcm: "kcm_bluetooth" }
+                    NavItem { icon: "bell"; tile: "#d4524b"; label: "Notifications"; kcm: "kcm_notifications" }
+                    NavItem { icon: "users"; tile: "#8b7652"; label: "Users"; kcm: "kcm_users" }
+                    NavItem { icon: "clock"; tile: "#56616e"; label: "Date & time"; kcm: "kcm_clock" }
+                    NavItem { icon: "keyboard"; tile: "#6b7480"; label: "Keyboard"; kcm: "kcm_keyboard" }
+                    NavItem { icon: "mouse"; tile: "#6b7480"; label: "Mouse & touchpad"; kcm: "kcm_mouse" }
+                    NavItem { icon: "battery"; tile: "#2e8d5c"; label: "Power"; kcm: "kcm_powerdevilprofilesconfig" }
+                    NavItem { icon: "printer"; tile: "#6b7480"; label: "Printers"; kcm: "kcm_printer_manager" }
+                    NavItem { icon: "accessibility"; tile: "#3b74bf"; label: "Accessibility"; kcm: "kcm_access" }
                 }
             }
         }
@@ -169,9 +301,9 @@ QQC2.ApplicationWindow {
 
             ColumnLayout {
                 id: pages
-                x: Math.max(40, (body.width - 680) / 2)
+                x: Math.max(48, (body.width - 720) / 2)
                 y: 40
-                width: Math.min(680, body.width - 80)
+                width: Math.min(720, body.width - 96)
                 spacing: 18
 
                 // Brain: which AI SIOS thinks with. Keys live in the broker, sealed;
@@ -190,9 +322,16 @@ QQC2.ApplicationWindow {
                         target: broker
                         function onDone(tag, ok, error) {
                             if (["key", "remove", "consent", "configure", "use", "test"].indexOf(tag) < 0) return;
+                            const id = brainPage.waiting.split(":")[1] || "";
+                            const p = brainPage.providers.filter(x => x.id === id)[0];
+                            const name = p ? win.shortName(p) : "The AI";
                             brainPage.waiting = "";
-                            if (error) toast.show(error, false, true);
-                            else toast.show(tag === "test" ? "Connected: the AI answered." : "Saved.", false, false);
+                            if (error) win.failed(({ key: "Couldn't save the key", remove: "Couldn't remove the key", consent: "Couldn't change that",
+                                                     configure: "Couldn't save the model", use: "Couldn't switch SIOS's brain", test: name + " didn't answer" })[tag],
+                                                  error, { logo: id, name: name });
+                            else notices.add(tag === "test" ? name + " answered" : "Saved",
+                                             ({ test: "The connection works.", key: "The key is sealed in the broker.", use: "SIOS thinks with " + name + " now." })[tag] || "",
+                                             { logo: id });
                         }
                     }
                     function ask(method, params, tag) { waiting = tag + ":" + (params.id || ""); broker.request(method, params, tag); }
@@ -206,7 +345,7 @@ QQC2.ApplicationWindow {
                         visible: broker.reachable
                         RowLayout {
                             spacing: 12
-                            Rectangle { implicitWidth: 36; implicitHeight: 36; radius: 10; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "brain"; size: 17; color: Theme.aiInk } }
+                            Rectangle { implicitWidth: 36; implicitHeight: 36; radius: 10; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "brain-circuit"; size: 17; color: Theme.aiInk } }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 2
@@ -230,7 +369,8 @@ QQC2.ApplicationWindow {
                             readonly property bool busy: brainPage.waiting.endsWith(":" + modelData.id)
                             RowLayout {
                                 spacing: 10
-                                Text { Layout.fillWidth: true; text: pc.modelData.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                                Logo { key: pc.modelData.id; size: 36 }
+                                Text { Layout.fillWidth: true; text: pc.modelData.label; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight }
                                 Repeater {
                                     model: [
                                         [pc.modelData.online ? "Online" : "On this computer", Theme.fg2],
@@ -303,88 +443,190 @@ QQC2.ApplicationWindow {
                     }
                 }
 
-                // Connectors (C1, D79 to D81): services SIOS reaches through its broker. Tokens
-                // are sealed in the Sign-ins vault; installing or removing asks for your password
+                // Connectors (C1, D79 to D81): the AIs SIOS thinks with and the services it
+                // reaches through its broker. Tokens are sealed in the Sign-ins vault;
+                // installing or removing asks for your password.
                 ColumnLayout {
                     id: connPage
                     visible: win.page === "connectors"
                     Layout.fillWidth: true
-                    spacing: 18
+                    spacing: 10
                     readonly property var list: (broker.connectors.connectors || [])
+                    readonly property var providers: broker.ai.providers || []
                     property string waiting: ""
+                    property string opened: ""     // the service row that's open
+                    property var last: null         // the request waiting for an answer
                     onVisibleChanged: if (visible) broker.refresh()
                     Connections {
                         target: broker
                         function onDone(tag, ok, error) {
                             if (["cinstall", "cremove"].indexOf(tag) < 0) return;
+                            const r = connPage.last;
                             connPage.waiting = "";
-                            if (error) toast.show(error, false, true);
-                            else toast.show(tag === "cinstall" ? "Installed. SIOS can use it now, and asks you each time." : "Removed, with its sign-in.", false, false);
+                            connPage.last = null;
+                            if (alert.kind === "progress") alert.close();
+                            if (!r) return;
+                            if (error) {
+                                // a token was sent and is gone from this window, so installing
+                                // again needs it pasted again; anything else can simply retry
+                                const again = r.params.secret ? null : () => connPage.ask(r.method, r.params, r.tag, r.name);
+                                win.failed((tag === "cinstall" ? "Couldn't install " : "Couldn't remove ") + r.name, error,
+                                           { logo: r.params.id, name: r.name, retry: again });
+                                if (r.params.secret) connPage.opened = r.params.id;
+                            } else if (tag === "cinstall") {
+                                notices.add(r.name + " is on", "SIOS can use it, and asks you each time.", { logo: r.params.id });
+                                connPage.opened = "";
+                            } else {
+                                notices.add(r.name + " removed", "Its sign-in is gone too.", { logo: r.params.id });
+                            }
                         }
                     }
-                    function ask(method, params, tag) { waiting = tag + ":" + (params.id || ""); broker.request(method, params, tag); }
+                    function ask(method, params, tag, name) {
+                        waiting = tag + ":" + params.id;
+                        last = { method: method, params: params, tag: tag, name: name };
+                        broker.request(method, params, tag);
+                        if (tag === "cinstall")
+                            alert.open({ kind: "progress", logo: params.id, heading: "Installing " + name,
+                                         body: "SIOS asks for your password, then checks " + name + " against its signed list, asks which tools it has and pins them, so any change is noticed. This takes a few seconds." });
+                    }
+                    function install(c, token) {
+                        const p = { id: c.id, ais: c.installed ? c.ais : ["sios"] };
+                        if (token) p.secret = token;
+                        else if (c.signin && !c.signed_in) { opened = c.id; return false; }
+                        ask("connectors.install", p, "cinstall", c.name);
+                        return true;
+                    }
 
-                    PageTitle { title: "Connectors"; sub: "Services SIOS can reach for you, always through its broker. Your tokens stay sealed; no AI ever sees them. SIOS asks you before it uses one, and what a service says back is treated as data, never as instructions." }
-                    Soon { visible: !!broker.connectors.catalog_error; text: "Connectors are off: " + (broker.connectors.catalog_error || "") }
-                    Repeater {
-                        model: connPage.list
-                        delegate: Card {
-                            id: cc
-                            required property var modelData
-                            readonly property bool busy: connPage.waiting.endsWith(":" + modelData.id)
-                            RowLayout {
-                                spacing: 10
-                                Text { Layout.fillWidth: true; text: cc.modelData.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                                Repeater {
-                                    model: [
-                                        [cc.modelData.verified ? "Verified: " + cc.modelData.publisher : cc.modelData.publisher, cc.modelData.verified ? Theme.ok : Theme.fg2],
-                                        [cc.modelData.disabled ? "Switched off" : (cc.modelData.installed ? "Installed" : "Not installed"), cc.modelData.disabled ? Theme.danger : (cc.modelData.installed ? Theme.ok : Theme.fg3)],
-                                        [cc.modelData.signin ? (cc.modelData.signed_in ? "Signed in" : "Not signed in") : "No sign-in needed", cc.modelData.signed_in ? Theme.ok : Theme.fg3],
-                                    ]
-                                    delegate: Rectangle {
-                                        required property var modelData
-                                        implicitWidth: cchip.implicitWidth + 16; implicitHeight: 22; radius: 11
-                                        color: Theme.surface2; border.width: 1; border.color: Theme.line
-                                        Text { id: cchip; anchors.centerIn: parent; text: modelData[0]; color: modelData[1]; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Medium }
+                    PageTitle { title: "Connectors"; sub: "Everything SIOS can talk to. Your keys and tokens stay sealed in the broker; no AI ever sees them." }
+                    Soon {
+                        visible: !broker.reachable
+                        text: "SIOS's broker isn't running, so connectors can't be changed right now."
+                    }
+
+                    // the AIs SIOS thinks with; each opens on the Brain page
+                    SectionLabel { visible: broker.reachable; text: "AI accounts" }
+                    Group {
+                        visible: broker.reachable
+                        Repeater {
+                            model: connPage.providers
+                            delegate: ListRow {
+                                required property var modelData
+                                required property int index
+                                first: index === 0
+                                logo: modelData.id
+                                name: win.shortName(modelData)
+                                sub: modelData.active ? "SIOS thinks with this one now"
+                                     : modelData.has_key ? "Key sealed in the broker"
+                                     : modelData.online ? "Not set up" : "Private, runs on this computer"
+                                subColor: modelData.active || modelData.has_key || !modelData.online ? Theme.fg2 : Theme.fg3
+                                onClicked: win.page = "brain"
+                                Pill { visible: !!modelData.active; text: "In use" }
+                            }
+                        }
+                    }
+
+                    // services from SIOS's signed catalog, plus what's coming next
+                    SectionLabel { visible: broker.reachable; text: "Services"; Layout.topMargin: 16 }
+                    Soon { visible: !!broker.connectors.catalog_error; text: "Services are off: " + (broker.connectors.catalog_error || "") }
+                    Group {
+                        visible: broker.reachable
+                        Repeater {
+                            model: connPage.list
+                            delegate: ColumnLayout {
+                                id: cc
+                                required property var modelData
+                                required property int index
+                                readonly property bool open: connPage.opened === modelData.id
+                                readonly property bool busy: connPage.waiting.endsWith(":" + modelData.id)
+                                Layout.fillWidth: true
+                                spacing: 0
+                                ListRow {
+                                    first: cc.index === 0
+                                    logo: cc.modelData.id
+                                    name: cc.modelData.name
+                                    sub: cc.modelData.disabled ? "Switched off: its tools changed" : (cc.modelData.about || "")
+                                    subColor: cc.modelData.disabled ? Theme.danger : Theme.fg2
+                                    expanded: cc.open
+                                    onClicked: connPage.opened = cc.open ? "" : cc.modelData.id
+                                    Pill { visible: !!cc.modelData.verified && !cc.modelData.installed; kind: "muted"; text: "Verified" }
+                                    Pill { visible: !!cc.modelData.disabled; kind: "danger"; text: "Switched off" }
+                                    Pill { visible: !!cc.modelData.installed && !cc.modelData.disabled; text: "On" }
+                                    Button {
+                                        visible: !cc.modelData.installed && !cc.open
+                                        text: "Install"
+                                        busy: cc.busy
+                                        onClicked: connPage.install(cc.modelData, "")
+                                    }
+                                }
+                                // the open row: what it may do, the token, and the actions
+                                ColumnLayout {
+                                    visible: cc.open
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: 70
+                                    Layout.rightMargin: 20
+                                    Layout.bottomMargin: 18
+                                    spacing: 12
+                                    Text {
+                                        Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                        text: (cc.modelData.verified ? "Verified, from " : "From ") + cc.modelData.publisher + ". Talks only to " + (cc.modelData.destinations || []).join(", ") + "."
+                                        color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                        text: "What SIOS may do with it: " + (cc.modelData.tools || []).map(t => t.about.replace(/[.:].*$/, "").toLowerCase()).join("; ") + "."
+                                        color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
+                                    }
+                                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !!cc.modelData.disabled; text: cc.modelData.disabled || ""; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13 }
+                                    RowLayout {
+                                        spacing: 8
+                                        visible: !!cc.modelData.signin
+                                        Field {
+                                            id: tokField
+                                            secret: TextInput.Password
+                                            placeholder: cc.modelData.signed_in ? "A sign-in is saved. Paste a new token to replace it." : (cc.modelData.signin ? cc.modelData.signin.label : "")
+                                            onAccepted: installBtn.clicked()
+                                        }
+                                        Button { text: "Make one"; kind: "plain"; onClicked: Qt.openUrlExternally(cc.modelData.signin.help_url) }
+                                    }
+                                    RowLayout {
+                                        spacing: 8
+                                        Text {
+                                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                            text: cc.modelData.installed ? "Used by " + (cc.modelData.ais || []).map(a => a === "sios" ? "SIOS" : a).join(", ") + ". SIOS asks you before each use."
+                                                                         : "Installing checks the service and pins its tools; if they ever change, SIOS switches it off."
+                                            color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
+                                        }
+                                        Button { visible: !!cc.modelData.installed; text: "Remove"; kind: "danger"; busy: cc.busy && connPage.waiting.startsWith("cremove:"); onClicked: connPage.ask("connectors.remove", { id: cc.modelData.id }, "cremove", cc.modelData.name) }
+                                        Button {
+                                            id: installBtn
+                                            text: cc.modelData.installed && !cc.modelData.disabled ? "Update sign-in" : "Install"
+                                            busy: cc.busy && connPage.waiting.startsWith("cinstall:")
+                                            onClicked: {
+                                                if (cc.modelData.signin && !tokField.text && (!cc.modelData.signed_in || cc.modelData.installed && !cc.modelData.disabled)) {
+                                                    tokField.field.forceActiveFocus();
+                                                    return;
+                                                }
+                                                connPage.install(cc.modelData, tokField.text);
+                                                tokField.text = "";   // the token is gone from this window once sent
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: cc.modelData.about; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: !!cc.modelData.disabled; text: cc.modelData.disabled || ""; color: Theme.danger; font.family: Theme.ui; font.pixelSize: 13 }
-                            Text {
-                                Layout.fillWidth: true; wrapMode: Text.WordWrap
-                                text: "Talks only to " + (cc.modelData.destinations || []).join(", ") + ". What SIOS may do with it: " + (cc.modelData.tools || []).map(t => t.about.replace(/[.:].*$/, "").toLowerCase() + " (" + t.level + ")").join("; ") + "."
-                                color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
-                            }
-                            RowLayout {
-                                spacing: 8
-                                visible: !!cc.modelData.signin
-                                Text { text: "Token"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 64 }
-                                Field {
-                                    id: tokField
-                                    secret: TextInput.Password
-                                    placeholder: cc.modelData.signed_in ? "A sign-in is saved. Paste a new token to replace it." : (cc.modelData.signin ? cc.modelData.signin.label : "")
-                                    onAccepted: installBtn.clicked()
-                                }
-                                Button { text: "Make one"; kind: "plain"; onClicked: Qt.openUrlExternally(cc.modelData.signin.help_url) }
-                            }
-                            RowLayout {
-                                spacing: 10
-                                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: cc.modelData.installed ? "Used by: " + (cc.modelData.ais || []).map(a => a === "sios" ? "SIOS" : a).join(", ") : "Installing checks the service and pins its tools; if they ever change, SIOS switches it off."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
-                                Button { visible: cc.modelData.installed; text: "Remove"; kind: "danger"; busy: cc.busy && connPage.waiting.startsWith("cremove:"); onClicked: connPage.ask("connectors.remove", { id: cc.modelData.id }, "cremove") }
-                                Button {
-                                    id: installBtn
-                                    text: cc.modelData.installed && !cc.modelData.disabled ? "Update sign-in" : "Install"
-                                    kind: "primary"
-                                    busy: cc.busy && connPage.waiting.startsWith("cinstall:")
-                                    onClicked: {
-                                        const p = { id: cc.modelData.id, ais: cc.modelData.installed ? cc.modelData.ais : ["sios"] };
-                                        if (tokField.text) p.secret = tokField.text;
-                                        else if (cc.modelData.signin && !cc.modelData.signed_in) { toast.show("Paste a token first.", false, true); return; }
-                                        connPage.ask("connectors.install", p, "cinstall");
-                                        tokField.text = "";   // the token is gone from this window once sent
-                                    }
-                                }
+                        }
+                        Repeater {
+                            // planned next (C2); shown so you know they're coming, never clickable
+                            model: [["gmail", "Gmail", "Mail, through your Google sign-in"], ["calendar", "Google Calendar", "Events and invites"]]
+                                   .filter(x => !connPage.list.some(c => c.id === x[0]))
+                            delegate: ListRow {
+                                required property var modelData
+                                required property int index
+                                first: index === 0 && connPage.list.length === 0
+                                logo: modelData[0]
+                                name: modelData[1]
+                                sub: modelData[2]
+                                chevron: false
+                                Pill { kind: "muted"; text: "Coming soon" }
                             }
                         }
                     }
@@ -422,9 +664,9 @@ QQC2.ApplicationWindow {
                                 return;
                             }
                             if (!tag.startsWith("app-")) return;
-                            if (error) { toast.show(error, false, true); return; }
+                            if (error) { win.failed(tag === "app-pair" ? "Couldn't pair the app" : "Couldn't change the app", error); return; }
                             if (tag === "app-pair") { appsPage.token = ok.token; appsPage.tokenFor = ok.id; }
-                            else toast.show("Saved.", false, false);
+                            else notices.add("Saved", "");
                             appsPage.load();
                         }
                     }
@@ -494,7 +736,7 @@ QQC2.ApplicationWindow {
                         Text { text: "Other apps: an MCP server with command /usr/bin/brain-d, argument mcp, and the environment variable SIOS_PAIR_TOKEN set to the token above."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         RowLayout {
                             Item { Layout.fillWidth: true }
-                            Button { text: "Copy"; kind: "plain"; onClicked: { cmd.selectAll(); cmd.copy(); cmd.deselect(); toast.show("Copied.", false, false); } }
+                            Button { text: "Copy"; kind: "plain"; onClicked: { cmd.selectAll(); cmd.copy(); cmd.deselect(); notices.add("Copied", "Paste it into a terminal."); } }
                             Button { text: "Done"; onClicked: { appsPage.token = ""; appName.text = ""; } }
                         }
                     }
@@ -510,7 +752,7 @@ QQC2.ApplicationWindow {
                             required property var modelData
                             RowLayout {
                                 spacing: 10
-                                Rectangle { implicitWidth: 34; implicitHeight: 34; radius: 10; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "plug"; size: 16; color: Theme.aiInk } }
+                                Rectangle { implicitWidth: 34; implicitHeight: 34; radius: 10; color: Theme.aiSoft; Icon { anchors.centerIn: parent; name: "bot"; size: 16; color: Theme.aiInk } }
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 2
@@ -728,5 +970,6 @@ QQC2.ApplicationWindow {
         }
     }
 
-    Toast { id: toast }
+    Notices { id: notices }
+    Alert { id: alert; transientParent: win }
 }

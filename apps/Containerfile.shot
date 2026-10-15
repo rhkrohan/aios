@@ -1,6 +1,7 @@
 # The dev image plus a virtual screen, so apps/shot-app.sh can screenshot an
-# app without the VM. Local use only; not part of the OS image.
+# app without the VM (xdotool clicks for checking windows). Local use only;
+# not part of the OS image.
 FROM sios-appsdev
 RUN dnf5 -y install xorg-x11-server-Xvfb ImageMagick dbus-daemon breeze-icon-theme \
-      qt6-qtsvg kf6-kirigami qt6-qt5compat google-noto-sans-fonts \
+      qt6-qtsvg kf6-kirigami qt6-qt5compat google-noto-sans-fonts xdotool \
     && dnf5 clean all
