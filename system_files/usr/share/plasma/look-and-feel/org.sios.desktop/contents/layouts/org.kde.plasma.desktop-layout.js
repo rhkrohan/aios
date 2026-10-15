@@ -50,8 +50,8 @@ dock.addWidget("org.sios.dock");
 // The folder desktop remembers widget positions per screen size, so save them
 // for the common sizes too: otherwise a new size (a resolution change, a
 // docked laptop, a VM window) keeps the old pixel positions.
-const SIZES = [[1280, 720], [1280, 800], [1366, 768], [1440, 900], [1470, 956], [1512, 982], [1536, 864], [1600, 900],
-    [1680, 1050], [1728, 1080], [1728, 1117], [1920, 1080], [1920, 1200], [2048, 1152], [2560, 1080], [2560, 1440],
+const SIZES = [[1024, 768], [1280, 720], [1280, 768], [1280, 800], [1366, 768], [1440, 900], [1470, 956], [1512, 982], [1536, 864], [1600, 900],
+    [1680, 1050], [1728, 1080], [1728, 1084], [1728, 1117], [1920, 1080], [1920, 1200], [2048, 1152], [2560, 1080], [2560, 1440],
     [2560, 1600], [3440, 1440], [3840, 2160]];
 // the desktop snaps widgets to a 16px grid, so place them on it
 const snap = (v) => Math.round(v / 16) * 16;

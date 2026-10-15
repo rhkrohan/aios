@@ -41,7 +41,15 @@ pub const OWNER_BY_PROGRAM: bool = false;
 
 /// Variables that make a program load code it wasn't shipped with (whole families).
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+/// Plasma sets `QT_WAYLAND_RECONNECT=1` for every app it launches (seen on the
+/// image 2026-10-14); it only lets the app survive a compositor restart.
+const HARMLESS: [&[u8]; 1] = [b"QT_WAYLAND_RECONNECT=1"];
+
 pub(crate) fn injecting(var: &[u8]) -> bool {
+    // settings the desktop gives every app it starts, which load nothing (exact value)
+    if HARMLESS.contains(&var) {
+        return false;
+    }
     let name = var.split(|b| *b == b'=').next().unwrap_or_default();
     ["LD_", "QT_", "QML", "GCONV_PATH", "GIO_EXTRA_MODULES", "GTK_PATH", "PYTHONPATH", "KDE_FORK_SLAVES"].iter().any(|p| name.starts_with(p.as_bytes()))
 }

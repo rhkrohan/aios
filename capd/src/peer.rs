@@ -53,7 +53,15 @@ pub const SERVICE: (&str, &str) = ("/usr/bin/brain-d", "/sios-brain.service");
 /// Variables that make a program load code it wasn't shipped with: whole families,
 /// so a new loader variable in a later release is caught too.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+/// Plasma sets `QT_WAYLAND_RECONNECT=1` for every app it launches (seen on the
+/// image 2026-10-14); it only lets the app survive a compositor restart.
+const HARMLESS: [&[u8]; 1] = [b"QT_WAYLAND_RECONNECT=1"];
+
 pub(crate) fn injecting(var: &[u8]) -> bool {
+    // settings the desktop gives every app it starts, which load nothing (exact value)
+    if HARMLESS.contains(&var) {
+        return false;
+    }
     let name = var.split(|b| *b == b'=').next().unwrap_or_default();
     ["LD_", "QT_", "QML", "GCONV_PATH", "GIO_EXTRA_MODULES", "GTK_PATH", "PYTHONPATH", "KDE_FORK_SLAVES"].iter().any(|p| name.starts_with(p.as_bytes()))
 }
@@ -141,6 +149,8 @@ mod tests {
         assert_eq!(classify(&Proc { same_user: false, ..p("/usr/bin/sios-settings", shell) }, &OWNER_APPS, Some(SERVICE)), Who::Agent);
         // loader variables, whole families
         assert!(injecting(b"LD_PRELOAD=/tmp/x.so") && injecting(b"LD_AUDIT=x") && injecting(b"QT_QPA_PLATFORM_PLUGIN_PATH=/tmp") && injecting(b"QML_XHR_ALLOW_FILE_READ=1") && injecting(b"GCONV_PATH=/tmp"));
+        // what Plasma gives every app is fine, but only with that exact value
+        assert!(!injecting(b"QT_WAYLAND_RECONNECT=1") && injecting(b"QT_WAYLAND_RECONNECT=/tmp/x.so"));
         assert!(!injecting(b"HOME=/home/rohan") && !injecting(b"LANG=en_US.UTF-8") && !injecting(b"XDG_RUNTIME_DIR=/run/user/1000"));
         // nothing known (no kernel answer)
         assert_eq!(classify(&Proc::default(), &OWNER_APPS, Some(SERVICE)), Who::Agent);
