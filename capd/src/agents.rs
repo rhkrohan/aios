@@ -168,6 +168,10 @@ impl Registry {
         if s.is_empty() {
             return Err("an agent needs a name".into());
         }
+        // its units are sios-agent-<name> and sios-agent-<name>-signin: no name may end like the second
+        if s.ends_with("-signin") {
+            return Err("pick another name (it can't end in \"signin\")".into());
+        }
         if self.agents.iter().any(|a| a.id == format!("agent:{s}")) {
             return Err(format!("there's already an agent called {name}"));
         }
@@ -353,6 +357,7 @@ mod tests {
         let a = r.add(&json!({ "name": "Pip", "job": "watch", "instructions": "Sort new files", "folder": "Downloads/" }), 1).unwrap();
         assert_eq!((a.id.as_str(), a.folder.as_str(), a.brain.as_str()), ("agent:pip", "Downloads", "builtin"));
         assert!(r.add(&json!({ "name": "pip", "instructions": "x" }), 1).is_err(), "names are unique");
+        assert!(r.add(&json!({ "name": "Coder signin", "instructions": "x" }), 1).is_err(), "no clash with a sign-in unit");
         let every = r.add(&json!({ "name": "Momo", "job": "every", "every_min": 1, "instructions": "check big files" }), 1).unwrap();
         assert_eq!(every.every_min, 5, "at least 5 minutes apart");
         assert_eq!(Registry::open(d.path()).agents.len(), 2, "saved");

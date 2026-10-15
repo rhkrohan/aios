@@ -566,7 +566,7 @@ impl State {
                 // set, the run stops rather than going on without one (fail closed)
                 if running {
                     let unit = format!("{}.service", crate::runner::unit(&slug));
-                    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}-lease.timer", crate::runner::unit(&slug))], None, std::time::Duration::from_secs(10));
+                    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}.timer", crate::runner::lease_unit(&slug))], None, std::time::Duration::from_secs(10));
                     let args = crate::runner::lease_timer(&slug, until.saturating_sub(now()));
                     let argv: Vec<&str> = args.iter().map(String::as_str).collect();
                     if !crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(10)).is_ok_and(|o| o.code == Some(0)) {
@@ -1444,7 +1444,9 @@ impl State {
     }
 
     /// The sandbox, the worktree and the pairing for a run; the systemd-run arguments.
-    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str) -> Result<(Vec<String>, PathBuf), String> {
+    /// `ceiling`: systemd's hard stop for this unit (a run: 8 hours, its lease is a timer;
+    /// the sign-in terminal: 30 minutes, no timer).
+    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str, ceiling: u64) -> Result<(Vec<String>, PathBuf), String> {
         let (project, worktree, git_dir, home, mine) = self.agent_paths(a)?;
         if !git_dir.is_dir() {
             return Err("that folder isn't a git project yet: use Make it a git project".into());
@@ -1500,7 +1502,6 @@ impl State {
         }
         let sockets = std::env::var("SIOS_RUNTIME").map(PathBuf::from).map_err(|_| "no SIOS runtime folder")?;
         let run_file = mine.join("runs").join(format!("{run_id}.jsonl"));
-        let left = a.lease_until.saturating_sub(now());
         #[cfg(target_os = "linux")]
         // SAFETY: getuid has no preconditions.
         let uid = unsafe { libc::getuid() };
@@ -1519,8 +1520,7 @@ impl State {
             resume: (!a.session.is_empty()).then_some(a.session.as_str()),
             // the lease is a timer beside the run (it can grow with +1 hour); systemd's
             // hard stop is the 8-hour ceiling a lease can never pass
-            max_secs: 8 * 3600,
-            // (left: checked by agent_run before anything starts)
+            max_secs: ceiling,
             uid,
         })?;
         Ok((args, run_file))
@@ -1549,14 +1549,14 @@ impl State {
             return Err("what should it do?".into());
         }
         let run_id = format!("r{}", random_hex(6));
-        let (args, run_file) = self.agent_prepare(&a, task, &run_id)?;
+        let (args, run_file) = self.agent_prepare(&a, task, &run_id, 8 * 3600)?;
         let argv: Vec<&str> = args.iter().map(String::as_str).collect();
         let o = crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(20))?;
         if o.code != Some(0) {
             return Err(format!("couldn't start its workspace: {}", o.stderr.trim().chars().take(200).collect::<String>()));
         }
         // its lease as a systemd timer: without one the run doesn't go on (fail closed)
-        let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}-lease.timer", crate::runner::unit(a.slug()))], None, std::time::Duration::from_secs(10));
+        let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}.timer", crate::runner::lease_unit(a.slug()))], None, std::time::Duration::from_secs(10));
         let targs = crate::runner::lease_timer(a.slug(), a.lease_until.saturating_sub(now()));
         let tv: Vec<&str> = targs.iter().map(String::as_str).collect();
         if !crate::exec::run("/usr/bin/systemd-run", &tv, None, std::time::Duration::from_secs(10)).is_ok_and(|t| t.code == Some(0)) {
@@ -1667,7 +1667,7 @@ impl State {
     pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path, pr: crate::runner::Progress) {
         let _ = self.agent_tick(id, run_id, pr);
         if let Some(a) = self.agents.get(id) {
-            let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}-lease.timer", crate::runner::unit(a.slug()))], None, std::time::Duration::from_secs(10));
+            let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}.timer", crate::runner::lease_unit(a.slug()))], None, std::time::Duration::from_secs(10));
         }
         let (text, session, failed) = crate::runner::outcome(run_file);
         if let Some(r) = self.agents.run_mut(run_id) {
@@ -1693,7 +1693,7 @@ impl State {
         let mut tmp = a.clone();
         tmp.lease_until = now() + 1800;
         tmp.session.clear();
-        let (args, _) = self.agent_prepare(&tmp, "Say hello (sign-in check).", "signin")?;
+        let (args, _) = self.agent_prepare(&tmp, "Say hello (sign-in check).", "signin", 1800)?;
         // the same sandbox, interactive: drop the output file and the task, keep everything else
         let mut it: Vec<String> = vec!["-e".into(), "/usr/bin/systemd-run".into(), "--user".into(), "--pty".into(), "--quiet".into(), "--collect".into(), format!("--unit={}-signin", crate::runner::unit(a.slug()))];
         let mut skip = false;

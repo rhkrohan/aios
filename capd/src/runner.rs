@@ -53,13 +53,18 @@ pub fn unit(slug: &str) -> String {
     format!("sios-agent-{slug}")
 }
 
+/// Its stop timer's unit: outside the sios-agent-* names, so no agent's name can match it.
+pub fn lease_unit(slug: &str) -> String {
+    format!("sios-lease-{slug}")
+}
+
 /// The lease as a systemd timer beside the run: when it fires, systemd stops the
 /// agent's unit, even if the broker isn't running. "+1 hour" replaces the timer
 /// (a running unit's RuntimeMaxSec can't be changed; checked on the VM).
 pub fn lease_timer(slug: &str, secs: u64) -> Vec<String> {
     vec![
         "--user".into(), "--quiet".into(), "--collect".into(),
-        format!("--unit={}-lease", unit(slug)),
+        format!("--unit={}", lease_unit(slug)),
         format!("--on-active={}s", secs.max(1)),
         "--timer-property=AccuracySec=1s".into(),
         "/usr/bin/systemctl".into(), "--user".into(), "stop".into(), format!("{}.service", unit(slug)),
@@ -374,7 +379,7 @@ mod tests {
     #[test]
     fn the_lease_is_a_timer_that_stops_the_agent_and_a_flood_is_noticed() {
         let t = lease_timer("coder", 5400);
-        assert!(t.contains(&"--on-active=5400s".to_string()) && t.contains(&"--unit=sios-agent-coder-lease".to_string()));
+        assert!(t.contains(&"--on-active=5400s".to_string()) && t.contains(&"--unit=sios-lease-coder".to_string()));
         assert_eq!(&t[t.len() - 3..], ["--user", "stop", "sios-agent-coder.service"]);
         let d = tempfile::tempdir().unwrap();
         let f = d.path().join("r.jsonl");
