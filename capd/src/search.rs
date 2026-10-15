@@ -14,8 +14,10 @@
 //!
 //! A PDF can be booby-trapped, so the broker opens the file itself (no links,
 //! checked again after opening) and hands only that open file to `pdftotext`,
-//! which runs in a sandbox: read-only /usr and /etc (Landlock), no network, no
-//! file writes, 512 MB and 5 seconds of CPU, at most 256 KB of output.
+//! which runs in a sandbox: its own user, network and mount namespaces with
+//! empty /run, /tmp, /var and /home (no socket reachable: not the session bus,
+//! not capd), read-only /usr and /etc (Landlock), no file writes, 512 MB and 5
+//! seconds of CPU, at most 256 KB of output. Any part missing: nothing is read.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -148,11 +150,26 @@ fn sandboxed(prog: &str, args: &[&str], input: std::fs::File) -> Option<String> 
     let mut cmd = std::process::Command::new(prog);
     cmd.args(args).env_clear().env("LANG", "C.UTF-8").stdin(input).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
     // SAFETY: between fork and exec only async-signal-safe syscalls run (unshare,
-    // setrlimit, prctl, landlock_restrict_self); nothing allocates.
+    // mount, setrlimit, prctl, landlock_restrict_self); nothing allocates.
     unsafe {
         cmd.pre_exec(move || {
-            // its own empty network (best effort: user namespaces may be off)
-            let _ = libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET);
+            // its own user, network and file system view: no network at all, and
+            // /run, /tmp, /var and /home are empty, so no socket (the session bus,
+            // capd, brain-d) can be reached. All of it or nothing: fail closed.
+            if libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNET | libc::CLONE_NEWNS) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let root = b"/\0";
+            if libc::mount(std::ptr::null(), root.as_ptr() as *const libc::c_char, std::ptr::null(), libc::MS_REC | libc::MS_PRIVATE, std::ptr::null()) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let tmpfs = b"tmpfs\0";
+            for dir in [&b"/home\0"[..], &b"/run\0"[..], &b"/tmp\0"[..], &b"/var\0"[..], &b"/dev/shm\0"[..]] {
+                let t = tmpfs.as_ptr() as *const libc::c_char;
+                if libc::mount(t, dir.as_ptr() as *const libc::c_char, t, libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC, std::ptr::null()) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+            }
             let lim = |r, v: u64| libc::setrlimit(r, &libc::rlimit { rlim_cur: v, rlim_max: v });
             lim(libc::RLIMIT_AS, 512 << 20);
             lim(libc::RLIMIT_CPU, 5);

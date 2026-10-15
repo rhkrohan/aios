@@ -1061,7 +1061,8 @@ impl State {
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
         } else {
-            let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: &cap.principal };
+            let may_read = cap.principal == crate::iam::SIOS || cap.tools.iter().any(|t| t == "files.read");
+            let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: &cap.principal, may_read };
             tools::run(tool, args, &env, &mut self.meta)?
         };
         for c in self.chain(&cap.id) {
@@ -1302,7 +1303,7 @@ impl State {
         }
         let cap = Self::owner_cap();
         let op = random_hex(6);
-        let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: "you" };
+        let env = tools::Env { root: &self.root, state: &self.dir, op: &op, principal: "you", may_read: true };
         let target = tools::spec(tool).map(|s| tools::targets_of(s, args).join(", ")).unwrap_or_default();
         let out = tools::run(tool, args, &env, &mut self.meta);
         let _ = self.meta.save();
