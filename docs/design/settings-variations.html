@@ -1,0 +1,647 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SIOS Settings Variations</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Jost:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#0d0e10;color:#ececea;font-family:"Instrument Sans",sans-serif}header{padding:32px 40px 8px}h1.top{font-family:Jost,sans-serif;font-size:32px;margin:0}section{padding:24px 40px}h2.row{font-family:Jost,sans-serif;font-size:24px;margin:0 0 18px}.wrap{display:flex;flex-wrap:wrap;gap:40px}figure{margin:0}figcaption{font-size:14px;color:#a9a9a4;margin:0 0 10px;font-weight:600}a{color:#a9bdff}</style></head><body>
+<header><h1 class="top">SIOS Settings: variations</h1><p style="color:#a9a9a4;margin:6px 0 0">Pick a design language (row 1), a Connectors layout (row 2) and the window style (row 3). Mockups only; nothing here is live.</p></header>
+<section><h2 class="row">Design languages for all of Settings</h2><div class="wrap">
+<figure><figcaption>L1 Graphite (today, refined)</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #15171a; font-family: 'Instrument Sans', sans-serif; color: #ececea; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; border: 1px solid #33373c">
+  <div style="height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: #1b1d20; border-bottom: 1px solid #2a2d31">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a9a9a4" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2" fill="#1b1d20"/><circle cx="15" cy="17" r="2" fill="#1b1d20"/></svg>
+    <span style="font-size: 13px; font-weight: 600">Settings</span>
+    <div style="flex: 1"></div>
+    <button aria-label="Search settings" style="width: 300px; height: 28px; border-radius: 8px; border: 1px solid #33373c; background: #1e2023; color: #7c7c77; font: 12px 'Instrument Sans', sans-serif; text-align: left; padding: 0 10px">Search settings</button>
+    <div style="flex: 1"></div>
+    <span style="width: 12px; height: 12px; border-radius: 6px; background: #3a3e43"></span>
+    <span style="width: 12px; height: 12px; border-radius: 6px; background: #3a3e43"></span>
+    <span style="width: 12px; height: 12px; border-radius: 6px; background: #3a3e43"></span>
+  </div>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav aria-label="Settings sections" style="width: 232px; flex-shrink: 0; background: #1b1d20; border-right: 1px solid #2a2d31; padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box">
+      <div style="font-size: 11px; color: #7c7c77; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 10px">Assistant</div>
+      <a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Brain</a>
+      <a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Permissions</a>
+      <a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; background: #233140; color: #cfe0f2; text-decoration: none; font-size: 13px; font-weight: 600">Connectors <span style="margin-left: auto; font-size: 11px; color: #8fb3d9">3 on</span></a>
+      <a href="#" style="display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Memory</a>
+      <div style="font-size: 11px; color: #7c7c77; letter-spacing: 0.06em; text-transform: uppercase; padding: 14px 10px 6px">This computer</div>
+      <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Appearance</a>
+      <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Wi-Fi</a>
+      <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Sound</a>
+      <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">Updates</a>
+      <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #ececea; text-decoration: none; font-size: 13px">About</a>
+    </nav>
+    <main style="flex: 1; padding: 28px 40px; overflow: hidden; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-family: Jost, sans-serif; font-weight: 600; font-size: 26px">Connectors</h1>
+        <p style="margin: 0; color: #a9a9a4; font-size: 14px; max-width: 640px">The AIs SIOS thinks with, the apps that use SIOS, and the services it can reach for you. Keys and tokens stay sealed in the broker; no AI ever sees them.</p>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #a9a9a4; text-transform: uppercase; letter-spacing: 0.06em">AI accounts</h2><span style="font-size: 12px; color: #7c7c77">SIOS thinks with one at a time</span></div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+          <div style="background: #1e2023; border: 1px solid #34495f; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 10px"><span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">CG</span><div style="font-weight: 600; font-size: 14px">ChatGPT</div></div>
+            <div style="font-size: 12px; color: #a9a9a4">OpenAI, gpt-5</div>
+            <div style="display: flex; gap: 6px"><span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #233140; color: #8fb3d9">In use</span><span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #94c29a">Key sealed</span></div>
+          </div>
+          <div style="background: #1e2023; border: 1px solid #33373c; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 10px"><span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Cl</span><div style="font-weight: 600; font-size: 14px">Claude</div></div>
+            <div style="font-size: 12px; color: #a9a9a4">Anthropic</div>
+            <div style="display: flex; gap: 6px"><span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #94c29a">Key sealed</span></div>
+          </div>
+          <div style="background: #1e2023; border: 1px solid #33373c; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 10px"><span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Ge</span><div style="font-weight: 600; font-size: 14px">Gemini</div></div>
+            <div style="font-size: 12px; color: #a9a9a4">Google</div>
+            <div style="display: flex; gap: 6px"><span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #8b8b86">No key</span></div>
+          </div>
+          <div style="background: #1e2023; border: 1px solid #33373c; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 10px"><span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Lo</span><div style="font-weight: 600; font-size: 14px">Local model</div></div>
+            <div style="font-size: 12px; color: #a9a9a4">On this computer</div>
+            <div style="display: flex; gap: 6px"><span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #94c29a">Private</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #a9a9a4; text-transform: uppercase; letter-spacing: 0.06em">Services</h2><span style="font-size: 12px; color: #7c7c77">From SIOS's signed catalog</span></div>
+        <div style="background: #1e2023; border: 1px solid #33373c; border-radius: 12px; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #2a2d31">
+            <span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">GH</span>
+            <div style="flex: 1"><div style="font-weight: 600; font-size: 14px">GitHub</div><div style="font-size: 12px; color: #a9a9a4">Pull requests, issues, notifications. Read-only. Used by SIOS</div></div>
+            <span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #94c29a">Verified</span>
+            <span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #94c29a">Signed in</span>
+            <button style="height: 30px; padding: 0 14px; border-radius: 8px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 12px 'Instrument Sans', sans-serif">Manage</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #2a2d31">
+            <span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">GM</span>
+            <div style="flex: 1"><div style="font-weight: 600; font-size: 14px">Gmail</div><div style="font-size: 12px; color: #a9a9a4">Read, search and draft. Sending always asks you</div></div>
+            <span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #8b8b86">Coming soon</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #2a2d31">
+            <span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">CA</span>
+            <div style="flex: 1"><div style="font-weight: 600; font-size: 14px">Google Calendar</div><div style="font-size: 12px; color: #a9a9a4">See your day, add events. Invites always ask you</div></div>
+            <span style="font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #24272b; color: #8b8b86">Coming soon</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px">
+            <span style="width: 32px; height: 32px; border-radius: 9px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Li</span>
+            <div style="flex: 1"><div style="font-weight: 600; font-size: 14px">Linear</div><div style="font-size: 12px; color: #a9a9a4">Your issues and cycles</div></div>
+            <button style="height: 30px; padding: 0 14px; border-radius: 8px; border: 0; background: #8fb3d9; color: #10161d; font: 600 12px 'Instrument Sans', sans-serif">Install</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</figure>
+<figure><figcaption>L2 Daylight</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #f4f4f1; font-family: 'Instrument Sans', sans-serif; color: #1d1d1f; display: flex; border-radius: 14px; overflow: hidden; border: 1px solid #dcdcd6">
+  <nav aria-label="Settings sections" style="width: 260px; flex-shrink: 0; padding: 26px 18px; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box">
+    <div style="font-family: Jost, sans-serif; font-size: 30px; font-weight: 600; padding: 0 10px 14px">Settings</div>
+    <input aria-label="Search settings" placeholder="Search" style="height: 36px; border-radius: 10px; border: 1px solid #dcdcd6; background: #ffffff; padding: 0 12px; font: 13px 'Instrument Sans', sans-serif; margin-bottom: 12px">
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #4f7bf7"></span>Brain</a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #4d7a52"></span>Permissions</a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; background: #2f5d8a; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600"><span style="width: 26px; height: 26px; border-radius: 7px; background: #ffffff; opacity: 0.85"></span>Connectors</a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #c1457d"></span>Memory</a>
+    <div style="height: 14px"></div>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #7b62c4"></span>Appearance</a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #3b74bf"></span>Wi-Fi</a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #dc7637"></span>Sound</a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: #1d1d1f; text-decoration: none; font-size: 14px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #56616e"></span>Updates</a>
+  </nav>
+  <main style="flex: 1; background: #ffffff; border-left: 1px solid #e4e4df; padding: 34px 56px; display: flex; flex-direction: column; gap: 22px; overflow: hidden">
+    <div>
+      <h1 style="margin: 0; font-family: Jost, sans-serif; font-weight: 600; font-size: 34px">Connectors</h1>
+      <p style="margin: 6px 0 0; color: #5c5c59; font-size: 15px; max-width: 620px">Everything SIOS can talk to. Your keys and tokens stay sealed; no AI sees them.</p>
+    </div>
+    <section style="display: flex; flex-direction: column; gap: 8px">
+      <h2 style="margin: 0 0 0 14px; font-size: 12px; font-weight: 600; color: #8b8b86; text-transform: uppercase; letter-spacing: 0.07em">AI accounts</h2>
+      <div style="border: 1px solid #e4e4df; border-radius: 14px; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #efefeb"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">CG</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">ChatGPT</div><div style="font-size: 13px; color: #5c5c59">SIOS thinks with this one now</div></div><span style="font-size: 13px; color: #4d7a52; font-weight: 600">In use</span><span style="color: #8b8b86" aria-hidden="true">›</span></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #efefeb"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Cl</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">Claude</div><div style="font-size: 13px; color: #5c5c59">Key sealed</div></div><span style="color: #8b8b86" aria-hidden="true">›</span></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #efefeb"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Ge</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">Gemini</div><div style="font-size: 13px; color: #8b8b86">Not set up</div></div><span style="color: #8b8b86" aria-hidden="true">›</span></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Lo</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">Local model</div><div style="font-size: 13px; color: #5c5c59">Private, on this computer</div></div><span style="color: #8b8b86" aria-hidden="true">›</span></div>
+      </div>
+    </section>
+    <section style="display: flex; flex-direction: column; gap: 8px">
+      <h2 style="margin: 0 0 0 14px; font-size: 12px; font-weight: 600; color: #8b8b86; text-transform: uppercase; letter-spacing: 0.07em">Services</h2>
+      <div style="border: 1px solid #e4e4df; border-radius: 14px; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #efefeb"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">GH</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">GitHub</div><div style="font-size: 13px; color: #5c5c59">Read-only, used by SIOS</div></div><span style="font-size: 13px; color: #4d7a52; font-weight: 600">On</span><span style="color: #8b8b86" aria-hidden="true">›</span></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #efefeb"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">GM</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">Gmail</div><div style="font-size: 13px; color: #8b8b86">Coming soon</div></div></div>
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 16px"><span style="width: 34px; height: 34px; border-radius: 10px; background: #f7f7f5; border: 1px solid #e4e4df; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">Li</span><div style="flex: 1"><div style="font-size: 15px; font-weight: 600">Linear</div><div style="font-size: 13px; color: #8b8b86">Not installed</div></div><button style="height: 32px; padding: 0 16px; border-radius: 16px; border: 0; background: #2f5d8a; color: #ffffff; font: 600 13px 'Instrument Sans', sans-serif">Install</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+</figure>
+<figure><figcaption>L3 Console</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #0f1012; font-family: 'Instrument Sans', sans-serif; color: #e4e4e0; display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; border: 1px solid #26282c">
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid #222428">
+    <span style="font: 500 12px 'JetBrains Mono', monospace; color: #8a8c90">settings /</span>
+    <span style="font: 500 12px 'JetBrains Mono', monospace; color: #e4e4e0">connectors</span>
+    <div style="flex: 1; display: flex; align-items: center; gap: 8px; height: 32px; margin-left: 20px; padding: 0 12px; border-radius: 6px; background: #17181b; border: 1px solid #2a2c31">
+      <span style="font: 12px 'JetBrains Mono', monospace; color: #f0a868">&gt;</span>
+      <span style="font-size: 13px; color: #8a8c90">Type a setting or a command: "install linear", "dark mode", "remove gemini key"</span>
+    </div>
+    <span style="font: 11px 'JetBrains Mono', monospace; color: #8a8c90; border: 1px solid #2a2c31; border-radius: 4px; padding: 2px 6px">Ctrl K</span>
+  </div>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav aria-label="Settings sections" style="width: 190px; flex-shrink: 0; border-right: 1px solid #222428; padding: 12px 8px; display: flex; flex-direction: column; gap: 1px; box-sizing: border-box; font-size: 13px">
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">brain <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g b</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">permissions <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g p</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #0f1012; background: #f0a868; text-decoration: none; font-weight: 600">connectors <span style="font: 11px 'JetBrains Mono', monospace">g c</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">memory <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g m</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">agents <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g a</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">appearance <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g t</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">network <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g n</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">updates <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g u</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 5px; color: #b8b9bc; text-decoration: none">audit log <span style="font: 11px 'JetBrains Mono', monospace; color: #6c6e72">g l</span></a>
+    </nav>
+    <div style="width: 430px; flex-shrink: 0; border-right: 1px solid #222428; display: flex; flex-direction: column; font-size: 13px">
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 8px 14px; font: 11px 'JetBrains Mono', monospace; color: #6c6e72; border-bottom: 1px solid #222428"><span>name</span><span>kind</span><span>state</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>ChatGPT</span><span style="color: #8a8c90">model</span><span style="color: #7fc48a">in use</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Claude</span><span style="color: #8a8c90">model</span><span style="color: #b8b9bc">ready</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Gemini</span><span style="color: #8a8c90">model</span><span style="color: #6c6e72">no key</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Local model</span><span style="color: #8a8c90">model</span><span style="color: #b8b9bc">ready</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Claude Code</span><span style="color: #8a8c90">app</span><span style="color: #7fc48a">paired</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e; background: #1c1d21; box-shadow: inset 2px 0 0 #f0a868"><span style="font-weight: 600">GitHub</span><span style="color: #8a8c90">service</span><span style="color: #7fc48a">on</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Gmail</span><span style="color: #8a8c90">service</span><span style="color: #6c6e72">soon</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Google Calendar</span><span style="color: #8a8c90">service</span><span style="color: #6c6e72">soon</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px; border-bottom: 1px solid #1a1b1e"><span>Linear</span><span style="color: #8a8c90">service</span><span style="color: #6c6e72">off</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 90px 80px; padding: 9px 14px"><span>Notion</span><span style="color: #8a8c90">service</span><span style="color: #6c6e72">off</span></div>
+    </div>
+    <section style="flex: 1; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; font-size: 13px">
+      <div style="display: flex; align-items: center; gap: 10px"><h1 style="margin: 0; font-size: 20px; font-weight: 600">GitHub</h1><span style="font: 11px 'JetBrains Mono', monospace; color: #7fc48a; border: 1px solid #2f4a34; border-radius: 4px; padding: 2px 6px">verified</span><span style="font: 11px 'JetBrains Mono', monospace; color: #8a8c90; border: 1px solid #2a2c31; border-radius: 4px; padding: 2px 6px">read-only</span></div>
+      <div style="display: grid; grid-template-columns: 120px 1fr; row-gap: 8px; font-size: 13px">
+        <span style="color: #6c6e72">talks to</span><span style="font-family: 'JetBrains Mono', monospace">api.githubcopilot.com</span>
+        <span style="color: #6c6e72">sign-in</span><span>token, sealed</span>
+        <span style="color: #6c6e72">used by</span><span>SIOS</span>
+        <span style="color: #6c6e72">tools pinned</span><span>9, checked 12 min ago</span>
+      </div>
+      <div style="border: 1px solid #222428; border-radius: 6px">
+        <div style="padding: 8px 12px; font: 11px 'JetBrains Mono', monospace; color: #6c6e72; border-bottom: 1px solid #222428">tools</div>
+        <div style="padding: 8px 12px; display: grid; grid-template-columns: 170px 1fr; row-gap: 6px; font-size: 12px">
+          <span style="font-family: 'JetBrains Mono', monospace">github.prs</span><span style="color: #b8b9bc">search pull requests</span>
+          <span style="font-family: 'JetBrains Mono', monospace">github.issues</span><span style="color: #b8b9bc">search issues</span>
+          <span style="font-family: 'JetBrains Mono', monospace">github.notifications</span><span style="color: #b8b9bc">unread notifications</span>
+          <span style="font-family: 'JetBrains Mono', monospace; color: #6c6e72">+ 6 more</span><span></span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: auto">
+        <button style="height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid #2a2c31; background: #17181b; color: #e4e4e0; font: 13px 'Instrument Sans', sans-serif">Replace token <span style="font-family: 'JetBrains Mono', monospace; color: #6c6e72">t</span></button>
+        <button style="height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid #5a2f2f; background: #17181b; color: #e89a9a; font: 13px 'Instrument Sans', sans-serif">Remove <span style="font-family: 'JetBrains Mono', monospace; color: #8a5a5a">⌫</span></button>
+      </div>
+    </section>
+  </div>
+</div>
+</figure>
+<figure><figcaption>L4 Tiles</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #121419; font-family: 'Instrument Sans', sans-serif; color: #eceef2; padding: 28px 36px; display: flex; flex-direction: column; gap: 20px; border-radius: 22px; overflow: hidden; border: 1px solid #2b2f37">
+  <div style="display: flex; align-items: center; gap: 16px">
+    <h1 style="margin: 0; font-family: Jost, sans-serif; font-weight: 600; font-size: 30px">Settings</h1>
+    <div style="flex: 1"></div>
+    <input aria-label="Search settings" placeholder="Search or ask SIOS to change a setting" style="width: 420px; height: 40px; border-radius: 20px; border: 1px solid #2b2f37; background: #1a1d23; color: #eceef2; padding: 0 18px; font: 14px 'Instrument Sans', sans-serif">
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 150px; gap: 14px; flex: 1">
+    <a href="#" style="grid-column: span 2; grid-row: span 2; text-decoration: none; color: #eceef2; border-radius: 22px; background: #1d2442; border: 1px solid #2d3a6b; padding: 22px; display: flex; flex-direction: column; gap: 10px">
+      <div style="font-size: 13px; color: #a9bdff; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em">Connectors</div>
+      <div style="font-family: Jost, sans-serif; font-size: 40px; font-weight: 600; line-height: 1">5 connected</div>
+      <div style="font-size: 14px; color: #c3cbe6">SIOS thinks with ChatGPT. Claude and a local model are ready. GitHub is on; Gmail and Calendar are coming.</div>
+      <div style="display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap">
+        <span style="height: 40px; padding: 0 14px; border-radius: 20px; background: #2a3563; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600"><span style="width: 8px; height: 8px; border-radius: 4px; background: #94c29a"></span>ChatGPT</span>
+        <span style="height: 40px; padding: 0 14px; border-radius: 20px; background: #2a3563; display: flex; align-items: center; gap: 8px; font-size: 13px">Claude</span>
+        <span style="height: 40px; padding: 0 14px; border-radius: 20px; background: #2a3563; display: flex; align-items: center; gap: 8px; font-size: 13px">Local</span>
+        <span style="height: 40px; padding: 0 14px; border-radius: 20px; background: #2a3563; display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #94c29a"></span>GitHub</span>
+        <span style="height: 40px; padding: 0 14px; border-radius: 20px; border: 1px dashed #4a5aa0; display: flex; align-items: center; font-size: 13px; color: #a9bdff">+ Add</span>
+      </div>
+    </a>
+    <a href="#" style="text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #9aa1ad">Wi-Fi</div>
+      <div style="font-size: 20px; font-weight: 600">Home-5G</div>
+      <div style="margin-top: auto; font-size: 12px; color: #94c29a">Connected</div>
+    </a>
+    <a href="#" style="text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #9aa1ad">Appearance</div>
+      <div style="font-size: 20px; font-weight: 600">Dark</div>
+      <div style="margin-top: auto; display: flex; gap: 6px"><span style="width: 22px; height: 22px; border-radius: 11px; background: #e9eaee"></span><span style="width: 22px; height: 22px; border-radius: 11px; background: #2c3140; box-shadow: 0 0 0 2px #7d9dff"></span></div>
+    </a>
+    <a href="#" style="text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #9aa1ad">Permissions</div>
+      <div style="font-size: 20px; font-weight: 600">Asks first</div>
+      <div style="margin-top: auto; font-size: 12px; color: #9aa1ad">Settings and look-ups just happen</div>
+    </a>
+    <a href="#" style="text-decoration: none; color: #eceef2; border-radius: 22px; background: #2a1d26; border: 1px solid #4a2f40; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #e0a6c4">Memory</div>
+      <div style="font-size: 20px; font-weight: 600">42 things</div>
+      <div style="margin-top: auto; font-size: 12px; color: #e0a6c4">2 waiting for your OK</div>
+    </a>
+    <a href="#" style="text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #9aa1ad">Sound</div>
+      <div style="font-size: 20px; font-weight: 600">40%</div>
+      <div style="margin-top: auto; height: 6px; border-radius: 3px; background: #2b2f37"><div style="width: 40%; height: 6px; border-radius: 3px; background: #7d9dff"></div></div>
+    </a>
+    <a href="#" style="text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 13px; color: #9aa1ad">Agents</div>
+      <div style="font-size: 20px; font-weight: 600">Coder is working</div>
+      <div style="margin-top: auto; font-size: 12px; color: #9aa1ad">Lease ends in 1 h 20 min</div>
+    </a>
+    <a href="#" style="grid-column: span 2; text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; align-items: center; gap: 16px">
+      <div style="flex: 1"><div style="font-size: 13px; color: #9aa1ad">Updates</div><div style="font-size: 20px; font-weight: 600">SIOS is up to date</div><div style="font-size: 12px; color: #9aa1ad; margin-top: 4px">You can always go back to the last version</div></div>
+      <span style="height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid #3a3f4a; display: flex; align-items: center; font-size: 13px">Check now</span>
+    </a>
+    <a href="#" style="grid-column: span 2; text-decoration: none; color: #eceef2; border-radius: 22px; background: #1a1d23; border: 1px solid #2b2f37; padding: 18px; display: flex; align-items: center; gap: 16px">
+      <div style="flex: 1"><div style="font-size: 13px; color: #9aa1ad">More</div><div style="font-size: 15px; margin-top: 4px; color: #c9cdd6">Display, Bluetooth, Notifications, Users, Keyboard, Power, Printers</div></div>
+      <span style="color: #9aa1ad" aria-hidden="true">›</span>
+    </a>
+  </div>
+</div>
+</figure>
+<figure><figcaption>L5 Inspector</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #eef0f4; font-family: 'Instrument Sans', sans-serif; color: #1b1e24; display: flex; gap: 10px; padding: 10px; border-radius: 16px; overflow: hidden; border: 1px solid #d6dae2">
+  <nav aria-label="Settings sections" style="width: 200px; flex-shrink: 0; background: #ffffff; border-radius: 12px; padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box; font-size: 13px">
+    <div style="font-family: Jost, sans-serif; font-size: 20px; font-weight: 600; padding: 0 10px 12px">Settings</div>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Brain</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Permissions</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #2f56d0; background: #eef2ff; text-decoration: none; font-weight: 600">Connectors</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Memory</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Agents</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Appearance</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Wi-Fi</a>
+    <a href="#" style="padding: 8px 10px; border-radius: 8px; color: #1b1e24; text-decoration: none">Updates</a>
+  </nav>
+  <div style="width: 300px; flex-shrink: 0; background: #ffffff; border-radius: 12px; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box">
+    <div style="display: flex; gap: 6px; padding: 0 4px 10px">
+      <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #1b1e24; color: #ffffff; font-size: 12px; font-weight: 600; display: flex; align-items: center">All</span>
+      <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #eef0f4; font-size: 12px; display: flex; align-items: center">AIs</span>
+      <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #eef0f4; font-size: 12px; display: flex; align-items: center">Apps</span>
+      <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #eef0f4; font-size: 12px; display: flex; align-items: center">Services</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px"><span style="width: 30px; height: 30px; border-radius: 8px; background: #eef0f4; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600">CG</span><div style="flex: 1"><div style="font-size: 13px; font-weight: 600">ChatGPT</div><div style="font-size: 12px; color: #6a7080">In use</div></div></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: #eef2ff; box-shadow: inset 0 0 0 1px #c9d4ff"><span style="width: 30px; height: 30px; border-radius: 8px; background: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600">Cl</span><div style="flex: 1"><div style="font-size: 13px; font-weight: 600">Claude</div><div style="font-size: 12px; color: #6a7080">Key sealed</div></div></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px"><span style="width: 30px; height: 30px; border-radius: 8px; background: #eef0f4; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600">Ge</span><div style="flex: 1"><div style="font-size: 13px; font-weight: 600">Gemini</div><div style="font-size: 12px; color: #6a7080">No key</div></div></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px"><span style="width: 30px; height: 30px; border-radius: 8px; background: #eef0f4; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600">CC</span><div style="flex: 1"><div style="font-size: 13px; font-weight: 600">Claude Code</div><div style="font-size: 12px; color: #6a7080">Paired app</div></div></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px"><span style="width: 30px; height: 30px; border-radius: 8px; background: #eef0f4; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600">GH</span><div style="flex: 1"><div style="font-size: 13px; font-weight: 600">GitHub</div><div style="font-size: 12px; color: #6a7080">On, read-only</div></div></div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px"><span style="width: 30px; height: 30px; border-radius: 8px; background: #eef0f4; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600">GM</span><div style="flex: 1"><div style="font-size: 13px; font-weight: 600">Gmail</div><div style="font-size: 12px; color: #6a7080">Coming soon</div></div></div>
+  </div>
+  <section style="flex: 1; background: #ffffff; border-radius: 12px; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: center; gap: 14px"><span style="width: 48px; height: 48px; border-radius: 12px; background: #eef0f4; display: flex; align-items: center; justify-content: center; font-weight: 600">Cl</span><div><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 24px; font-weight: 600">Claude</h1><div style="font-size: 13px; color: #6a7080">Anthropic, online</div></div></div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="model" style="font-size: 12px; font-weight: 600; color: #6a7080">Model</label>
+      <input id="model" value="claude-opus-5-5" style="height: 38px; border-radius: 9px; border: 1px solid #d6dae2; padding: 0 12px; font: 14px 'Instrument Sans', sans-serif">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <label for="key" style="font-size: 12px; font-weight: 600; color: #6a7080">Key</label>
+      <input id="key" type="password" placeholder="A key is sealed. Paste a new one to replace it." style="height: 38px; border-radius: 9px; border: 1px solid #d6dae2; padding: 0 12px; font: 14px 'Instrument Sans', sans-serif">
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; background: #f6f7fa">
+      <span style="width: 40px; height: 24px; border-radius: 12px; background: #2f56d0; position: relative"><span style="position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 9px; background: #ffffff"></span></span>
+      <div style="flex: 1; font-size: 13px">Allow SIOS to send requests to Claude. Files marked Sensitive are never sent.</div>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: auto">
+      <button style="height: 38px; padding: 0 16px; border-radius: 9px; border: 1px solid #d6dae2; background: #ffffff; font: 600 13px 'Instrument Sans', sans-serif">Test</button>
+      <button style="height: 38px; padding: 0 16px; border-radius: 9px; border: 1px solid #e3c4c4; background: #ffffff; color: #9a4b4b; font: 600 13px 'Instrument Sans', sans-serif">Remove key</button>
+      <div style="flex: 1"></div>
+      <button style="height: 38px; padding: 0 18px; border-radius: 9px; border: 0; background: #2f56d0; color: #ffffff; font: 600 13px 'Instrument Sans', sans-serif">Use Claude</button>
+    </div>
+  </section>
+</div>
+</figure>
+</div></section>
+<section><h2 class="row">Connectors page: AI accounts, apps and services</h2><div class="wrap">
+<figure><figcaption>C-A Sectioned grid</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; padding: 28px 36px; display: flex; flex-direction: column; gap: 18px; border-radius: 14px; overflow: hidden; border: 1px solid #33373c">
+  <div style="display: flex; align-items: flex-end; gap: 16px">
+    <div style="flex: 1"><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 26px; font-weight: 600">Connectors</h1><p style="margin: 4px 0 0; font-size: 14px; color: #a9a9a4">Grouped by what they are. Each card says what it can reach and who may use it.</p></div>
+    <div style="display: flex; gap: 6px">
+      <span style="height: 32px; padding: 0 14px; border-radius: 16px; background: #233140; color: #cfe0f2; font-size: 13px; font-weight: 600; display: flex; align-items: center">All 11</span>
+      <span style="height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid #33373c; font-size: 13px; display: flex; align-items: center">On 5</span>
+      <span style="height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid #33373c; font-size: 13px; display: flex; align-items: center">Needs you 1</span>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h2 style="margin: 0; font-size: 12px; color: #7c7c77; text-transform: uppercase; letter-spacing: 0.07em">AIs SIOS thinks with</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #34495f; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">ChatGPT</b><span style="font-size: 11px; color: #8fb3d9">In use</span></div><span style="font-size: 12px; color: #a9a9a4">OpenAI · online · key sealed</span><div style="font-size: 12px; color: #7c7c77">1,204 of 2,000 today</div></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Claude</b><span style="font-size: 11px; color: #94c29a">Ready</span></div><span style="font-size: 12px; color: #a9a9a4">Anthropic · online · key sealed</span><a href="#" style="font-size: 12px">Use this one</a></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Gemini</b><span style="font-size: 11px; color: #8b8b86">No key</span></div><span style="font-size: 12px; color: #a9a9a4">Google · online</span><a href="#" style="font-size: 12px">Add a key</a></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Local model</b><span style="font-size: 11px; color: #94c29a">Ready</span></div><span style="font-size: 12px; color: #a9a9a4">On this computer · private</span><a href="#" style="font-size: 12px">Use this one</a></div>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h2 style="margin: 0; font-size: 12px; color: #7c7c77; text-transform: uppercase; letter-spacing: 0.07em">AI apps that use SIOS</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Claude Code</b><span style="font-size: 11px; color: #94c29a">Paired</span></div><span style="font-size: 12px; color: #a9a9a4">Role: Coder, in Projects</span></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Claude Desktop</b><span style="font-size: 11px; color: #8b8b86">Not paired</span></div><span style="font-size: 12px; color: #a9a9a4">Through SIOS's door (MCP)</span></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">ChatGPT desktop</b><span style="font-size: 11px; color: #8b8b86">Not paired</span></div><span style="font-size: 12px; color: #a9a9a4">Through SIOS's door (MCP)</span></div>
+      <div style="border-radius: 12px; border: 1px dashed #43484e; padding: 14px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #a9a9a4">+ Pair another app</div>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <h2 style="margin: 0; font-size: 12px; color: #7c7c77; text-transform: uppercase; letter-spacing: 0.07em">Services</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">GitHub</b><span style="font-size: 11px; color: #94c29a">On</span></div><span style="font-size: 12px; color: #a9a9a4">Read-only · 9 tools · SIOS</span></div>
+      <div style="border-radius: 12px; background: #2a2320; border: 1px solid #5a3b2c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Linear</b><span style="font-size: 11px; color: #e8957a">Switched off</span></div><span style="font-size: 12px; color: #e0b6a4">Its tools changed. Check before turning it back on</span></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Gmail</b><span style="font-size: 11px; color: #8b8b86">Soon</span></div><span style="font-size: 12px; color: #a9a9a4">Sending always asks you</span></div>
+      <div style="border-radius: 12px; background: #24272b; border: 1px solid #33373c; padding: 14px; display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between"><b style="font-size: 14px">Notion</b><span style="font-size: 11px; color: #8b8b86">Not installed</span></div><a href="#" style="font-size: 12px">Install</a></div>
+    </div>
+  </div>
+</div>
+</figure>
+<figure><figcaption>C-B List and detail</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; display: flex; border-radius: 14px; overflow: hidden; border: 1px solid #33373c">
+  <div style="width: 360px; flex-shrink: 0; border-right: 1px solid #33373c; display: flex; flex-direction: column">
+    <div style="padding: 22px 20px 12px"><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 22px; font-weight: 600">Connectors</h1></div>
+    <div style="padding: 0 12px; display: flex; flex-direction: column; gap: 2px; font-size: 13px">
+      <div style="font-size: 11px; color: #7c7c77; text-transform: uppercase; letter-spacing: 0.07em; padding: 10px 8px 4px">AI accounts</div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #8fb3d9"></span><span style="flex: 1">ChatGPT</span><span style="font-size: 11px; color: #8fb3d9">in use</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #94c29a"></span><span style="flex: 1">Claude</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #4a4e54"></span><span style="flex: 1; color: #a9a9a4">Gemini</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #94c29a"></span><span style="flex: 1">Local model</span></div>
+      <div style="font-size: 11px; color: #7c7c77; text-transform: uppercase; letter-spacing: 0.07em; padding: 14px 8px 4px">Services</div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px; background: #233140"><span style="width: 8px; height: 8px; border-radius: 4px; background: #94c29a"></span><span style="flex: 1; font-weight: 600; color: #cfe0f2">GitHub</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #e8957a"></span><span style="flex: 1">Linear</span><span style="font-size: 11px; color: #e8957a">off</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #4a4e54"></span><span style="flex: 1; color: #a9a9a4">Gmail</span><span style="font-size: 11px; color: #7c7c77">soon</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #4a4e54"></span><span style="flex: 1; color: #a9a9a4">Google Calendar</span><span style="font-size: 11px; color: #7c7c77">soon</span></div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #4a4e54"></span><span style="flex: 1; color: #a9a9a4">Notion</span></div>
+    </div>
+  </div>
+  <section style="flex: 1; padding: 26px 34px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: center; gap: 14px">
+      <span style="width: 52px; height: 52px; border-radius: 14px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px">GH</span>
+      <div style="flex: 1"><h2 style="margin: 0; font-family: Jost, sans-serif; font-size: 24px; font-weight: 600">GitHub</h2><div style="font-size: 13px; color: #a9a9a4">By GitHub · verified by SIOS · talks only to api.githubcopilot.com</div></div>
+      <span style="font-size: 12px; padding: 5px 10px; border-radius: 12px; background: #24272b; color: #94c29a">On</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+      <div style="border-radius: 12px; background: #24272b; padding: 14px"><div style="font-size: 12px; color: #7c7c77">Sign-in</div><div style="font-size: 14px; font-weight: 600; margin-top: 4px">Token, sealed</div></div>
+      <div style="border-radius: 12px; background: #24272b; padding: 14px"><div style="font-size: 12px; color: #7c7c77">Used this week</div><div style="font-size: 14px; font-weight: 600; margin-top: 4px">14 times, all asked</div></div>
+      <div style="border-radius: 12px; background: #24272b; padding: 14px"><div style="font-size: 12px; color: #7c7c77">Tools checked</div><div style="font-size: 14px; font-weight: 600; margin-top: 4px">12 min ago, unchanged</div></div>
+    </div>
+    <div>
+      <h3 style="margin: 0 0 8px; font-size: 13px; color: #a9a9a4; font-weight: 600">What SIOS may do with it</h3>
+      <div style="border: 1px solid #33373c; border-radius: 12px; overflow: hidden; font-size: 13px">
+        <div style="display: flex; padding: 10px 14px; border-bottom: 1px solid #2a2d31"><span style="flex: 1">Search pull requests</span><span style="color: #a9a9a4">read</span></div>
+        <div style="display: flex; padding: 10px 14px; border-bottom: 1px solid #2a2d31"><span style="flex: 1">One pull request, and its files</span><span style="color: #a9a9a4">read</span></div>
+        <div style="display: flex; padding: 10px 14px; border-bottom: 1px solid #2a2d31"><span style="flex: 1">Search issues, one issue</span><span style="color: #a9a9a4">read</span></div>
+        <div style="display: flex; padding: 10px 14px"><span style="flex: 1">Notifications, repositories, files</span><span style="color: #a9a9a4">read</span></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin: 0 0 8px; font-size: 13px; color: #a9a9a4; font-weight: 600">Who may use it</h3>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap">
+        <span style="height: 34px; padding: 0 14px; border-radius: 17px; background: #233140; color: #cfe0f2; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600">✓ SIOS</span>
+        <span style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid #43484e; display: flex; align-items: center; font-size: 13px">Claude Code</span>
+        <span style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid #43484e; display: flex; align-items: center; font-size: 13px">Coder (agent)</span>
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: auto">
+      <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Replace token</button>
+      <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">See activity</button>
+      <div style="flex: 1"></div>
+      <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid #6b3c3c; background: transparent; color: #dc9696; font: 600 13px 'Instrument Sans', sans-serif">Remove GitHub</button>
+    </div>
+  </section>
+</div>
+</figure>
+<figure><figcaption>C-C Store shelf</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #17191c; font-family: 'Instrument Sans', sans-serif; color: #ececea; padding: 26px 34px; display: flex; flex-direction: column; gap: 20px; border-radius: 14px; overflow: hidden; border: 1px solid #33373c">
+  <div style="display: flex; align-items: center; gap: 16px">
+    <h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 26px; font-weight: 600; flex: 1">Connectors</h1>
+    <input aria-label="Search connectors" placeholder="Search connectors" style="width: 300px; height: 36px; border-radius: 18px; border: 1px solid #33373c; background: #1e2023; color: #ececea; padding: 0 16px; font: 13px 'Instrument Sans', sans-serif">
+  </div>
+  <div style="display: flex; gap: 14px; height: 200px">
+    <div style="flex: 2; border-radius: 18px; background: #1d2442; border: 1px solid #2d3a6b; padding: 24px; display: flex; flex-direction: column; gap: 10px">
+      <div style="font-size: 12px; color: #a9bdff; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em">Your brain</div>
+      <div style="font-family: Jost, sans-serif; font-size: 28px; font-weight: 600">SIOS thinks with ChatGPT</div>
+      <div style="font-size: 14px; color: #c3cbe6; max-width: 480px">Switch any time. Claude and a local model are ready too. Keys stay sealed in the broker.</div>
+      <div style="display: flex; gap: 8px; margin-top: auto">
+        <button style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #a9bdff; color: #121a3a; font: 600 13px 'Instrument Sans', sans-serif">Change brain</button>
+        <button style="height: 36px; padding: 0 16px; border-radius: 18px; border: 1px solid #4a5aa0; background: transparent; color: #dfe6ff; font: 600 13px 'Instrument Sans', sans-serif">Add an AI account</button>
+      </div>
+    </div>
+    <div style="flex: 1; border-radius: 18px; background: #1e2023; border: 1px solid #33373c; padding: 20px; display: flex; flex-direction: column; gap: 8px">
+      <div style="font-size: 12px; color: #7c7c77; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em">Needs you</div>
+      <div style="font-size: 16px; font-weight: 600">Linear switched itself off</div>
+      <div style="font-size: 13px; color: #a9a9a4">Its tools changed since you installed it. Look before turning it back on.</div>
+      <a href="#" style="margin-top: auto; font-size: 13px; font-weight: 600">Review the change</a>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 17px; font-weight: 600">Work and code</h2><span style="font-size: 13px; color: #7c7c77">verified by SIOS</span></div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 16px; display: flex; flex-direction: column; gap: 8px"><span style="width: 40px; height: 40px; border-radius: 11px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600">GH</span><b style="font-size: 14px">GitHub</b><span style="font-size: 12px; color: #a9a9a4">PRs, issues, notifications</span><span style="font-size: 12px; color: #94c29a; margin-top: 4px">Installed</span></div>
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 16px; display: flex; flex-direction: column; gap: 8px"><span style="width: 40px; height: 40px; border-radius: 11px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600">Li</span><b style="font-size: 14px">Linear</b><span style="font-size: 12px; color: #a9a9a4">Issues and cycles</span><span style="font-size: 12px; color: #e8957a; margin-top: 4px">Switched off</span></div>
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 16px; display: flex; flex-direction: column; gap: 8px"><span style="width: 40px; height: 40px; border-radius: 11px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600">No</span><b style="font-size: 14px">Notion</b><span style="font-size: 12px; color: #a9a9a4">Pages and databases</span><button style="margin-top: 4px; align-self: flex-start; height: 30px; padding: 0 14px; border-radius: 15px; border: 0; background: #8fb3d9; color: #10161d; font: 600 12px 'Instrument Sans', sans-serif">Get</button></div>
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 16px; display: flex; flex-direction: column; gap: 8px"><span style="width: 40px; height: 40px; border-radius: 11px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600">Sl</span><b style="font-size: 14px">Slack</b><span style="font-size: 12px; color: #a9a9a4">Read channels; posting asks</span><span style="font-size: 12px; color: #8b8b86; margin-top: 4px">Coming soon</span></div>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: baseline; gap: 10px"><h2 style="margin: 0; font-size: 17px; font-weight: 600">Mail and calendar</h2><span style="font-size: 13px; color: #7c7c77">sending and invites always ask you</span></div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 14px 16px; display: flex; align-items: center; gap: 12px"><span style="width: 36px; height: 36px; border-radius: 10px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">GM</span><div><b style="font-size: 14px">Gmail</b><div style="font-size: 12px; color: #8b8b86">Coming soon</div></div></div>
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 14px 16px; display: flex; align-items: center; gap: 12px"><span style="width: 36px; height: 36px; border-radius: 10px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">CA</span><div><b style="font-size: 14px">Google Calendar</b><div style="font-size: 12px; color: #8b8b86">Coming soon</div></div></div>
+      <div style="border-radius: 14px; background: #1e2023; border: 1px solid #33373c; padding: 14px 16px; display: flex; align-items: center; gap: 12px"><span style="width: 36px; height: 36px; border-radius: 10px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">@</span><div><b style="font-size: 14px">Any email (IMAP)</b><div style="font-size: 12px; color: #8b8b86">Coming soon</div></div></div>
+      <div style="border-radius: 14px; border: 1px dashed #43484e; padding: 14px 16px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #a9a9a4">Developer mode: add your own</div>
+    </div>
+  </div>
+</div>
+</figure>
+<figure><figcaption>C-D Access matrix</figcaption>
+<div style="width: 1200px; height: 760px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; padding: 28px 36px; display: flex; flex-direction: column; gap: 18px; border-radius: 14px; overflow: hidden; border: 1px solid #33373c">
+  <div><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 26px; font-weight: 600">Who may use what</h1><p style="margin: 4px 0 0; font-size: 14px; color: #a9a9a4">Each row is a service, each column an AI. A filled dot means that AI may use it; every use still goes through the broker and asks when it should.</p></div>
+  <div style="border: 1px solid #33373c; border-radius: 12px; overflow: hidden">
+    <div style="display: grid; grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 140px; align-items: center; padding: 12px 16px; background: #24272b; font-size: 12px; color: #a9a9a4; font-weight: 600">
+      <span>Service</span><span style="text-align: center">SIOS</span><span style="text-align: center">Claude Code</span><span style="text-align: center">Coder (agent)</span><span style="text-align: center">Sorter (agent)</span><span style="text-align: right">State</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 140px; align-items: center; padding: 14px 16px; border-top: 1px solid #2a2d31; font-size: 13px">
+      <div><b>GitHub</b><div style="font-size: 12px; color: #7c7c77">read-only · 9 tools</div></div>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; background: #8fb3d9"></span>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; border: 2px solid #43484e; box-sizing: border-box"></span>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; background: #8fb3d9"></span>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; border: 2px solid #43484e; box-sizing: border-box"></span>
+      <span style="text-align: right; color: #94c29a">On</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 140px; align-items: center; padding: 14px 16px; border-top: 1px solid #2a2d31; font-size: 13px; background: #262220">
+      <div><b>Linear</b><div style="font-size: 12px; color: #e0b6a4">tools changed</div></div>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; background: #5a4a44"></span>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; border: 2px solid #43484e; box-sizing: border-box"></span>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; border: 2px solid #43484e; box-sizing: border-box"></span>
+      <span style="justify-self: center; width: 18px; height: 18px; border-radius: 9px; border: 2px solid #43484e; box-sizing: border-box"></span>
+      <span style="text-align: right; color: #e8957a">Switched off</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 140px; align-items: center; padding: 14px 16px; border-top: 1px solid #2a2d31; font-size: 13px">
+      <div><b>Gmail</b><div style="font-size: 12px; color: #7c7c77">sending always asks</div></div>
+      <span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span>
+      <span style="text-align: right; color: #8b8b86">Coming soon</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 140px; align-items: center; padding: 14px 16px; border-top: 1px solid #2a2d31; font-size: 13px">
+      <div><b>Google Calendar</b><div style="font-size: 12px; color: #7c7c77">invites always ask</div></div>
+      <span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span>
+      <span style="text-align: right; color: #8b8b86">Coming soon</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 260px repeat(4, minmax(0, 1fr)) 140px; align-items: center; padding: 14px 16px; border-top: 1px solid #2a2d31; font-size: 13px">
+      <div><b>Notion</b><div style="font-size: 12px; color: #7c7c77">not installed</div></div>
+      <span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span><span style="justify-self: center; color: #4a4e54">·</span>
+      <a href="#" style="text-align: right; font-weight: 600">Install</a>
+    </div>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+    <div style="border-radius: 12px; background: #24272b; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+      <b style="font-size: 14px">AI accounts</b>
+      <div style="font-size: 13px; color: #a9a9a4">ChatGPT (in use) · Claude · Local model · Gemini has no key</div>
+      <a href="#" style="font-size: 13px; font-weight: 600">Manage AI accounts</a>
+    </div>
+    <div style="border-radius: 12px; background: #24272b; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+      <b style="font-size: 14px">Changes ask for your password</b>
+      <div style="font-size: 13px; color: #a9a9a4">Giving an AI a service, installing or removing one, and every sign-in. Unchecking is instant.</div>
+    </div>
+  </div>
+</div>
+</figure>
+</div></section>
+<section><h2 class="row">Proper windows for errors and everything else</h2><div class="wrap">
+<figure><figcaption>W1 Error window</figcaption>
+<div style="width: 560px; height: 440px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; border-radius: 16px; border: 1px solid #43484e; display: flex; flex-direction: column; overflow: hidden">
+  <div style="height: 40px; display: flex; align-items: center; padding: 0 14px; gap: 8px; border-bottom: 1px solid #2a2d31; font-size: 12px; color: #a9a9a4"><span style="flex: 1">Settings</span><span style="width: 12px; height: 12px; border-radius: 6px; background: #3a3e43"></span></div>
+  <div style="flex: 1; padding: 24px 28px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; gap: 14px; align-items: flex-start">
+      <span style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: #3a2626; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc9696" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12" y2="16.6"/></svg>
+      </span>
+      <div style="flex: 1">
+        <h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 20px; font-weight: 600">GitHub didn't install</h1>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #c9c9c4; line-height: 1.45">GitHub refused the token. Nothing was saved, and your other connectors are fine.</p>
+      </div>
+    </div>
+    <div style="border-radius: 12px; background: #24272b; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+      <b style="font-size: 13px">What usually fixes it</b>
+      <div style="color: #c9c9c4">1. Make a new token with read access to your repositories.</div>
+      <div style="color: #c9c9c4">2. Check it hasn't expired.</div>
+      <div style="color: #c9c9c4">3. Paste it and install again.</div>
+    </div>
+    <details style="font-size: 12px; color: #a9a9a4">
+      <summary style="cursor: pointer">Details for troubleshooting</summary>
+      <div style="margin-top: 6px; font-family: monospace; background: #17191c; border-radius: 8px; padding: 8px 10px">connectors.install github · 401 from api.githubcopilot.com · 16:12:04</div>
+    </details>
+  </div>
+  <div style="display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #2a2d31; background: #1b1d20">
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Copy details</button>
+    <div style="flex: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Make a token</button>
+    <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 0; background: #8fb3d9; color: #10161d; font: 600 13px 'Instrument Sans', sans-serif">Try again</button>
+  </div>
+</div>
+</figure>
+<figure><figcaption>W2 Confirm with password</figcaption>
+<div style="width: 560px; height: 440px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; border-radius: 16px; border: 1px solid #43484e; display: flex; flex-direction: column; overflow: hidden">
+  <div style="padding: 24px 28px 0; display: flex; gap: 14px; align-items: center">
+    <span style="width: 44px; height: 44px; border-radius: 12px; background: #233140; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8fb3d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </span>
+    <div><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 20px; font-weight: 600">Install GitHub?</h1><div style="font-size: 13px; color: #a9a9a4">Settings is asking. Only you can approve this.</div></div>
+  </div>
+  <div style="padding: 18px 28px; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+    <div style="border-radius: 12px; background: #24272b; padding: 12px 14px; display: grid; grid-template-columns: 120px 1fr; row-gap: 8px">
+      <span style="color: #a9a9a4">Talks to</span><span>api.githubcopilot.com only</span>
+      <span style="color: #a9a9a4">Can do</span><span>Read PRs, issues, notifications, files</span>
+      <span style="color: #a9a9a4">Used by</span><span>SIOS (asks you each time)</span>
+      <span style="color: #a9a9a4">Token</span><span>Sealed in the broker; no AI sees it</span>
+    </div>
+    <label for="pw" style="font-size: 12px; font-weight: 600; color: #a9a9a4; margin-top: 4px">Your password</label>
+    <input id="pw" type="password" value="password" style="height: 40px; border-radius: 10px; border: 1px solid #8fb3d9; background: #17191c; color: #ececea; padding: 0 12px; font: 14px 'Instrument Sans', sans-serif; box-shadow: 0 0 0 3px #233140">
+  </div>
+  <div style="margin-top: auto; display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #2a2d31; background: #1b1d20">
+    <span style="font-size: 12px; color: #7c7c77; align-self: center">Shown by SIOS, not by an app</span>
+    <div style="flex: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Cancel</button>
+    <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 0; background: #8fb3d9; color: #10161d; font: 600 13px 'Instrument Sans', sans-serif">Install</button>
+  </div>
+</div>
+</figure>
+<figure><figcaption>W3 Warning: switched off</figcaption>
+<div style="width: 560px; height: 440px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; border-radius: 16px; border: 1px solid #5a3b2c; display: flex; flex-direction: column; overflow: hidden">
+  <div style="height: 6px; background: #e8957a"></div>
+  <div style="padding: 22px 28px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; gap: 14px; align-items: center">
+      <span style="width: 44px; height: 44px; border-radius: 12px; background: #3a2a22; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8957a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.1"/></svg>
+      </span>
+      <div><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 20px; font-weight: 600">SIOS switched Linear off</h1><div style="font-size: 13px; color: #a9a9a4">To keep you safe. Nothing was sent.</div></div>
+    </div>
+    <p style="margin: 0; font-size: 14px; color: #c9c9c4; line-height: 1.45">Linear changed what one of its tools accepts since you installed it. A change like this can be an ordinary update, or a way to get more out of SIOS than you agreed to.</p>
+    <div style="border-radius: 12px; background: #24272b; padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 6px">
+      <div style="display: flex; gap: 8px"><span style="color: #a9a9a4; width: 110px">Tool</span><span>search issues</span></div>
+      <div style="display: flex; gap: 8px"><span style="color: #a9a9a4; width: 110px">What changed</span><span>a new field: "share_with"</span></div>
+      <div style="display: flex; gap: 8px"><span style="color: #a9a9a4; width: 110px">Noticed</span><span>today, 16:20</span></div>
+    </div>
+  </div>
+  <div style="margin-top: auto; display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #2a2d31; background: #1b1d20">
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #6b3c3c; background: transparent; color: #dc9696; font: 600 13px 'Instrument Sans', sans-serif">Remove Linear</button>
+    <div style="flex: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Keep it off</button>
+    <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 0; background: #e8957a; color: #2a140b; font: 600 13px 'Instrument Sans', sans-serif">Review and turn on</button>
+  </div>
+</div>
+</figure>
+<figure><figcaption>W4 Working, step by step</figcaption>
+<div style="width: 560px; height: 440px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; border-radius: 16px; border: 1px solid #43484e; display: flex; flex-direction: column; overflow: hidden">
+  <div style="padding: 24px 28px 8px">
+    <h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 20px; font-weight: 600">Installing GitHub</h1>
+    <div style="font-size: 13px; color: #a9a9a4; margin-top: 4px">About 10 seconds. You can close this; SIOS tells you when it's done.</div>
+    <div style="height: 6px; border-radius: 3px; background: #2c3034; margin-top: 16px"><div style="width: 62%; height: 6px; border-radius: 3px; background: #8fb3d9"></div></div>
+  </div>
+  <ol style="list-style: none; margin: 0; padding: 14px 28px; display: flex; flex-direction: column; gap: 12px; font-size: 14px">
+    <li style="display: flex; gap: 12px; align-items: center"><span style="width: 22px; height: 22px; border-radius: 11px; background: #2b3a2d; color: #94c29a; display: flex; align-items: center; justify-content: center; font-size: 12px">✓</span><span>Checked SIOS's signed catalog</span></li>
+    <li style="display: flex; gap: 12px; align-items: center"><span style="width: 22px; height: 22px; border-radius: 11px; background: #2b3a2d; color: #94c29a; display: flex; align-items: center; justify-content: center; font-size: 12px">✓</span><span>Sealed your token</span></li>
+    <li style="display: flex; gap: 12px; align-items: center"><span style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid #8fb3d9; box-sizing: border-box"></span><span style="font-weight: 600">Asking GitHub which tools it has</span></li>
+    <li style="display: flex; gap: 12px; align-items: center; color: #7c7c77"><span style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid #43484e; box-sizing: border-box"></span><span>Pinning its 9 tools, so a change is noticed</span></li>
+    <li style="display: flex; gap: 12px; align-items: center; color: #7c7c77"><span style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid #43484e; box-sizing: border-box"></span><span>Turning it on for SIOS</span></li>
+  </ol>
+  <div style="margin-top: auto; display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #2a2d31; background: #1b1d20">
+    <div style="flex: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Cancel</button>
+    <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid #43484e; background: #24272b; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Hide</button>
+  </div>
+</div>
+</figure>
+<figure><figcaption>W5 A service said no</figcaption>
+<div style="width: 560px; height: 440px; box-sizing: border-box; background: #1e2023; font-family: 'Instrument Sans', sans-serif; color: #ececea; border-radius: 16px; border: 1px solid #43484e; display: flex; flex-direction: column; overflow: hidden">
+  <div style="padding: 24px 28px; display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; gap: 14px; align-items: center">
+      <span style="width: 44px; height: 44px; border-radius: 12px; background: #2c3034; display: flex; align-items: center; justify-content: center; font-weight: 600">GH</span>
+      <div><h1 style="margin: 0; font-family: Jost, sans-serif; font-size: 20px; font-weight: 600">GitHub couldn't answer</h1><div style="font-size: 13px; color: #a9a9a4">While summarising your open PRs</div></div>
+    </div>
+    <p style="margin: 0; font-size: 14px; color: #c9c9c4; line-height: 1.45">SIOS asked GitHub and it said no. SIOS stopped there: nothing else ran, and nothing on your computer changed.</p>
+    <div style="border-radius: 12px; border: 1px dashed #5a5f66; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+      <div style="font-size: 11px; color: #a9a9a4; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600">GitHub's own words, not SIOS's</div>
+      <div style="font-family: monospace; font-size: 13px; color: #d6d6d2">"API rate limit exceeded for this token. Try again in 14 minutes."</div>
+    </div>
+    <div style="font-size: 13px; color: #a9a9a4">SIOS treats text from a service as information only. It never follows instructions written in it.</div>
+  </div>
+  <div style="margin-top: auto; display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid #2a2d31; background: #1b1d20">
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Open GitHub settings</button>
+    <div style="flex: 1"></div>
+    <button style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #43484e; background: transparent; color: #ececea; font: 600 13px 'Instrument Sans', sans-serif">Remind me in 15 min</button>
+    <button style="height: 36px; padding: 0 16px; border-radius: 9px; border: 0; background: #8fb3d9; color: #10161d; font: 600 13px 'Instrument Sans', sans-serif">OK</button>
+  </div>
+</div>
+</figure>
+<figure><figcaption>W6 Corner notice (non-blocking)</figcaption>
+<div style="width: 560px; height: 440px; box-sizing: border-box; background: #2a3140; font-family: 'Instrument Sans', sans-serif; color: #ececea; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; overflow: hidden">
+  <div style="width: 360px; border-radius: 14px; background: #1e2023; border: 1px solid #43484e; padding: 14px 16px; display: flex; gap: 12px">
+    <span style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px; background: #2b3a2d; color: #94c29a; display: flex; align-items: center; justify-content: center; font-size: 14px">✓</span>
+    <div style="flex: 1"><b style="font-size: 14px">GitHub is on</b><div style="font-size: 13px; color: #a9a9a4; margin-top: 2px">SIOS can use it, and asks you each time.</div></div>
+    <button aria-label="Close" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #a9a9a4; font-size: 16px">×</button>
+  </div>
+  <div style="width: 360px; border-radius: 14px; background: #1e2023; border: 1px solid #5a3b2c; padding: 14px 16px; display: flex; gap: 12px">
+    <span style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px; background: #3a2a22; color: #e8957a; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600">!</span>
+    <div style="flex: 1"><b style="font-size: 14px">Couldn't save the key</b><div style="font-size: 13px; color: #a9a9a4; margin-top: 2px">You closed the password window. Nothing changed.</div><div style="display: flex; gap: 12px; margin-top: 8px"><a href="#" style="font-size: 13px; font-weight: 600">Try again</a><a href="#" style="font-size: 13px; color: #a9a9a4">Details</a></div></div>
+    <button aria-label="Close" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #a9a9a4; font-size: 16px">×</button>
+  </div>
+  <div style="width: 360px; border-radius: 14px; background: #1e2023; border: 1px solid #43484e; padding: 14px 16px; display: flex; gap: 12px">
+    <span style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px; background: #233140; color: #8fb3d9; display: flex; align-items: center; justify-content: center; font-size: 14px">i</span>
+    <div style="flex: 1"><b style="font-size: 14px">Saved</b><div style="font-size: 13px; color: #a9a9a4; margin-top: 2px">Claude is now SIOS's brain.</div><div style="display: flex; gap: 12px; margin-top: 8px"><a href="#" style="font-size: 13px; font-weight: 600">Undo</a></div></div>
+    <button aria-label="Close" style="width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #a9a9a4; font-size: 16px">×</button>
+  </div>
+  <div style="margin-top: auto; align-self: stretch; font-size: 12px; color: #c3cad8; text-align: right">Errors that need a decision open a window (W1 to W5). Everything else lands here, and stays in the bell.</div>
+</div>
+</figure>
+</div></section>
+</body></html>
