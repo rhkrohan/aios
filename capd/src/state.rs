@@ -1312,7 +1312,16 @@ impl State {
             let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&pair).map_err(|e| e.to_string())?;
             std::io::Write::write_all(&mut f, token.as_bytes()).map_err(|e| e.to_string())?;
         }
-        std::fs::write(home.join("sios-mcp.json"), json!({ "mcpServers": { "sios": { "command": "/usr/bin/brain-d", "args": ["mcp"] } } }).to_string()).map_err(|e| e.to_string())?;
+        // SIOS's door config lives beside the pairing, outside the home the agent can change,
+        // and is bound in read-only; written fresh (create_new never follows a link) (security review)
+        let mcp = mine.join("sios-mcp.json");
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let _ = std::fs::remove_file(&mcp);
+            let _ = std::fs::remove_file(home.join("sios-mcp.json"));
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o644).open(&mcp).map_err(|e| e.to_string())?;
+            std::io::Write::write_all(&mut f, json!({ "mcpServers": { "sios": { "command": "/usr/bin/brain-d", "args": ["mcp"] } } }).to_string().as_bytes()).map_err(|e| e.to_string())?;
+        }
         let sockets = std::env::var("SIOS_RUNTIME").map(PathBuf::from).map_err(|_| "no SIOS runtime folder")?;
         let run_file = mine.join("runs").join(format!("{run_id}.jsonl"));
         let left = a.lease_until.saturating_sub(now());
@@ -1329,6 +1338,7 @@ impl State {
             claude: &claude,
             run_file: &run_file,
             pair_file: &pair,
+            mcp_config: &mcp,
             task,
             resume: (!a.session.is_empty()).then_some(a.session.as_str()),
             max_secs: left,

@@ -41,6 +41,8 @@ pub struct Run<'a> {
     pub claude: &'a Path,
     pub run_file: &'a Path,
     pub pair_file: &'a Path,
+    /// SIOS's MCP door config, kept outside the agent's home and bound read-only
+    pub mcp_config: &'a Path,
     pub task: &'a str,
     pub resume: Option<&'a str>,
     pub max_secs: u64,
@@ -54,7 +56,7 @@ pub fn unit(slug: &str) -> String {
 /// The whole `systemd-run` argument list for one run. Pure, so it can be tested:
 /// every sandbox property is here, and nothing the agent or task says becomes one.
 pub fn build(r: &Run) -> Result<Vec<String>, String> {
-    for p in [r.worktree, r.agent_home, r.sockets, r.claude, r.run_file, r.pair_file] {
+    for p in [r.worktree, r.agent_home, r.sockets, r.claude, r.run_file, r.pair_file, r.mcp_config] {
         if !safe_path(p) {
             return Err(format!("{} isn't a plain path (letters, digits, / . _ - only)", p.display()));
         }
@@ -73,6 +75,7 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
         // read-only: it can connect to SIOS's sockets, never remove or replace one
         "-p".into(), format!("BindReadOnlyPaths={}", d(r.sockets)),
         "-p".into(), format!("BindReadOnlyPaths={}", d(r.claude)),
+        "-p".into(), format!("BindReadOnlyPaths={}", d(r.mcp_config)),
         "-p".into(), "PrivateTmp=yes".into(),
         "-p".into(), "NoNewPrivileges=yes".into(),
         "-p".into(), "MemoryMax=4G".into(),
@@ -93,7 +96,7 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
         // never read as one of claude's own flags
         literal(&format!("Task from the owner: {task}")),
         "--output-format".into(), "stream-json".into(), "--verbose".into(),
-        "--mcp-config".into(), d(&r.agent_home.join("sios-mcp.json")),
+        "--mcp-config".into(), d(r.mcp_config),
         "--strict-mcp-config".into(),
         "--permission-mode".into(), "acceptEdits".into(),
         "--append-system-prompt".into(), literal(RULES),
@@ -165,6 +168,7 @@ mod tests {
             claude: Path::new("/home/r/.local/share/claude/versions/2.1.300"),
             run_file: Path::new("/home/r/.local/share/sios/agents/coder/runs/r1.jsonl"),
             pair_file: Path::new("/home/r/.local/share/sios/agents/coder/pair"),
+            mcp_config: Path::new("/home/r/.local/share/sios/agents/coder/sios-mcp.json"),
             task,
             resume: None,
             max_secs: 7200,
