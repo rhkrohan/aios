@@ -105,7 +105,7 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
         "apps.arrange" => json!({ "type": "object", "properties": { "left": { "type": "string" }, "right": { "type": "string" } }, "required": ["left", "right"], "additionalProperties": false }),
         "system.lock" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
         "system.remind" => json!({ "type": "object", "properties": { "minutes": { "type": "integer" }, "text": { "type": "string" } }, "required": ["minutes", "text"], "additionalProperties": false }),
-        "apps.install" | "apps.remove" => json!({ "type": "object", "properties": { "app": { "type": "string", "description": "Store app id, e.g. github, slack, notion, calendar" } }, "required": ["app"], "additionalProperties": false }),
+        "apps.install" | "apps.remove" => json!({ "type": "object", "properties": { "app": { "type": "string", "description": "Flathub app id (org.gnome.Calculator, com.slack.Slack) or a common short name (slack, vlc, spotify, zoom, vscode, gimp, obs, signal, telegram, steam)" } }, "required": ["app"], "additionalProperties": false }),
         "memory.search" | "people.resolve" => json!({ "type": "object", "properties": { "query": { "type": "string" } }, "required": ["query"], "additionalProperties": false }),
         "memory.save" => json!({
             "type": "object",

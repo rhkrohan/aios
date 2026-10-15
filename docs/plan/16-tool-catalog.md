@@ -53,8 +53,8 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `apps.focus` | app | Read | Shell | Brings an app's window to the front | KWin script (M9) |
 | `apps.close` | app | Change | Shell | Closes an app's window; unsaved work in it can be lost | KWin script (M9) |
 | `apps.arrange` | left, right | Read | Shell | Puts two apps side by side | KWin script (M9) |
-| `apps.install` | app | Always asks | Shell | Installs an app from the Store | `flatpak install --user` from the Store's catalog, never a free-text name (M9) |
-| `apps.remove` | app | Always asks | Shell | Removes an installed app | `flatpak uninstall --user` (M9) |
+| `apps.install` | app | Always asks | Real (A3) | Installs an app from Flathub | `flatpak install --user` as a background job with a done notification; a Flathub id or a common short name (slack, vlc, zoom...) |
+| `apps.remove` | app | Always asks | Real (A3) | Removes an installed app | `flatpak uninstall --user`, background job |
 
 ## settings: how the computer looks and sounds
 
@@ -64,7 +64,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `settings.set_brightness` | level 0 to 100 | Change | Shell | Screen brightness | D-Bus `org.kde.ScreenBrightness` (M6). Fails cleanly when there's no adjustable screen |
 | `settings.set_theme` | theme: light or dark | Change | Shell | Light or dark desktop | `plasma-apply-lookandfeel` with the SIOS looks (M6) |
 | `settings.set_wallpaper` | name: dusk or lake | Change | Shell | Wallpaper | `plasma-apply-wallpaperimage` (M6) |
-| `settings.dnd` | on: true or false | Change | Shell | Do Not Disturb | Notifications `Inhibit` on D-Bus (M9) |
+| `settings.dnd` | on: true or false | Change | Real (A3) | Do Not Disturb | `kwriteconfig6 --notify` on plasmanotifyrc `DoNotDisturb/Until` (applied live, seen on the VM) |
 
 ## network: connections
 
@@ -73,7 +73,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `network.list` | none | Read | Not yet | Connections and nearby Wi-Fi networks | `nmcli` (M6) |
 | `network.connect_wifi` | ssid | Change | Shell | Joins a Wi-Fi network. Passwords are never a model argument | `nmcli device wifi connect` (M6) |
 | `network.wifi_power` | on: true or false | Change | Shell | Wi-Fi on or off | `nmcli radio wifi` (M6) |
-| `network.bluetooth_power` | on: true or false | Change | Shell | Bluetooth on or off | BlueZ `Adapter1.Powered` on D-Bus (M9) |
+| `network.bluetooth_power` | on: true or false | Change | Real (A3) | Bluetooth on or off | BlueZ `Adapter1.Powered` with busctl; says plainly when there's no Bluetooth |
 
 ## system: the session
 
@@ -82,7 +82,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `system.state` | none | Read | Not yet | The computer right now: volume, brightness, theme, network, battery, Do Not Disturb, the focused app | Collected from the adapters above (M6) |
 | `system.notify` | text | Read | Shell | A short notification for the owner | `org.freedesktop.Notifications` (M6) |
 | `system.lock` | none | Change | Shell | Locks the screen | `org.freedesktop.ScreenSaver.Lock` (M6) |
-| `system.remind` | minutes 1 to 1440, text | Change | Shell | Reminds the owner later | A `systemd-run --user` timer that sends a notification (M9) |
+| `system.remind` | minutes 1 to 1440, text | Change | Real (A3) | Reminds the owner later | A `systemd-run --user` timer that sends a notification; undo cancels the timer (seen on the VM) |
 
 ## mail: sending
 

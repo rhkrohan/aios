@@ -168,6 +168,30 @@ pub fn file_url(path: &Path) -> String {
     out
 }
 
+/// Short names the model (or the owner) may use for common Flathub apps.
+const KNOWN_APPS: &[(&str, &str)] = &[
+    ("slack", "com.slack.Slack"), ("vlc", "org.videolan.VLC"), ("spotify", "com.spotify.Client"), ("discord", "com.discordapp.Discord"),
+    ("zoom", "us.zoom.Zoom"), ("gimp", "org.gimp.GIMP"), ("obs", "com.obsproject.Studio"), ("calculator", "org.gnome.Calculator"),
+    ("vscode", "com.visualstudio.code"), ("code", "com.visualstudio.code"), ("chrome", "com.google.Chrome"), ("telegram", "org.telegram.desktop"),
+    ("signal", "org.signal.Signal"), ("steam", "com.valvesoftware.Steam"), ("blender", "org.blender.Blender"), ("libreoffice", "org.libreoffice.LibreOffice"),
+    ("thunderbird", "org.mozilla.Thunderbird"), ("inkscape", "org.inkscape.Inkscape"), ("krita", "org.kde.krita"), ("kdenlive", "org.kde.kdenlive"),
+    ("audacity", "org.audacityteam.Audacity"), ("obsidian", "md.obsidian.Obsidian"), ("bitwarden", "com.bitwarden.desktop"), ("postman", "com.getpostman.Postman"),
+];
+
+fn dnd_on() -> bool {
+    // "2099,12,31,23,59,0": on until then; empty or in the past: off
+    sh("/usr/bin/kreadconfig6", &["--file", "plasmanotifyrc", "--group", "DoNotDisturb", "--key", "Until"])
+        .ok()
+        .and_then(|v| v.split(',').next().and_then(|y| y.trim().parse::<i64>().ok()))
+        .is_some_and(|year| year >= 2026)
+}
+
+fn bluetooth_on() -> Option<bool> {
+    // "b true"
+    let v = sh("/usr/bin/busctl", &["--system", "get-property", "org.bluez", "/org/bluez/hci0", "org.bluez.Adapter1", "Powered"]).ok()?;
+    Some(v.trim().ends_with("true"))
+}
+
 // ------------------------------------------------------------ the tools
 
 /// Carry out a system tool for real. None: not one of these (the caller decides).
@@ -267,10 +291,81 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             sh("/usr/bin/kioclient", &["exec", &file_url(&folder)])?;
             ok(json!({ "shown": r.rel, "opened_folder": folder.strip_prefix(root.canonicalize().unwrap_or(root.to_path_buf())).map(|p| p.display().to_string()).unwrap_or_default() }))
         })(),
-        // the rest of the system tools arrive in M9; never pretend they ran
-        "settings.dnd" | "network.bluetooth_power" | "apps.focus" | "apps.close" | "apps.arrange" | "apps.list" | "system.remind" | "apps.install" | "apps.remove" => {
-            Err(format!("{tool} isn't connected on this computer yet"))
-        }
+        // a notification later, from a timer the user's systemd keeps (survives capd restarts);
+        // undo cancels it. Text is escaped for systemd's % and $ expansion.
+        "system.remind" => (|| {
+            if let Some(unit) = args.get("cancel").and_then(|v| v.as_str()) {
+                // only ever our own reminder timers
+                let ok_name = unit.strip_prefix("sios-remind-").is_some_and(|h| h.len() == 10 && h.chars().all(|c| c.is_ascii_hexdigit()));
+                if !ok_name {
+                    return Err("not a SIOS reminder".to_string());
+                }
+                sh("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.timer")])?;
+                return ok(json!({ "cancelled": unit }));
+            }
+            let minutes = args.get("minutes").and_then(|v| v.as_i64()).filter(|m| (1..=1440).contains(m)).ok_or("minutes is 1 to 1440")?;
+            let text: String = s("text").chars().filter(|c| !c.is_control()).take(200).collect();
+            if text.trim().is_empty() {
+                return Err("what should the reminder say?".to_string());
+            }
+            let unit = format!("sios-remind-{}", crate::state::random_hex(5));
+            let body = text.replace('%', "%%").replace('$', "$$");
+            sh(
+                "/usr/bin/systemd-run",
+                &["--user", "--quiet", "--collect", &format!("--unit={unit}"), &format!("--on-active={minutes}m"), "--timer-property=AccuracySec=1s", "--",
+                  "/usr/bin/gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications", "--object-path", "/org/freedesktop/Notifications",
+                  "--method", "org.freedesktop.Notifications.Notify", "SIOS", "0", "sios-logo", "Reminder", &body, "[]", "{}", "0"],
+            )?;
+            Ok(Done { result: json!({ "reminder": text, "in_minutes": minutes }), undo: Some(json!({ "cancel": unit })) })
+        })(),
+        // Plasma's Do Not Disturb: "until" a date in plasmanotifyrc; --notify applies it live
+        "settings.dnd" => (|| {
+            let (want, was) = (on()?, dnd_on());
+            if want {
+                sh("/usr/bin/kwriteconfig6", &["--notify", "--file", "plasmanotifyrc", "--group", "DoNotDisturb", "--key", "Until", "2099,12,31,23,59,0"])?;
+            } else {
+                sh("/usr/bin/kwriteconfig6", &["--notify", "--file", "plasmanotifyrc", "--group", "DoNotDisturb", "--key", "Until", "--delete"])?;
+            }
+            Ok(Done { result: json!({ "do_not_disturb": dnd_on(), "was": was }), undo: Some(json!({ "on": was })) })
+        })(),
+        "network.bluetooth_power" => (|| {
+            let want = on()?;
+            let was = bluetooth_on().ok_or("this computer has no Bluetooth")?;
+            sh("/usr/bin/busctl", &["--system", "set-property", "org.bluez", "/org/bluez/hci0", "org.bluez.Adapter1", "Powered", "b", if want { "true" } else { "false" }])?;
+            Ok(Done { result: json!({ "bluetooth": bluetooth_on(), "was": was }), undo: Some(json!({ "on": was })) })
+        })(),
+        // From Flathub, for this user. It can take minutes, so it runs as its own
+        // background job (never inside the broker) and a notification says when it
+        // finished. Always asks the owner first (irreversible, tools.rs).
+        "apps.install" | "apps.remove" => (|| {
+            // a short name for a common app, or its full Flathub id
+            let asked = s("app").to_lowercase();
+            let id = KNOWN_APPS.iter().find(|(n, _)| *n == asked).map(|(_, id)| *id).unwrap_or(s("app"));
+            let looks_like_app = id.len() <= 128
+                && id.split('.').count() >= 3
+                && id.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+                && id.chars().next().is_some_and(|c| c.is_ascii_alphabetic());
+            if !looks_like_app {
+                return Err("an app is named by its Flathub id, like org.gnome.Calculator".to_string());
+            }
+            let installing = tool == "apps.install";
+            let unit = format!("sios-{}-{}", if installing { "install" } else { "remove" }, crate::state::random_hex(5));
+            let done_note = format!("{} {id} finished. Open the Store to see it.", if installing { "Installing" } else { "Removing" });
+            let notify = format!(
+                "ExecStopPost=/usr/bin/gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify SIOS 0 sios-logo SIOS \"{}\" [] {{}} 6000",
+                done_note.replace('%', "%%").replace('$', "$$")
+            );
+            let mut cmd = vec!["--user", "--quiet", "--collect", "--unit", unit.as_str(), "--property", notify.as_str(), "--", "/usr/bin/flatpak"];
+            if installing {
+                cmd.extend(["install", "--user", "-y", "--noninteractive", "flathub", id]);
+            } else {
+                cmd.extend(["uninstall", "--user", "-y", "--noninteractive", id]);
+            }
+            sh("/usr/bin/systemd-run", &cmd)?;
+            ok(json!({ if installing { "installing" } else { "removing" }: id, "job": unit, "note": "it runs in the background; a notification says when it's done" }))
+        })(),
+        // windows arrive with the KWin module (A3, kwin.rs); never pretend they ran
+        "apps.focus" | "apps.close" | "apps.arrange" | "apps.list" => Err(format!("{tool} isn't connected on this computer yet")),
         _ => return None,
     })
 }
@@ -284,7 +379,14 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         assert!(run("files.read", &json!({}), d.path()).is_none());
         assert!(run("memory.save", &json!({}), d.path()).is_none());
-        assert!(run("settings.dnd", &json!({ "on": true }), d.path()).unwrap().is_err());
+        assert!(run("apps.focus", &json!({ "app": "files" }), d.path()).unwrap().is_err());
+        // bad names stop before anything runs
+        assert!(run("apps.install", &json!({ "app": "--from=evil" }), d.path()).unwrap().unwrap_err().contains("Flathub id"));
+        assert!(run("apps.install", &json!({ "app": "org.gnome" }), d.path()).unwrap().is_err());
+        assert!(KNOWN_APPS.iter().all(|(_, id)| id.split('.').count() >= 3), "known names map to full ids");
+        assert!(run("apps.remove", &json!({ "app": "org.x.y z" }), d.path()).unwrap().is_err());
+        assert!(run("system.remind", &json!({ "minutes": 0, "text": "x" }), d.path()).unwrap().unwrap_err().contains("1 to 1440"));
+        assert!(run("system.remind", &json!({ "cancel": "sshd" }), d.path()).unwrap().unwrap_err().contains("not a SIOS reminder"));
         // bad arguments stop before anything runs
         assert!(run("settings.set_volume", &json!({ "level": 140 }), d.path()).unwrap().unwrap_err().contains("0 to 100"));
         assert!(run("settings.set_theme", &json!({ "theme": "neon" }), d.path()).unwrap().is_err());
