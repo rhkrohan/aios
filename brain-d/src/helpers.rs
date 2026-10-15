@@ -52,6 +52,9 @@ pub struct Helper {
     /// Which AI drives it. Only connected brains can be chosen (D15: any model can drive).
     #[serde(default = "default_brain")]
     pub brain: String,
+    /// daily: "HH:MM", local time.
+    #[serde(default)]
+    pub at: String,
 }
 
 fn default_brain() -> String {
@@ -71,8 +74,65 @@ pub fn check_brain(b: &str) -> Result<(), String> {
 
 impl Helper {
     pub fn principal(&self) -> String {
+        // an agent the owner made in the broker is its own identity (A4, D60)
+        if self.id.starts_with("agent:") {
+            return self.id.clone();
+        }
         format!("helper:{}", crate::slug(&self.name))
     }
+}
+
+/// Minutes since local midnight, and which local day it is (for daily jobs).
+fn local_now(t: u64) -> (u64, i64) {
+    #[cfg(target_os = "linux")]
+    {
+        // SAFETY: localtime_r fills `tm` from `secs`; both live on this stack.
+        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        let secs = t as libc::time_t;
+        if !unsafe { libc::localtime_r(&secs, &mut tm) }.is_null() {
+            let off = tm.tm_gmtoff;
+            return ((tm.tm_hour * 60 + tm.tm_min) as u64, (t as i64 + off).div_euclid(86400));
+        }
+    }
+    ((t % 86400) / 60, (t / 86400) as i64)
+}
+
+/// Is a daily job at "HH:MM" due, given when it last ran?
+pub fn daily_due(at: &str, last_run: u64, now: u64) -> bool {
+    let Some((h, m)) = at.split_once(':').and_then(|(h, m)| Some((h.parse::<u64>().ok()?, m.parse::<u64>().ok()?))) else { return false };
+    let (mins, day) = local_now(now);
+    let (_, last_day) = local_now(last_run);
+    mins >= h * 60 + m && (last_run == 0 || last_day < day)
+}
+
+/// The agents the owner made (capd's registry), as helpers brain-d runs: only
+/// those with SIOS's own brain; coding agents run in their own sandbox (A5).
+fn sync_agents(brain: &Brain) {
+    let Ok(list) = brain.ctx.capd.call("agents.list", json!({})) else { return };
+    let agents: Vec<Value> = list.as_array().cloned().unwrap_or_default();
+    let mut hs = brain.helpers.lock().unwrap();
+    let mut keep: Vec<Helper> = hs.list.iter().filter(|h| !h.id.starts_with("agent:")).cloned().collect();
+    for a in agents.iter().filter(|a| a["brain"] == "builtin") {
+        let id = a["id"].as_str().unwrap_or("").to_string();
+        let old = hs.list.iter().find(|h| h.id == id);
+        keep.push(Helper {
+            id: id.clone(),
+            name: a["name"].as_str().unwrap_or("").into(),
+            color: a["color"].as_str().unwrap_or("mint").into(),
+            kind: a["job"].as_str().unwrap_or("on-demand").into(),
+            folder: a["folder"].as_str().unwrap_or("").into(),
+            every_min: a["every_min"].as_u64().unwrap_or(60),
+            request: a["instructions"].as_str().unwrap_or("").into(),
+            active: a["active"].as_bool().unwrap_or(false),
+            created: a["created"].as_u64().unwrap_or(0),
+            last_run: old.map(|h| h.last_run).unwrap_or(if a["job"] == "every" { now() } else { 0 }),
+            runs: old.map(|h| h.runs.clone()).unwrap_or_default(),
+            hidden: false,
+            brain: "builtin".into(),
+            at: a["at"].as_str().unwrap_or("").into(),
+        });
+    }
+    hs.list = keep;
 }
 
 pub struct Helpers {
@@ -124,6 +184,7 @@ impl Helpers {
             runs: vec![],
             hidden: false,
             brain: p["brain"].as_str().unwrap_or("openai").to_string(),
+            at: String::new(),
         };
         check_brain(&h.brain)?;
         self.list.push(h.clone());
@@ -169,6 +230,7 @@ pub fn spawn(brain: Arc<Brain>) {
         let mut seen: HashMap<String, HashSet<String>> = HashMap::new();
         loop {
             std::thread::sleep(Duration::from_secs(3));
+            sync_agents(&brain);
             let list = brain.helpers.lock().unwrap().list.clone();
             for h in list {
                 // finish bookkeeping for a run that just ended: that's the report
@@ -186,7 +248,12 @@ pub fn spawn(brain: Arc<Brain>) {
                             if let Some(x) = hs.list.iter_mut().find(|x| x.id == h.id) {
                                 let d = done.unwrap_or(json!({}));
                                 let text = d["text"].as_str().or(d["message"].as_str()).unwrap_or("Finished.").to_string();
-                                x.runs.insert(0, HelperRun { goal: goal.clone(), at: now(), text, failed: d["failed"].as_bool().unwrap_or(false) || d["t"] == "error" });
+                                let failed = d["failed"].as_bool().unwrap_or(false) || d["t"] == "error";
+                                // an agent's run is a report in the broker, for the Agents app and the pet
+                                if x.id.starts_with("agent:") {
+                                    let _ = brain.ctx.capd.call("agents.report", json!({ "agent": x.id, "kind": "run", "text": text, "failed": failed, "goal": goal }));
+                                }
+                                x.runs.insert(0, HelperRun { goal: goal.clone(), at: now(), text, failed });
                                 x.runs.truncate(10);
                                 if x.kind == "once" {
                                     x.active = false;
@@ -207,6 +274,7 @@ pub fn spawn(brain: Arc<Brain>) {
                 let due = match h.kind.as_str() {
                     "once" => h.runs.is_empty(),
                     "every" => now().saturating_sub(h.last_run) >= h.every_min * 60,
+                    "daily" => daily_due(&h.at, h.last_run, now()),
                     "watch" => {
                         let dir = brain.ctx.root.join(&h.folder);
                         let files: HashSet<String> = std::fs::read_dir(&dir)
@@ -267,5 +335,20 @@ mod tests {
         assert_eq!(Helpers::open(d.path().join("helpers.json")).list.len(), 2, "saved");
         assert!(hs.add(&json!({ "name": "Bean", "kind": "once", "request": "x", "brain": "muse" })).is_err(), "muse isn't connected yet");
         assert!(check_brain("openai").is_ok() && check_brain("claude").is_err() && check_brain("nope").is_err());
+    }
+
+    #[test]
+    fn daily_jobs_run_once_a_day_after_their_time() {
+        // times in UTC here (no zone on the test machine is assumed for Linux; the
+        // non-Linux fallback is UTC): day 20000 at 08:00 and 09:00
+        let day = 20000 * 86400;
+        if cfg!(target_os = "linux") {
+            return; // local time depends on the machine's zone
+        }
+        assert!(!daily_due("08:30", 0, day + 8 * 3600), "not yet");
+        assert!(daily_due("08:30", 0, day + 9 * 3600));
+        assert!(!daily_due("08:30", day + 9 * 3600, day + 10 * 3600), "once a day");
+        assert!(daily_due("08:30", day + 9 * 3600, day + 86400 + 9 * 3600), "the next day again");
+        assert!(!daily_due("nope", 0, day + 9 * 3600));
     }
 }

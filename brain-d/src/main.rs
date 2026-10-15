@@ -351,9 +351,10 @@ fn serve() {
                     .map(|r| {
                         let owner = shell.unwrap_or_else(|| r["owner"].as_str().is_some_and(|g| ct_eq(g.as_bytes(), secret.as_bytes())));
                         // "Run now" needs the shared brain to start a goal
-                        if r["method"] == "helpers.run_now" && !owner {
+                        // Run now: the owner, or SIOS's Agents window (a run still asks for its passes)
+                        if (r["method"] == "helpers.run_now" || r["method"] == "agents.run_now") && !(owner || viewer) {
                             json!({ "error": "only the owner's shell can do that" })
-                        } else if r["method"] == "helpers.run_now" {
+                        } else if r["method"] == "helpers.run_now" || r["method"] == "agents.run_now" {
                             match helpers::run_now(&brain, r["params"]["id"].as_str().unwrap_or("")) {
                                 Some(goal) => json!({ "ok": { "goal": goal } }),
                                 None => json!({ "error": "that helper is busy or doesn't exist" }),
