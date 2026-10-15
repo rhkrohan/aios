@@ -11,7 +11,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-Environment=SIOS_STATE=%h/.local/share/sios SIOS_ROOT=%h/SIOS-test SIOS_RUNTIME=%t/sios SIOS_IDENTITY=peer
+Environment=SIOS_STATE=%h/.local/share/sios SIOS_ROOT=%h SIOS_RUNTIME=%t/sios SIOS_IDENTITY=peer
 ExecStart=/usr/bin/brain-d serve
 RuntimeDirectory=sios
 RuntimeDirectoryMode=0700

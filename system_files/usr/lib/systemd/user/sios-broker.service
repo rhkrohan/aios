@@ -10,10 +10,10 @@ After=graphical-session.target
 [Service]
 Type=simple
 # State is private (0700) in the home; AIs can never name a hidden folder.
-# AIs work in ~/SIOS-test until the real home is switched on (M9).
+# AIs work in the real home (owner's choice 2026-10-14, part of M9); hidden
+# folders (.ssh, .local/share/sios, keys) are never reachable (fsguard).
 # SIOS_ADAPTERS=real: system tools change the real desktop (M6), not a preview
-Environment=SIOS_STATE=%h/.local/share/sios SIOS_ROOT=%h/SIOS-test SIOS_RUNTIME=%t/sios SIOS_IDENTITY=peer SIOS_ADAPTERS=real
-ExecStartPre=/usr/bin/mkdir -p %h/SIOS-test
+Environment=SIOS_STATE=%h/.local/share/sios SIOS_ROOT=%h SIOS_RUNTIME=%t/sios SIOS_IDENTITY=peer SIOS_ADAPTERS=real
 ExecStart=/usr/bin/capd serve
 RuntimeDirectory=sios
 RuntimeDirectoryMode=0700
