@@ -707,7 +707,7 @@ QQC2.ApplicationWindow {
                                 }
                             }
                         }
-                        RowLayout {
+                        ColumnLayout {
                             spacing: 16
                             Layout.fillWidth: true
                             // every task, newest first
@@ -758,8 +758,7 @@ QQC2.ApplicationWindow {
                             }
                             // tokens for each of the last 7 days
                             Rectangle {
-                                Layout.preferredWidth: 280
-                                Layout.alignment: Qt.AlignTop
+                                Layout.fillWidth: true
                                 implicitHeight: tk.implicitHeight + 28
                                 radius: 14; color: Theme.surface; border.width: 1; border.color: Theme.line
                                 ColumnLayout {
@@ -782,11 +781,12 @@ QQC2.ApplicationWindow {
                                                 required property var modelData
                                                 required property int index
                                                 Layout.fillWidth: true
+                                                Layout.preferredWidth: 1
                                                 spacing: 6
                                                 Item {
                                                     Layout.fillWidth: true
-                                                    implicitHeight: 110
-                                                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Math.max(2, 110 * modelData[1] / bars.peak); radius: 4; color: index === 6 ? "#c1457d" : Qt.rgba(0.76, 0.27, 0.49, 0.3) }
+                                                    implicitHeight: 90
+                                                    Rectangle { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(parent.width, 56); height: Math.max(2, 90 * modelData[1] / bars.peak); radius: 4; color: index === 6 ? "#c1457d" : Qt.rgba(0.76, 0.27, 0.49, 0.3) }
                                                 }
                                                 Text { Layout.alignment: Qt.AlignHCenter; text: modelData[0]; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11 }
                                             }
