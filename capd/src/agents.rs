@@ -316,8 +316,9 @@ impl Registry {
     /// Why a working run must stop now, if it must: its task limit, its day limit,
     /// or its lease running out. Decided here, by the broker, from its own counts.
     pub fn over_limit(&self, run: &str, now: u64) -> Option<&'static str> {
-        let r = self.runs.iter().find(|r| r.id == run)?;
-        let a = self.get(&r.agent)?;
+        // a run the broker doesn't know, or whose agent is gone, doesn't go on
+        let Some(r) = self.runs.iter().find(|r| r.id == run) else { return Some("stopped: unknown") };
+        let Some(a) = self.get(&r.agent) else { return Some("stopped: unknown") };
         if r.tokens >= a.max_task_tokens {
             Some("stopped: task limit")
         } else if self.day_tokens(&r.agent, now) >= a.max_day_tokens {
@@ -367,6 +368,7 @@ mod tests {
         r.get_mut("agent:coder").unwrap().lease_until = 10_000;
         r.run_started("agent:coder", "r1", "Add a form", 100);
         assert_eq!(r.over_limit("r1", 200), None);
+        assert_eq!(r.over_limit("nope", 200), Some("stopped: unknown"), "fail closed");
         r.run_mut("r1").unwrap().tokens = 100_000;
         assert_eq!(r.over_limit("r1", 200), Some("stopped: task limit"));
         // yesterday's runs still count for 24 hours, then drop off the day

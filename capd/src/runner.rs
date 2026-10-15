@@ -53,6 +53,19 @@ pub fn unit(slug: &str) -> String {
     format!("sios-agent-{slug}")
 }
 
+/// The lease as a systemd timer beside the run: when it fires, systemd stops the
+/// agent's unit, even if the broker isn't running. "+1 hour" replaces the timer
+/// (a running unit's RuntimeMaxSec can't be changed; checked on the VM).
+pub fn lease_timer(slug: &str, secs: u64) -> Vec<String> {
+    vec![
+        "--user".into(), "--quiet".into(), "--collect".into(),
+        format!("--unit={}-lease", unit(slug)),
+        format!("--on-active={}s", secs.max(1)),
+        "--timer-property=AccuracySec=1s".into(),
+        "/usr/bin/systemctl".into(), "--user".into(), "stop".into(), format!("{}.service", unit(slug)),
+    ]
+}
+
 /// The whole `systemd-run` argument list for one run. Pure, so it can be tested:
 /// every sandbox property is here, and nothing the agent or task says becomes one.
 pub fn build(r: &Run) -> Result<Vec<String>, String> {
@@ -171,21 +184,31 @@ pub struct Progress {
     pub log: Vec<serde_json::Value>,
     /// input + output + cache writes, each message counted once
     pub tokens: u64,
+    /// The stream is past MAX_STREAM: the run is stopped (an agent can write into
+    /// its own output; flooding it must not hide what it used)
+    pub too_big: bool,
     pub cost_usd: f64,
     pub commands: u64,
     pub files: Vec<String>,
 }
 
-/// Read a run's stream file (at most its last 8 MB). Paths are shown relative to
-/// the agent's copy of the project.
+/// A run's stream may grow to this; past it the broker stops the run.
+pub const MAX_STREAM: u64 = 32 << 20;
+
+/// Read a run's stream file from its start (at most MAX_STREAM), so every message
+/// it used is counted. Paths are shown relative to the agent's copy of the project.
 pub fn progress(run_file: &Path, worktree: &Path) -> Progress {
     use serde_json::{json, Value};
-    let bytes = std::fs::read(run_file).unwrap_or_default();
-    let bytes = &bytes[bytes.len().saturating_sub(8 << 20)..];
-    let text = String::from_utf8_lossy(bytes);
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    let size = std::fs::metadata(run_file).map(|m| m.len()).unwrap_or(0);
+    if let Ok(f) = std::fs::File::open(run_file) {
+        let _ = f.take(MAX_STREAM).read_to_end(&mut bytes);
+    }
+    let text = String::from_utf8_lossy(&bytes);
     let root = format!("{}/", worktree.display());
     let rel = |p: &str| clean(p.strip_prefix(&root).unwrap_or(p), 160);
-    let mut out = Progress::default();
+    let mut out = Progress { too_big: size > MAX_STREAM, ..Default::default() };
     let mut seen = std::collections::HashSet::new();
     // a command's output goes with the command that asked for it
     let mut runs: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
@@ -346,6 +369,18 @@ mod tests {
         assert_eq!(kinds, ["start", "say", "new", "run", "done"]);
         assert_eq!(p.log[3]["detail"], "a\nb\n12 passed\n1 failed[0m", "last lines, no escape codes");
         assert_eq!(p.log[3]["failed"], true);
+    }
+
+    #[test]
+    fn the_lease_is_a_timer_that_stops_the_agent_and_a_flood_is_noticed() {
+        let t = lease_timer("coder", 5400);
+        assert!(t.contains(&"--on-active=5400s".to_string()) && t.contains(&"--unit=sios-agent-coder-lease".to_string()));
+        assert_eq!(&t[t.len() - 3..], ["--user", "stop", "sios-agent-coder.service"]);
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("r.jsonl");
+        let f2 = std::fs::File::create(&f).unwrap();
+        f2.set_len(MAX_STREAM + 1).unwrap();
+        assert!(progress(&f, Path::new("/x")).too_big);
     }
 
     #[test]

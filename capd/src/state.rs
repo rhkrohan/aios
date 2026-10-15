@@ -136,6 +136,9 @@ pub struct State {
     pub sec: crate::security::SecState,
     /// The pet team: agents, their jobs and reports (A4, D60).
     pub agents: crate::agents::Registry,
+    /// Each agent's latest live log, read by its watcher outside the lock: agent id ->
+    /// (run id, entries). The Agents app reads it from here, cheaply.
+    pub live: HashMap<String, (String, Vec<Value>)>,
 }
 
 fn load_or_create(path: &Path, make: impl FnOnce() -> String) -> std::io::Result<String> {
@@ -199,6 +202,7 @@ impl State {
             forgotten: Vec::new(),
             sec: crate::security::SecState::load(dir),
             agents: crate::agents::Registry::open(dir),
+            live: HashMap::new(),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
                 if let Ok(b) = std::fs::read(dir.join("people.json")) {
@@ -494,6 +498,17 @@ impl State {
                 let roles = if a.brain == "builtin" { vec![crate::iam::ACTS_FOR_YOU.into()] } else { vec![] };
                 self.iam.register(&a.id, &a.name, "agent", "Created by you", crate::iam::OWNER, roles, now());
                 self.record(&Self::owner_cap(), "agents.add", &a.id, "you", &format!("you made the agent {} ({}, {})", a.name, a.brain, a.job), &json!([]));
+                // a coding agent may get its first working time in the same step (one password)
+                let mut a = a;
+                if let Some(h) = p["lease_hours"].as_u64().filter(|_| a.brain == "claude-code") {
+                    let h = h.clamp(1, 8);
+                    a.lease_until = now() + h * 3600;
+                    if let Some(x) = self.agents.get_mut(&a.id) {
+                        x.lease_until = a.lease_until;
+                    }
+                    self.agents.save();
+                    self.record(&Self::owner_cap(), "agents.lease", &a.id, "you", &format!("you let {} work on its project for {h} h (its network isn't limited yet)", a.name), &json!([]));
+                }
                 json!(a)
             }),
             "agents.update" => self.agents.update(p).map(|a| {
@@ -545,8 +560,20 @@ impl State {
                 // "+1 hour" adds to the time left; a lease is never more than 8 hours ahead
                 let from = if p["add"] == true { a.lease_until.max(now()) } else { now() };
                 a.lease_until = (from + hours * 3600).min(now() + 8 * 3600);
-                let (name, until) = (a.name.clone(), a.lease_until);
+                let (name, until, slug, running) = (a.name.clone(), a.lease_until, a.slug().to_string(), !a.run.is_empty());
                 self.agents.save();
+                // working now: its stop timer moves with the lease; if the new one can't be
+                // set, the run stops rather than going on without one (fail closed)
+                if running {
+                    let unit = format!("{}.service", crate::runner::unit(&slug));
+                    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}-lease.timer", crate::runner::unit(&slug))], None, std::time::Duration::from_secs(10));
+                    let args = crate::runner::lease_timer(&slug, until.saturating_sub(now()));
+                    let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+                    if !crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(10)).is_ok_and(|o| o.code == Some(0)) {
+                        let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", "--no-block", &unit], None, std::time::Duration::from_secs(5));
+                        return Err("couldn't move its stop timer, so its task was stopped".into());
+                    }
+                }
                 self.record(&Self::owner_cap(), "agents.lease", &id, "you", &format!("you let {name} work on its project for {hours} h more (its network isn't limited yet)"), &json!([]));
                 Ok(json!({ "lease_until": until }))
             })(),
@@ -1490,9 +1517,10 @@ impl State {
             mcp_config: &mcp,
             task,
             resume: (!a.session.is_empty()).then_some(a.session.as_str()),
-            // the lease can grow while it works (+1 hour), so systemd's hard stop is the
-            // 8-hour ceiling and the broker stops it when the lease runs out (agent_tick)
-            max_secs: if left == 0 { 0 } else { 8 * 3600 },
+            // the lease is a timer beside the run (it can grow with +1 hour); systemd's
+            // hard stop is the 8-hour ceiling a lease can never pass
+            max_secs: 8 * 3600,
+            // (left: checked by agent_run before anything starts)
             uid,
         })?;
         Ok((args, run_file))
@@ -1527,27 +1555,55 @@ impl State {
         if o.code != Some(0) {
             return Err(format!("couldn't start its workspace: {}", o.stderr.trim().chars().take(200).collect::<String>()));
         }
+        // its lease as a systemd timer: without one the run doesn't go on (fail closed)
+        let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}-lease.timer", crate::runner::unit(a.slug()))], None, std::time::Duration::from_secs(10));
+        let targs = crate::runner::lease_timer(a.slug(), a.lease_until.saturating_sub(now()));
+        let tv: Vec<&str> = targs.iter().map(String::as_str).collect();
+        if !crate::exec::run("/usr/bin/systemd-run", &tv, None, std::time::Duration::from_secs(10)).is_ok_and(|t| t.code == Some(0)) {
+            let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}.service", crate::runner::unit(a.slug()))], None, std::time::Duration::from_secs(30));
+            return Err("couldn't set the timer that ends its work, so it didn't start".into());
+        }
         if let Some(x) = self.agents.get_mut(id) {
             x.run = run_id.clone();
         }
         self.agents.run_started(id, &run_id, task, now());
         self.agents.report(id, "run", &format!("Started: {}", task.chars().take(300).collect::<String>()), false, &run_id, now())?;
         self.record(&Self::owner_cap(), "agents.run", id, "allow", &format!("{} started a task in its workspace", a.name), &json!([]));
-        Ok(json!({ "agent": id, "name": a.name, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file }))
+        let worktree = self.agent_paths(&a).map(|x| x.1).unwrap_or_default();
+        Ok(json!({ "agent": id, "name": a.name, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file, "worktree": worktree }))
+    }
+
+    /// Runs that were working when the broker last stopped: (agent, run, unit, file, worktree),
+    /// so their watchers start again and the limits keep holding.
+    pub fn working_runs(&self) -> Vec<(String, String, String, PathBuf, PathBuf)> {
+        self.agents.agents.iter().filter(|a| !a.run.is_empty()).map(|a| {
+            let file = self.dir.join("agents").join(a.slug()).join("runs").join(format!("{}.jsonl", a.run));
+            let worktree = self.agent_paths(a).map(|x| x.1).unwrap_or_default();
+            (a.id.clone(), a.run.clone(), crate::runner::unit(a.slug()), file, worktree)
+        }).collect()
     }
 
     /// While a run works (every few seconds): count what it used from its own stream
     /// and say why it must stop, if it must (its limits or its lease).
-    pub fn agent_tick(&mut self, id: &str, run_id: &str, run_file: &Path) -> Option<&'static str> {
-        let worktree = self.agents.get(id).cloned().and_then(|a| self.agent_paths(&a).ok()).map(|x| x.1).unwrap_or_default();
-        let pr = crate::runner::progress(run_file, &worktree);
-        let r = self.agents.run_mut(run_id)?;
+    pub fn agent_tick(&mut self, id: &str, run_id: &str, pr: crate::runner::Progress) -> Option<String> {
+        self.live.insert(id.to_string(), (run_id.to_string(), pr.log));
+        let Some(r) = self.agents.run_mut(run_id) else { return Some("stopped: unknown".into()) };
+        // already stopped (by you or a limit) but still running: stop it again
+        if r.state.starts_with("stopped") {
+            return Some(r.state.clone());
+        }
         if r.state != "working" {
             return None;
         }
-        let changed = (r.tokens, r.commands, r.files.len()) != (pr.tokens, pr.commands, pr.files.len());
-        (r.tokens, r.cost_usd, r.commands, r.files) = (pr.tokens, pr.cost_usd, pr.commands, pr.files);
-        let why = self.agents.over_limit(run_id, now());
+        // counts only ever go up: nothing the agent writes into its stream can lower them
+        let changed = (r.tokens, r.commands, r.files.len()) != (pr.tokens.max(r.tokens), pr.commands.max(r.commands), pr.files.len().max(r.files.len()));
+        r.tokens = r.tokens.max(pr.tokens);
+        r.commands = r.commands.max(pr.commands);
+        r.cost_usd = r.cost_usd.max(pr.cost_usd);
+        if pr.files.len() >= r.files.len() {
+            r.files = pr.files;
+        }
+        let why = if pr.too_big { Some("stopped: too much output") } else { self.agents.over_limit(run_id, now()) };
         if let Some(w) = why {
             if let Some(r) = self.agents.run_mut(run_id) {
                 r.state = w.into();
@@ -1556,6 +1612,8 @@ impl State {
             let said = match w {
                 "stopped: task limit" => format!("Stopped {name}: it reached its token limit for this task."),
                 "stopped: day limit" => format!("Stopped {name}: it reached its token limit for today."),
+                "stopped: too much output" => format!("Stopped {name}: its output grew past 32 MB."),
+                "stopped: unknown" => format!("Stopped {name}: SIOS no longer knows this task."),
                 _ => format!("Stopped {name}: its working time ran out."),
             };
             let _ = self.agents.report(id, "done", &said, true, run_id, now());
@@ -1564,7 +1622,7 @@ impl State {
         if changed || why.is_some() {
             self.agents.save();
         }
-        why
+        why.map(String::from)
     }
 
     /// The Agents app's live view of one agent: its current (or last) task, what it
@@ -1574,11 +1632,13 @@ impl State {
         let run = self.agents.runs.iter().find(|r| r.agent == id).cloned();
         let log = match &run {
             Some(r) => {
-                let file = self.dir.join("agents").join(a.slug()).join("runs").join(format!("{}.jsonl", r.id));
-                let worktree = self.agent_paths(&a).map(|x| x.1).unwrap_or_default();
-                let mut l = crate::runner::progress(&file, &worktree).log;
-                l.drain(..l.len().saturating_sub(400));
-                l
+                if self.live.get(id).is_none_or(|(rid, _)| rid != &r.id) {
+                    let file = self.dir.join("agents").join(a.slug()).join("runs").join(format!("{}.jsonl", r.id));
+                    let worktree = self.agent_paths(&a).map(|x| x.1).unwrap_or_default();
+                    self.live.insert(id.to_string(), (r.id.clone(), crate::runner::progress(&file, &worktree).log));
+                }
+                let l = &self.live[id].1;
+                l[l.len().saturating_sub(400)..].to_vec()
             }
             None => vec![],
         };
@@ -1604,8 +1664,11 @@ impl State {
     }
 
     /// When a run's unit is gone: its outcome becomes the report, its session is kept for next time.
-    pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path) {
-        let _ = self.agent_tick(id, run_id, run_file);
+    pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path, pr: crate::runner::Progress) {
+        let _ = self.agent_tick(id, run_id, pr);
+        if let Some(a) = self.agents.get(id) {
+            let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}-lease.timer", crate::runner::unit(a.slug()))], None, std::time::Duration::from_secs(10));
+        }
         let (text, session, failed) = crate::runner::outcome(run_file);
         if let Some(r) = self.agents.run_mut(run_id) {
             r.ended = now();

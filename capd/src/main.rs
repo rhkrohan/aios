@@ -361,6 +361,11 @@ fn serve() {
         if by_peer { "known by their program (SIOS_IDENTITY=peer)" } else { "prove themselves with secret files" }
     );
     let st = Arc::new(Mutex::new(st));
+    // agents that were working when the broker last stopped: watch them again
+    let working = st.lock().unwrap_or_else(|p| p.into_inner()).working_runs();
+    for (agent, run, unit, file, worktree) in working {
+        watch_run(Arc::clone(&st), agent, run, unit, file, worktree);
+    }
     // approval sessions end when the screen locks or the computer sleeps (D56)
     if by_peer {
         security::watch_lock();
@@ -523,28 +528,14 @@ fn serve() {
                         }
                         // a coding agent's run: watch its unit; when it's gone, its outcome is the report
                         if method == "agents.run" && resp.get("ok").is_some() {
-                            let (st, ok) = (Arc::clone(&st), resp["ok"].clone());
-                            std::thread::spawn(move || {
-                                let unit = ok["unit"].as_str().unwrap_or("").to_string();
-                                // its desk (A6): a terminal with its live log, on a desktop named after
-                                // it; the owner's view never switches without a click (D67)
-                                if by_peer {
-                                    security::show_on_desk(ok["name"].as_str().unwrap_or("Agent"), ok["run_file"].as_str().unwrap_or(""));
-                                }
-                                let file = std::path::PathBuf::from(ok["run_file"].as_str().unwrap_or(""));
-                                let (agent, run) = (ok["agent"].as_str().unwrap_or("").to_string(), ok["run"].as_str().unwrap_or("").to_string());
-                                std::thread::sleep(std::time::Duration::from_secs(3));
-                                // while it works, the broker counts its tokens and watches its lease;
-                                // past a limit it stops the unit (the OS enforces, D65)
-                                while security::unit_active(&unit) {
-                                    let why = st.lock().unwrap_or_else(|p| p.into_inner()).agent_tick(&agent, &run, &file);
-                                    if why.is_some() {
-                                        let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.service")], None, std::time::Duration::from_secs(30));
-                                    }
-                                    std::thread::sleep(std::time::Duration::from_secs(3));
-                                }
-                                st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(ok["agent"].as_str().unwrap_or(""), ok["run"].as_str().unwrap_or(""), &file);
-                            });
+                            let ok = resp["ok"].clone();
+                            // its desk (A6): a terminal with its live log, on a desktop named after
+                            // it; the owner's view never switches without a click (D67)
+                            if by_peer {
+                                security::show_on_desk(ok["name"].as_str().unwrap_or("Agent"), ok["run_file"].as_str().unwrap_or(""));
+                            }
+                            let s = |k: &str| ok[k].as_str().unwrap_or("").to_string();
+                            watch_run(Arc::clone(&st), s("agent"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
                         }
                         // Stop also ends every MCP door at once (D41)
                         if by_peer && method == "ai.stop" && resp.get("ok").is_some() {
@@ -562,6 +553,25 @@ fn serve() {
             }
         });
     }
+}
+
+/// Watch a coding agent's run until its unit is gone. Its stream is read outside the
+/// lock (it can be large); the counts go in briefly, and past a limit the broker stops
+/// the unit (the OS enforces, D65). Its outcome becomes the report.
+fn watch_run(st: Arc<Mutex<state::State>>, agent: String, run: String, unit: String, file: std::path::PathBuf, worktree: std::path::PathBuf) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        while security::unit_active(&unit) {
+            let pr = runner::progress(&file, &worktree);
+            let why = st.lock().unwrap_or_else(|p| p.into_inner()).agent_tick(&agent, &run, pr);
+            if why.is_some() {
+                let _ = exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.service")], None, std::time::Duration::from_secs(30));
+            }
+            std::thread::sleep(std::time::Duration::from_secs(3));
+        }
+        let pr = runner::progress(&file, &worktree);
+        st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(&agent, &run, &file, pr);
+    });
 }
 
 /// One line per request on the console, so you can watch decisions happen.
