@@ -98,7 +98,10 @@ impl Run<'_> {
         let raw = self.model.structured(plan::PLANNER, &input, "plan", plan::schema())?;
         // ...and the real ones come back before anything runs here
         let restored: serde_json::Value = serde_json::from_str(&red.restore(&raw.to_string())).unwrap_or(raw);
-        serde_json::from_value(restored).map_err(|e| format!("the plan didn't have the right shape: {e}"))
+        let mut plan: Plan = serde_json::from_value(restored).map_err(|e| format!("the plan didn't have the right shape: {e}"))?;
+        // every plan, first or re-plan: one-click actions only from the short safe list
+        plan.manual.retain(|m| plan::MANUAL_TOOLS.contains(&m.tool.as_str()));
+        Ok(plan)
     }
 }
 
@@ -207,7 +210,8 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
         let ai = if r.principal == "owner" { "sios".to_string() } else { r.principal.clone() };
         let pass = r.ctx.capd.call(
             "request_pass",
-            json!({ "principal": ai, "goal": r.request, "tools": tools, "paths": paths, "ttl": 900, "uses": n * 4 + 4, "budget": n * 4 + 4, "no_egress": !egress, "whole_home": paths.iter().any(|p| p.is_empty()), "own": r.own }),
+            // once disk text reached the planner the broker refuses any sending, whatever the tool is called
+            json!({ "principal": ai, "goal": r.request, "tools": tools, "paths": paths, "ttl": 900, "uses": n * 4 + 4, "budget": n * 4 + 4, "no_egress": !egress || from_disk, "whole_home": paths.iter().any(|p| p.is_empty()), "own": r.own }),
         )?;
         let token = pass["token"].as_str().unwrap_or_default().to_string();
         // model calls from here on carry the pass, so the broker knows what this goal has read
