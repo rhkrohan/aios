@@ -17,6 +17,8 @@ getrandom = "0.2"
 ureq = { version = "2", features = ["json"] }
 chacha20poly1305 = "0.10"
 zeroize = "1"
+# the signed connector catalog (C1, D80)
+ed25519-dalek = "2"
 
 [dev-dependencies]
 tempfile = "3"

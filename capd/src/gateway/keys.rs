@@ -9,6 +9,10 @@
 //!
 //! A key is decrypted only for the one call that needs it, held in memory that
 //! is wiped afterwards, and never logged, returned or written in plain text.
+//!
+//! The Sign-ins vault (D74) is a second store under the same master key
+//! (`signins.json`): tokens and app passwords for connectors, each bound to
+//! "signin:<connector>" so it can't be swapped with an AI account key.
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as B64, Engine};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
@@ -86,8 +90,18 @@ fn master(dir: &Path) -> Result<(Zeroizing<[u8; 32]>, &'static str), String> {
 
 impl Keys {
     pub fn open(dir: &Path) -> Result<Keys, String> {
+        Self::open_named(dir, "keys.json")
+    }
+
+    /// Another store sealed by the same master key (the Sign-ins vault: "signins.json").
+    pub fn open_named(dir: &Path, file: &str) -> Result<Keys, String> {
         let (master, sealed_by) = master(dir)?;
-        Ok(Keys { path: dir.join("keys.json"), master, sealed_by })
+        Ok(Keys { path: dir.join(file), master, sealed_by })
+    }
+
+    /// The names that have something stored (never what's stored).
+    pub fn names(&self) -> Vec<String> {
+        self.load().into_keys().collect()
     }
 
     fn load(&self) -> BTreeMap<String, String> {
@@ -156,5 +170,17 @@ mod tests {
         k2.set("openai", "sk-other").unwrap();
         assert!(k2.has("openai") && k2.remove("openai").unwrap() && !k2.has("openai"));
         assert_eq!(k2.sealed_by, "file");
+    }
+
+    #[test]
+    fn the_signins_vault_shares_the_master_but_not_the_entries() {
+        let d = tempfile::tempdir().unwrap();
+        let keys = Keys::open(d.path()).unwrap();
+        let vault = Keys::open_named(d.path(), "signins.json").unwrap();
+        vault.set("signin:github", "github_pat_not_real_123").unwrap();
+        assert!(!keys.has("signin:github"), "a separate file");
+        assert_eq!(vault.names(), vec!["signin:github".to_string()]);
+        assert!(!std::fs::read_to_string(d.path().join("signins.json")).unwrap().contains("github_pat"));
+        assert_eq!(Keys::open_named(d.path(), "signins.json").unwrap().get("signin:github").unwrap().unwrap().as_str(), "github_pat_not_real_123");
     }
 }

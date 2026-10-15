@@ -7,6 +7,7 @@
 mod adapters;
 mod agents;
 mod audit;
+mod connectors;
 mod exec;
 mod fsguard;
 mod gateway;
@@ -189,6 +190,38 @@ fn main() {
                 Some(t) => println!("{t}"),
                 None => {
                     eprintln!("nothing read from {path} (a kind capd doesn't read, or the sandbox refused)");
+                    std::process::exit(1);
+                }
+            }
+        }
+        // for whoever keeps SIOS's catalog key (never on a SIOS machine): make a key, sign the catalog
+        "catalog-keygen" => {
+            let out = args.get(1).cloned().unwrap_or_else(|| "connectors.key".into());
+            let mut seed = [0u8; 32];
+            getrandom::getrandom(&mut seed).expect("random");
+            let sk = ed25519_dalek::SigningKey::from_bytes(&seed);
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&out).expect("the key file already exists; not overwriting it");
+                std::io::Write::write_all(&mut f, hex::encode(seed).as_bytes()).expect("write");
+            }
+            let pk = sk.verifying_key().to_bytes();
+            println!("[{}]", pk.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(", "));
+        }
+        "catalog-sign" => {
+            use base64::Engine;
+            use ed25519_dalek::Signer;
+            let (key, cat) = (args.get(1).cloned().unwrap_or_default(), args.get(2).cloned().unwrap_or_default());
+            let seed: [u8; 32] = hex::decode(std::fs::read_to_string(&key).expect("key").trim()).ok().and_then(|v| v.try_into().ok()).expect("a 32-byte hex key");
+            let sk = ed25519_dalek::SigningKey::from_bytes(&seed);
+            let body = std::fs::read(&cat).expect("catalog");
+            let c: connectors::Catalog = serde_json::from_slice(&body).expect("the catalog isn't valid JSON for SIOS");
+            std::fs::write(format!("{cat}.sig"), base64::engine::general_purpose::STANDARD.encode(sk.sign(&body).to_bytes())).expect("write");
+            let dir = std::env::temp_dir();
+            match connectors::Catalog::load(std::path::Path::new(&cat), &sk.verifying_key().to_bytes()) {
+                Ok(_) => println!("signed {} ({} connectors); matches the built-in key: {}", cat, c.entries.len(), sk.verifying_key().to_bytes() == connectors::CATALOG_KEY),
+                Err(e) => {
+                    eprintln!("signed, but SIOS would refuse it: {e} ({})", dir.display());
                     std::process::exit(1);
                 }
             }

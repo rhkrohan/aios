@@ -25,6 +25,7 @@ pub const OWNER_METHODS: &[&str] = &[
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
     "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin",
+    "connectors.install", "connectors.remove", "connectors.set_ais", "signins.remove",
 ];
 
 /// What every AI is told while Stop is on.
@@ -120,6 +121,12 @@ pub struct State {
     pub memory: crate::memory::MemStore,
     /// AI providers and their sealed keys (D33).
     pub gateway: crate::gateway::Gateway,
+    /// Outside services through MCP (C1, D79): the signed catalog and what's installed.
+    pub connectors: crate::connectors::Registry,
+    /// The Sign-ins vault (D74): connector tokens, sealed like AI account keys.
+    pub vault: crate::gateway::keys::Keys,
+    /// When each connector's tool list was last checked against its pins.
+    pub checked: HashMap<String, u64>,
     /// What each forget_about removed, so the owner can put it back.
     forgotten: Vec<(String, Vec<crate::memory::Memory>)>,
     /// Whether AI is stopped (D41); kept across restarts.
@@ -199,6 +206,9 @@ impl State {
                 m
             },
             gateway: crate::gateway::Gateway::open(dir).map_err(std::io::Error::other)?,
+            connectors: crate::connectors::Registry::open(dir, crate::connectors::Catalog::load(&crate::connectors::catalog_path(), &crate::connectors::CATALOG_KEY)),
+            vault: crate::gateway::keys::Keys::open_named(dir, "signins.json").map_err(std::io::Error::other)?,
+            checked: HashMap::new(),
         })
     }
 
@@ -401,6 +411,34 @@ impl State {
         }
         let r = match method {
             // the model gateway (D33): what's set up is open to all, never a key
+            // connectors (C1): SIOS's windows look; only the owner installs, removes or signs in
+            "connectors.view" if !viewer => Err("only SIOS's own windows can see connectors".into()),
+            "connectors.view" => {
+                let vault = &self.vault;
+                Ok(self.connectors.view(&|id| vault.has(&format!("signin:{id}"))))
+            }
+            "connectors.tools" if !service => Err("only SIOS's brain can do that".into()),
+            "connectors.tools" => Ok(json!(self.connectors.tools_for(p["principal"].as_str().unwrap_or("sios")))),
+            "connectors.install" => self.connector_install(p),
+            "connectors.remove" => {
+                let id = p["id"].as_str().unwrap_or("").to_string();
+                let had = self.connectors.remove(&id);
+                // everything it was given goes with it: its sign-in and its tools in every pass
+                let _ = self.vault.remove(&format!("signin:{id}"));
+                self.checked.remove(&id);
+                if had {
+                    self.record(&Self::owner_cap(), "connectors.remove", &id, "you", "removed a connector and its sign-in", &json!([]));
+                }
+                Ok(json!({ "removed": had }))
+            }
+            "connectors.set_ais" => (|| {
+                let id = p["id"].as_str().unwrap_or("");
+                let ais = self.connector_ais(&p["ais"])?;
+                self.connectors.set_ais(id, ais.clone())?;
+                self.record(&Self::owner_cap(), "connectors.set_ais", id, "you", &format!("may be used by: {}", ais.join(", ")), &json!([]));
+                Ok(json!({ "ais": ais }))
+            })(),
+            "signins.remove" => self.vault.remove(&format!("signin:{}", p["id"].as_str().unwrap_or(""))).map(|had| json!({ "removed": had })),
             "model.providers" => Ok(self.gateway.list()),
             "model.set_key" => {
                 let id = p["id"].as_str().unwrap_or("");
@@ -1094,6 +1132,13 @@ impl State {
                 return Assessed { cap, decision: Decision::Block, checks, reason: e, target: String::new() };
             }
         }
+        // a connector's tool: installed, switched on, and allowed for this AI by the owner (D81)
+        if self.connectors.catalog.get(tool.split('.').next().unwrap_or("")).is_some() {
+            if let Err(e) = self.connectors.allows(&tool, &cap.principal) {
+                let checks = vec![crate::policy::Check { id: "connector".into(), result: crate::policy::Res::Fail, detail: e.clone() }];
+                return Assessed { cap, decision: Decision::Block, checks, reason: e, target: String::new() };
+            }
+        }
         let sid = self.session_of(&cap);
         let session = self.sessions.get(&sid);
 
@@ -1187,6 +1232,8 @@ impl State {
         let sid = self.session_of(cap);
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
+        } else if crate::connectors::spec(tool).is_some() {
+            self.connector_call(tool, args)?
         } else {
             // what a files.read here would be allowed without asking: SIOS's own assistant or
             // a pass with files.read, inside the pass's folders, and a plain yes from the
@@ -1224,6 +1271,75 @@ impl State {
         let mut result = out.result;
         result["op"] = json!(op);
         Ok(result)
+    }
+
+    /// Which AIs may use a connector: SIOS, or paired apps and agents the owner names.
+    fn connector_ais(&self, v: &Value) -> Result<Vec<String>, String> {
+        let ais: Vec<String> = match v.as_array() {
+            Some(a) => a.iter().filter_map(|x| x.as_str().map(String::from)).collect(),
+            None => vec![crate::iam::SIOS.to_string()],
+        };
+        for a in &ais {
+            if a != crate::iam::SIOS && self.iam.get(a).is_none() {
+                return Err(format!("{a} isn't an AI SIOS knows"));
+            }
+        }
+        Ok(ais)
+    }
+
+    /// Install a connector (owner, password): keep its sign-in in the vault, list the
+    /// server's tools, pin their schemas, and make its tools known to the broker.
+    fn connector_install(&mut self, p: &Value) -> Result<Value, String> {
+        let id = p["id"].as_str().unwrap_or("").to_string();
+        let e = self.connectors.catalog.get(&id).cloned().ok_or_else(|| self.connectors.catalog_error.clone().unwrap_or_else(|| "no such connector in SIOS's catalog".into()))?;
+        let ais = self.connector_ais(&p["ais"])?;
+        let key = format!("signin:{id}");
+        let given = p["secret"].as_str().map(str::trim).filter(|s| !s.is_empty());
+        if let Some(sec) = given {
+            if sec.len() > 4096 || sec.chars().any(|c| c.is_whitespace() || c.is_control()) {
+                return Err("that doesn't look like a token".into());
+            }
+            self.vault.set(&key, sec)?;
+        }
+        if e.signin.is_some() && !self.vault.has(&key) {
+            return Err(format!("{} needs a sign-in first", e.name));
+        }
+        let token = if e.signin.is_some() { self.vault.get(&key)? } else { None };
+        let listed = crate::connectors::list_tools(&crate::connectors::Prepared::new(&e, token)).and_then(|t| crate::connectors::pin(&e, &t));
+        let pinned = match listed {
+            Ok(p) => p,
+            Err(err) => {
+                // a sign-in given just now that didn't work isn't kept
+                if given.is_some() {
+                    let _ = self.vault.remove(&key);
+                }
+                return Err(err);
+            }
+        };
+        self.connectors.add(&id, ais.clone(), pinned, now());
+        self.checked.insert(id.clone(), now());
+        self.record(&Self::owner_cap(), "connectors.install", &id, "you", &format!("installed {} for {}", e.name, ais.join(", ")), &json!([]));
+        Ok(json!({ "installed": id, "ais": ais, "tools": e.tools.iter().map(|t| t.name.clone()).collect::<Vec<_>>() }))
+    }
+
+    /// One connector call, already allowed by the broker. Its tool list is checked
+    /// against the pins at most once an hour; a change switches the connector off.
+    fn connector_call(&mut self, tool: &str, args: &Value) -> Result<tools::Outcome, String> {
+        let (e, inst, t) = self.connectors.owner_of(tool).map(|(e, i, t)| (e.clone(), i.clone(), t.clone())).ok_or("that connector isn't installed")?;
+        let token = if e.signin.is_some() { Some(self.vault.get(&format!("signin:{}", e.id))?.ok_or_else(|| format!("{} isn't signed in", e.name))?) } else { None };
+        let prep = crate::connectors::Prepared::new(&e, token);
+        if self.checked.get(&e.id).is_none_or(|t| now().saturating_sub(*t) > 3600) {
+            let listed = crate::connectors::list_tools(&prep)?;
+            if let Some(what) = crate::connectors::changed(&inst.pinned, &listed) {
+                let why = format!("its tools changed ({what}); check it in Settings and install it again");
+                self.connectors.disable(&e.id, &why);
+                return Err(format!("{} is switched off: {why}", e.name));
+            }
+            self.checked.insert(e.id.clone(), now());
+        }
+        let result = crate::connectors::call(&prep, &t.server_tool, &crate::connectors::arguments(&t, args))?;
+        // what a service says is untrusted: it taints the goal (D81)
+        Ok(tools::Outcome { result, undo: None, read: vec![(format!("connector:{}", e.id), vec![], true)], wrote: None })
     }
 
     /// Where an agent's things live: (project, its clone, the project's .git, its private home, its folder in state).

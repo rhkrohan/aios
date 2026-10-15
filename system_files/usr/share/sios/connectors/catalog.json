@@ -1,0 +1,254 @@
+{
+ "version": 1,
+ "entries": [
+  {
+   "id": "github",
+   "name": "GitHub",
+   "publisher": "GitHub",
+   "verified": true,
+   "about": "Your pull requests, issues, notifications and repositories, read-only.",
+   "url": "https://api.githubcopilot.com/mcp/readonly",
+   "headers": {
+    "X-MCP-Readonly": "true"
+   },
+   "signin": {
+    "label": "A GitHub personal access token (fine-grained, read-only is enough)",
+    "help_url": "https://github.com/settings/personal-access-tokens/new"
+   },
+   "destinations": [
+    "api.githubcopilot.com"
+   ],
+   "tools": [
+    {
+     "name": "github.me",
+     "server_tool": "get_me",
+     "level": "read",
+     "about": "Who you are on GitHub: your login and profile.",
+     "args": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     }
+    },
+    {
+     "name": "github.prs",
+     "server_tool": "search_pull_requests",
+     "level": "read",
+     "about": "Search pull requests with GitHub search words (for example \"is:open author:@me\" or \"is:open review-requested:@me\"). Optionally only in one repository.",
+     "args": {
+      "type": "object",
+      "properties": {
+       "query": {
+        "type": "string",
+        "description": "GitHub search words."
+       },
+       "owner": {
+        "type": "string",
+        "description": "Account or organisation that owns the repository."
+       },
+       "repo": {
+        "type": "string",
+        "description": "Repository name."
+       },
+       "perPage": {
+        "type": "integer",
+        "description": "How many, 1 to 50."
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "additionalProperties": false
+     }
+    },
+    {
+     "name": "github.pr",
+     "server_tool": "pull_request_read",
+     "level": "read",
+     "about": "One pull request's details: title, state, author, description, branches.",
+     "args": {
+      "type": "object",
+      "properties": {
+       "owner": {
+        "type": "string",
+        "description": "Account or organisation that owns the repository."
+       },
+       "repo": {
+        "type": "string",
+        "description": "Repository name."
+       },
+       "pullNumber": {
+        "type": "integer",
+        "description": "The pull request's number."
+       }
+      },
+      "required": [
+       "owner",
+       "repo",
+       "pullNumber"
+      ],
+      "additionalProperties": false
+     },
+     "fixed": {
+      "method": "get"
+     }
+    },
+    {
+     "name": "github.pr_files",
+     "server_tool": "pull_request_read",
+     "level": "read",
+     "about": "The files a pull request changes.",
+     "args": {
+      "type": "object",
+      "properties": {
+       "owner": {
+        "type": "string",
+        "description": "Account or organisation that owns the repository."
+       },
+       "repo": {
+        "type": "string",
+        "description": "Repository name."
+       },
+       "pullNumber": {
+        "type": "integer",
+        "description": "The pull request's number."
+       }
+      },
+      "required": [
+       "owner",
+       "repo",
+       "pullNumber"
+      ],
+      "additionalProperties": false
+     },
+     "fixed": {
+      "method": "get_files"
+     }
+    },
+    {
+     "name": "github.issues",
+     "server_tool": "search_issues",
+     "level": "read",
+     "about": "Search issues with GitHub search words (for example \"is:open assignee:@me\"). Optionally only in one repository.",
+     "args": {
+      "type": "object",
+      "properties": {
+       "query": {
+        "type": "string",
+        "description": "GitHub search words."
+       },
+       "owner": {
+        "type": "string",
+        "description": "Account or organisation that owns the repository."
+       },
+       "repo": {
+        "type": "string",
+        "description": "Repository name."
+       },
+       "perPage": {
+        "type": "integer",
+        "description": "How many, 1 to 50."
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "additionalProperties": false
+     }
+    },
+    {
+     "name": "github.issue",
+     "server_tool": "issue_read",
+     "level": "read",
+     "about": "One issue's details.",
+     "args": {
+      "type": "object",
+      "properties": {
+       "owner": {
+        "type": "string",
+        "description": "Account or organisation that owns the repository."
+       },
+       "repo": {
+        "type": "string",
+        "description": "Repository name."
+       },
+       "issue_number": {
+        "type": "integer",
+        "description": "The issue's number."
+       }
+      },
+      "required": [
+       "owner",
+       "repo",
+       "issue_number"
+      ],
+      "additionalProperties": false
+     },
+     "fixed": {
+      "method": "get"
+     }
+    },
+    {
+     "name": "github.notifications",
+     "server_tool": "list_notifications",
+     "level": "read",
+     "about": "Your unread GitHub notifications.",
+     "args": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+     }
+    },
+    {
+     "name": "github.repos",
+     "server_tool": "search_repositories",
+     "level": "read",
+     "about": "Search repositories (for example \"user:@me\" or \"rust parser in:name\").",
+     "args": {
+      "type": "object",
+      "properties": {
+       "query": {
+        "type": "string",
+        "description": "GitHub search words."
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "additionalProperties": false
+     }
+    },
+    {
+     "name": "github.file",
+     "server_tool": "get_file_contents",
+     "level": "read",
+     "about": "A file or folder listing from a repository.",
+     "args": {
+      "type": "object",
+      "properties": {
+       "owner": {
+        "type": "string",
+        "description": "Account or organisation that owns the repository."
+       },
+       "repo": {
+        "type": "string",
+        "description": "Repository name."
+       },
+       "path": {
+        "type": "string",
+        "description": "Path inside the repository; empty for the top."
+       }
+      },
+      "required": [
+       "owner",
+       "repo"
+      ],
+      "additionalProperties": false
+     }
+    }
+   ]
+  }
+ ]
+}

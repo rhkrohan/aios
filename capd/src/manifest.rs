@@ -120,7 +120,8 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
         "apps.list" | "network.list" | "system.state" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
         "memory.forget" => json!({ "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"], "additionalProperties": false }),
         "network.connect_wifi" => json!({ "type": "object", "properties": { "ssid": { "type": "string", "description": "Network name." } }, "required": ["ssid"], "additionalProperties": false }),
-        _ => json!({ "type": "object" }),
+        // an installed connector's tool: the schema SIOS wrote for it (C1, D80)
+        n => crate::connectors::args_schema(n).unwrap_or(json!({ "type": "object" })),
     }
 }
 
@@ -143,7 +144,7 @@ fn rules_for(t: &ToolSpec, cap: &Cap) -> Vec<String> {
 }
 
 pub fn build(cap: &Cap, uses_left: Option<u32>, budget_left: Option<u32>, now: u64, dialect: &str) -> Result<Value, String> {
-    let granted: Vec<&ToolSpec> = tools::TOOLS.iter().filter(|t| cap.tools.iter().any(|c| c == t.name)).collect();
+    let granted: Vec<&ToolSpec> = tools::all().into_iter().filter(|t| cap.tools.iter().any(|c| c == t.name)).collect();
     let limits = json!({
         "paths": cap.paths,
         "expires_in_seconds": cap.expires_at.saturating_sub(now),

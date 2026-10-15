@@ -176,7 +176,12 @@ pub fn acts_without_asking(name: &str) -> bool {
 }
 
 pub fn spec(name: &str) -> Option<&'static ToolSpec> {
-    TOOLS.iter().find(|t| t.name == name)
+    TOOLS.iter().find(|t| t.name == name).or_else(|| crate::connectors::spec(name))
+}
+
+/// Every tool there is right now: SIOS's own and installed connectors' (C1).
+pub fn all() -> Vec<&'static ToolSpec> {
+    TOOLS.iter().chain(crate::connectors::specs()).collect()
 }
 
 /// How to reverse one change.
