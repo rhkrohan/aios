@@ -364,8 +364,11 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             sh("/usr/bin/systemd-run", &cmd)?;
             ok(json!({ if installing { "installing" } else { "removing" }: id, "job": unit, "note": "it runs in the background; a notification says when it's done" }))
         })(),
-        // windows arrive with the KWin module (A3, kwin.rs); never pretend they ran
-        "apps.focus" | "apps.close" | "apps.arrange" | "apps.list" => Err(format!("{tool} isn't connected on this computer yet")),
+        // windows, through KWin (kwin.rs); SIOS's own windows are refused inside the script
+        "apps.list" | "apps.focus" | "apps.close" | "apps.arrange" => (|| {
+            let (what, a) = crate::kwin::args(tool, args)?;
+            ok(crate::kwin::ask(what, a)?)
+        })(),
         _ => return None,
     })
 }
@@ -379,7 +382,6 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         assert!(run("files.read", &json!({}), d.path()).is_none());
         assert!(run("memory.save", &json!({}), d.path()).is_none());
-        assert!(run("apps.focus", &json!({ "app": "files" }), d.path()).unwrap().is_err());
         // bad names stop before anything runs
         assert!(run("apps.install", &json!({ "app": "--from=evil" }), d.path()).unwrap().unwrap_err().contains("Flathub id"));
         assert!(run("apps.install", &json!({ "app": "org.gnome" }), d.path()).unwrap().is_err());

@@ -10,6 +10,7 @@ mod exec;
 mod fsguard;
 mod gateway;
 mod iam;
+mod kwin;
 mod manifest;
 mod memory;
 mod memsim;
@@ -80,6 +81,8 @@ const HELP: &str = "capd: SIOS capability daemon
   capd audit [n]                  verify the log and show the last n decisions
   capd stop                       stop every AI at once (anyone; only the owner resumes)
   capd ai-resume                  let AI act again (owner)
+  capd windows [focus APP | arrange LEFT RIGHT]
+                                  windows through KWin (A3 check; no closing here)
   capd extract FILE               the words search would index from FILE (sandbox check)
   capd window approve|settings [page]
                                   open SIOS's approval window or Settings (on a page)
@@ -134,6 +137,18 @@ fn main() {
                 }
             }
         }
+        // check the KWin module: the open windows (any of the user's programs can list these)
+        "windows" => match match args.get(1).map(String::as_str) {
+            Some("focus") => kwin::ask("focus", json!({ "app": args.get(2) })),
+            Some("arrange") => kwin::ask("arrange", json!({ "left": args.get(2), "right": args.get(3) })),
+            _ => kwin::ask("list", json!({})),
+        } {
+            Ok(v) => println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default()),
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
         // check the document reader's sandbox: the words capd would index (files you can read anyway)
         "extract" => {
             let path = args.get(1).cloned().unwrap_or_default();

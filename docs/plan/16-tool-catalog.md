@@ -48,11 +48,11 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 
 | Tool | Arguments | Risk | Status | What it does | On the SIOS image |
 | --- | --- | --- | --- | --- | --- |
-| `apps.list` | none | Read | Not yet | Lists open apps and their windows | KWin script (M9) |
+| `apps.list` | none | Read | Real (A3) | Lists open apps and their windows | KWin script through capd's `org.sios.Capd1` endpoint, nonce-checked (seen on the VM) |
 | `apps.open` | app | Read | Shell | Opens one of: files, browser, mail, settings, terminal, store, security, goals, activity | `kstart --application` with the app's desktop id (M6) |
-| `apps.focus` | app | Read | Shell | Brings an app's window to the front | KWin script (M9) |
-| `apps.close` | app | Change | Shell | Closes an app's window; unsaved work in it can be lost | KWin script (M9) |
-| `apps.arrange` | left, right | Read | Shell | Puts two apps side by side | KWin script (M9) |
+| `apps.focus` | app | Read | Real (A3) | Brings an app's window to the front | KWin script; never SIOS's own windows |
+| `apps.close` | app | Change | Real (A3) | Closes an app's window; unsaved work in it can be lost | KWin script; never SIOS's own windows |
+| `apps.arrange` | left, right | Read | Real (A3) | Puts two apps side by side | KWin script (seen on the VM: Konsole and Dolphin); never SIOS's own windows |
 | `apps.install` | app | Always asks | Real (A3) | Installs an app from Flathub | `flatpak install --user` as a background job with a done notification; a Flathub id or a common short name (slack, vlc, zoom...) |
 | `apps.remove` | app | Always asks | Real (A3) | Removes an installed app | `flatpak uninstall --user`, background job |
 
