@@ -18,9 +18,9 @@ fn script(what: &str, nonce: &str, arg: &Value) -> Option<String> {
     let own = serde_json::to_string(&OWN).ok()?;
     let body = match what {
         "list" => "const out = wins.map(info);",
-        "focus" => "const w = find(arg.app); let out; if (!w) out = {error: 'no open window for ' + arg.app}; else if (mine(w)) out = {error: 'that is one of SIOS\\'s own windows'}; else { workspace.activeWindow = w; out = {focused: info(w)}; }",
-        "close" => "const w = find(arg.app); let out; if (!w) out = {error: 'no open window for ' + arg.app}; else if (mine(w)) out = {error: 'SIOS never closes its own windows for an AI'}; else { const i = info(w); w.closeWindow(); out = {closed: i}; }",
-        "arrange" => "const a = find(arg.left), b = find(arg.right); let out; if (!a || !b) out = {error: 'both apps need an open window'}; else if (mine(a) || mine(b)) out = {error: 'SIOS never moves its own windows for an AI'}; else { const r = workspace.clientArea(KWin.MaximizeArea, a); const h = Math.floor(r.width / 2); a.setMaximize(false, false); b.setMaximize(false, false); a.frameGeometry = {x: r.x, y: r.y, width: h, height: r.height}; b.frameGeometry = {x: r.x + h, y: r.y, width: r.width - h, height: r.height}; out = {left: info(a), right: info(b)}; }",
+        "focus" => "const w = find(arg.app); let out; if (busy) out = {error: 'you are in a SIOS window or a password prompt; SIOS won\\'t switch windows now'}; else if (!w) out = {error: 'no open window for ' + arg.app}; else if (mine(w) || auth(w)) out = {error: 'that is one of SIOS\\'s own windows or a password prompt'}; else { workspace.activeWindow = w; out = {focused: info(w)}; }",
+        "close" => "const w = find(arg.app); let out; if (busy) out = {error: 'you are in a SIOS window or a password prompt; SIOS won\\'t touch windows now'}; else if (!w) out = {error: 'no open window for ' + arg.app}; else if (mine(w) || auth(w)) out = {error: 'SIOS never closes its own windows or a password prompt for an AI'}; else { const i = info(w); w.closeWindow(); out = {closed: i}; }",
+        "arrange" => "const a = find(arg.left), b = find(arg.right); let out; if (busy) out = {error: 'you are in a SIOS window or a password prompt; SIOS won\\'t move windows now'}; else if (!a || !b) out = {error: 'both apps need an open window'}; else if (mine(a) || mine(b) || auth(a) || auth(b)) out = {error: 'SIOS never moves its own windows for an AI'}; else { const r = workspace.clientArea(KWin.MaximizeArea, a); const h = Math.floor(r.width / 2); a.setMaximize(false, false); b.setMaximize(false, false); a.frameGeometry = {x: r.x, y: r.y, width: h, height: r.height}; b.frameGeometry = {x: r.x + h, y: r.y, width: r.width - h, height: r.height}; out = {left: info(a), right: info(b)}; }",
         _ => return None,
     };
     Some(format!(
@@ -28,6 +28,8 @@ fn script(what: &str, nonce: &str, arg: &Value) -> Option<String> {
          const wins = workspace.windowList().filter(w => w.normalWindow && !w.skipTaskbar);\n\
          function info(w) {{ return {{ app: String(w.resourceClass), title: String(w.caption).slice(0, 120), active: w === workspace.activeWindow }}; }}\n\
          function mine(w) {{ return own.indexOf(String(w.resourceClass)) >= 0 || own.indexOf(String(w.desktopFileName).replace('org.sios.', 'sios-')) >= 0; }}\n\
+         function auth(w) {{ const c = (String(w.resourceClass) + ' ' + String(w.desktopFileName)).toLowerCase(); return c.indexOf('polkit') >= 0 || c.indexOf('authentication') >= 0 || c.indexOf('kwallet') >= 0 || c.indexOf('pinentry') >= 0; }}\n\
+         const busy = workspace.activeWindow && (mine(workspace.activeWindow) || auth(workspace.activeWindow));\n\
          function find(q) {{ q = String(q || '').toLowerCase(); if (!q) return null; return wins.find(w => String(w.resourceClass).toLowerCase() === q) || wins.find(w => String(w.resourceClass).toLowerCase().indexOf(q) >= 0 || String(w.caption).toLowerCase().indexOf(q) >= 0) || null; }}\n\
          {body}\n\
          callDBus('org.sios.Capd1', '/Kwin', 'org.sios.Capd1', 'Result', nonce, JSON.stringify(out));\n"
@@ -163,7 +165,12 @@ mod tests {
         let s = script_for("focus", json!({ "app": "x'); callDBus('evil'); ('" })).unwrap();
         assert!(s.contains(r#"const arg = {"app":"x'); callDBus('evil'); ('"};"#), "{s}");
         assert!(script_for("rm -rf", json!({})).is_none());
-        // SIOS's own windows are refused inside the script too
-        assert!(script_for("close", json!({ "app": "sios-approve" })).unwrap().contains("never closes its own windows"));
+        // SIOS's own windows and password prompts are refused inside the script too, and
+        // nothing switches while one of them is in front (focus stealing during a password)
+        let close = script_for("close", json!({ "app": "sios-approve" })).unwrap();
+        assert!(close.contains("never closes its own windows") && close.contains("polkit"));
+        for what in ["focus", "close", "arrange"] {
+            assert!(script_for(what, json!({ "app": "x", "left": "a", "right": "b" })).unwrap().contains("if (busy)"), "{what}");
+        }
     }
 }

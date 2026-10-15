@@ -24,7 +24,7 @@ pub const OWNER_METHODS: &[&str] = &[
     "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.revert", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
-    "ai.resume",
+    "ai.resume", "agents.add", "agents.update", "agents.remove",
 ];
 
 /// What every AI is told while Stop is on.
@@ -124,6 +124,8 @@ pub struct State {
     forgotten: Vec<(String, Vec<crate::memory::Memory>)>,
     /// Whether AI is stopped (D41); kept across restarts.
     pub sec: crate::security::SecState,
+    /// The pet team: agents, their jobs and reports (A4, D60).
+    pub agents: crate::agents::Registry,
 }
 
 fn load_or_create(path: &Path, make: impl FnOnce() -> String) -> std::io::Result<String> {
@@ -186,6 +188,7 @@ impl State {
             meta: Store::open(&dir.join("meta.json")),
             forgotten: Vec::new(),
             sec: crate::security::SecState::load(dir),
+            agents: crate::agents::Registry::open(dir),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
                 if let Ok(b) = std::fs::read(dir.join("people.json")) {
@@ -426,7 +429,7 @@ impl State {
             }
             "model.complete" | "model.test" => self.model_call(req, owner, service),
             // what anyone may know: how many things wait (never what), and which AI SIOS uses
-            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
+            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "reports_unread": self.agents.reports.iter().filter(|r| !r.read).count(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
             // anyone may press Stop: stopping is always safe (D41)
             "ai.stop" => {
@@ -444,6 +447,42 @@ impl State {
                 crate::security::session_end("ended from the top bar");
                 Ok(json!({ "approvals_open": false }))
             }
+            // ---- agents (A4): the owner makes them; SIOS's windows look; brain-d runs and reports
+            "agents.add" => self.agents.add(p, now()).map(|a| {
+                // its own identity: a built-in agent acts for you (and still asks), others get roles from you
+                let roles = if a.brain == "builtin" { vec![crate::iam::ACTS_FOR_YOU.into()] } else { vec![] };
+                self.iam.register(&a.id, &a.name, "agent", "Created by you", crate::iam::OWNER, roles, now());
+                self.record(&Self::owner_cap(), "agents.add", &a.id, "you", &format!("you made the agent {} ({}, {})", a.name, a.brain, a.job), &json!([]));
+                json!(a)
+            }),
+            "agents.update" => self.agents.update(p).map(|a| {
+                self.record(&Self::owner_cap(), "agents.update", &a.id, "you", &format!("you changed {} ({}, {}, {})", a.name, a.job, a.brain, if a.active { "on" } else { "paused" }), &json!([]));
+                json!(a)
+            }),
+            "agents.remove" => {
+                let id = p["id"].as_str().unwrap_or("").to_string();
+                match self.agents.remove(&id) {
+                    Some(a) => {
+                        // its identity goes, and every pass it holds stops working
+                        self.iam.identities.retain(|i| i.id != id);
+                        self.iam.save();
+                        let held: Vec<String> = self.holders.iter().filter(|(_, who)| **who == id).map(|(c, _)| c.clone()).collect();
+                        self.revoked.extend(held);
+                        self.record(&Self::owner_cap(), "agents.remove", &id, "you", &format!("you removed the agent {}", a.name), &json!([]));
+                        Ok(json!({ "removed": id }))
+                    }
+                    None => Err("no such agent".into()),
+                }
+            }
+            "agents.view" | "reports.read" if !viewer => Err("only SIOS's own windows can see agents".into()),
+            "agents.view" => Ok(self.agents.view()),
+            "reports.read" => {
+                self.agents.mark_read(p["agent"].as_str());
+                Ok(json!({ "unread": 0 }))
+            }
+            "agents.list" | "agents.report" if !service => Err("only SIOS's brain can do that".into()),
+            "agents.list" => Ok(json!(self.agents.agents)),
+            "agents.report" => self.agents.report(p["agent"].as_str().unwrap_or(""), p["kind"].as_str().unwrap_or("run"), p["text"].as_str().unwrap_or(""), p["failed"].as_bool().unwrap_or(false), p["goal"].as_str().unwrap_or(""), now()).map(|_| json!({ "saved": true })),
             m if m.starts_with("memory.") => self.memory_method(m, p),
             // test data for the live machine
             "packs" => Ok(crate::packs::list()),
@@ -855,6 +894,10 @@ impl State {
         if who == crate::iam::OWNER || self.iam.get(who).is_some_and(|i| i.kind == "owner") {
             return Err("a pass can't be requested in your name".into());
         }
+        // an agent exists only once the owner made it, and asks only while it's on
+        if who.starts_with("agent:") && !self.agents.get(who).is_some_and(|a| a.active) {
+            return Err(format!("{who} isn't an agent you made, or it's paused"));
+        }
         if self.iam.get(who).is_none() {
             if let Some(name) = who.strip_prefix("helper:") {
                 self.iam.register(who, name, "helper", "Created by SIOS for you", crate::iam::SIOS, vec![crate::iam::ACTS_FOR_YOU.into()], now());
@@ -866,7 +909,9 @@ impl State {
             }
         }
         let kind = self.iam.get(who).map(|i| i.kind.clone()).unwrap_or_default();
-        if p["own"].as_bool() == Some(true) && kind != "assistant" && kind != "helper" {
+        // built-in agents work for you like helpers did; coding agents never see all your memory
+        let builtin_agent = kind == "agent" && self.agents.get(who).is_some_and(|a| a.brain == "builtin");
+        if p["own"].as_bool() == Some(true) && kind != "assistant" && kind != "helper" && !builtin_agent {
             return Err(format!("{who} can't act as you"));
         }
         Ok(())
@@ -1697,6 +1742,37 @@ mod tests {
         }
         // looking never changes anything: editing still needs the owner
         assert!(ask(&mut r, "memory.add", Who::OwnerApp)["error"].is_string());
+    }
+
+    #[test]
+    fn agents_are_yours_to_make_and_stop() {
+        use crate::peer::Who;
+        let mut r = rig();
+        // nobody but the owner makes an agent
+        assert!(r.agent("agents.add", json!({ "name": "Pip", "instructions": "Sort new files", "job": "watch", "folder": "Downloads" }))["error"].is_string());
+        let a = r.owner("agents.add", json!({ "name": "Pip", "instructions": "Sort new files", "job": "watch", "folder": "Downloads" }))["ok"].clone();
+        assert_eq!(a["id"], "agent:pip");
+        assert_eq!(r.st.iam.get("agent:pip").unwrap().kind, "agent");
+        // brain-d asks passes for it while it's on, acting for you like a helper did
+        let pass = |r: &mut Rig| r.agent("request_pass", json!({ "principal": "agent:pip", "goal": "sort", "tools": ["files.list"], "paths": ["Downloads"], "own": true, "ttl": 600, "uses": 4 }));
+        let v = pass(&mut r)["ok"].clone();
+        assert!(v["token"].is_string(), "{v}");
+        r.owner("agents.update", json!({ "id": "agent:pip", "active": false }));
+        assert!(pass(&mut r)["error"].as_str().unwrap().contains("paused"));
+        // an agent you never made can't ask
+        assert!(r.agent("request_pass", json!({ "principal": "agent:ghost", "tools": ["files.list"], "paths": ["Downloads"] }))["error"].is_string());
+        // reports come from SIOS's brain, are seen by SIOS's windows
+        let svc = r.st.service_secret.clone();
+        assert!(r.st.handle(&json!({ "method": "agents.report", "params": { "agent": "agent:pip", "text": "Sorted 3 files" }, "service": svc }))["ok"].is_object());
+        assert!(r.agent("agents.report", json!({ "agent": "agent:pip", "text": "fake" }))["error"].is_string());
+        assert_eq!(r.st.handle_as(&json!({ "method": "agents.view", "params": {} }), Some(Who::OwnerApp))["ok"]["unread"], 1);
+        assert!(r.st.handle_as(&json!({ "method": "agents.view", "params": {} }), Some(Who::Agent))["error"].is_string());
+        // removing it ends its passes and its identity
+        let tok = v["token"].as_str().unwrap().to_string();
+        r.owner("agents.update", json!({ "id": "agent:pip", "active": true }));
+        r.owner("agents.remove", json!({ "id": "agent:pip" }));
+        assert!(r.st.iam.get("agent:pip").is_none());
+        assert_eq!(decision(&r.call(&tok, "files.list", json!({ "path": "Downloads" }))), "block");
     }
 
     // ---- D57: SIOS acts without asking on settings and reads

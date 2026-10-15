@@ -235,7 +235,16 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
     // on SIOS, system tools change the real system (M6); files and mail stay below
     if crate::adapters::enabled() {
         if let Some(r) = crate::adapters::run(tool, args, env.root) {
-            return r.map(|d| Outcome { result: d.result, undo: d.undo.map(|a| Undo::Adapter { tool: tool.to_string(), args: a }), read: vec![], wrote: None });
+            // an adapter may name an undo-only action ("__tool"), which no AI can call
+            return r.map(|d| Outcome {
+                result: d.result,
+                undo: d.undo.map(|mut a| {
+                    let t = a.as_object_mut().and_then(|o| o.remove("__tool")).and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| tool.to_string());
+                    Undo::Adapter { tool: t, args: a }
+                }),
+                read: vec![],
+                wrote: None,
+            });
         }
     }
     match tool {

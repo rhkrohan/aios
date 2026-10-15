@@ -5,6 +5,7 @@
 //! capability tokens; owner commands prove themselves with ~/.sios/owner.secret.
 
 mod adapters;
+mod agents;
 mod audit;
 mod exec;
 mod fsguard;

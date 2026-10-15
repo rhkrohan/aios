@@ -293,16 +293,17 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
         })(),
         // a notification later, from a timer the user's systemd keeps (survives capd restarts);
         // undo cancels it. Text is escaped for systemd's % and $ expansion.
-        "system.remind" => (|| {
-            if let Some(unit) = args.get("cancel").and_then(|v| v.as_str()) {
-                // only ever our own reminder timers
-                let ok_name = unit.strip_prefix("sios-remind-").is_some_and(|h| h.len() == 10 && h.chars().all(|c| c.is_ascii_hexdigit()));
-                if !ok_name {
-                    return Err("not a SIOS reminder".to_string());
-                }
-                sh("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.timer")])?;
-                return ok(json!({ "cancelled": unit }));
+        // undo only (not a tool any AI can call): cancel the reminder this call made
+        "system.remind.cancel" => (|| {
+            let unit = s("cancel");
+            let ok_name = unit.strip_prefix("sios-remind-").is_some_and(|h| h.len() == 10 && h.chars().all(|c| c.is_ascii_hexdigit()));
+            if !ok_name {
+                return Err("not a SIOS reminder".to_string());
             }
+            sh("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.timer")])?;
+            ok(json!({ "cancelled": unit }))
+        })(),
+        "system.remind" => (|| {
             let minutes = args.get("minutes").and_then(|v| v.as_i64()).filter(|m| (1..=1440).contains(m)).ok_or("minutes is 1 to 1440")?;
             let text: String = s("text").chars().filter(|c| !c.is_control()).take(200).collect();
             if text.trim().is_empty() {
@@ -316,7 +317,7 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
                   "/usr/bin/gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications", "--object-path", "/org/freedesktop/Notifications",
                   "--method", "org.freedesktop.Notifications.Notify", "SIOS", "0", "sios-logo", "Reminder", &body, "[]", "{}", "0"],
             )?;
-            Ok(Done { result: json!({ "reminder": text, "in_minutes": minutes }), undo: Some(json!({ "cancel": unit })) })
+            Ok(Done { result: json!({ "reminder": text, "in_minutes": minutes }), undo: Some(json!({ "cancel": unit, "__tool": "system.remind.cancel" })) })
         })(),
         // Plasma's Do Not Disturb: "until" a date in plasmanotifyrc; --notify applies it live
         "settings.dnd" => (|| {
@@ -388,7 +389,10 @@ mod tests {
         assert!(KNOWN_APPS.iter().all(|(_, id)| id.split('.').count() >= 3), "known names map to full ids");
         assert!(run("apps.remove", &json!({ "app": "org.x.y z" }), d.path()).unwrap().is_err());
         assert!(run("system.remind", &json!({ "minutes": 0, "text": "x" }), d.path()).unwrap().unwrap_err().contains("1 to 1440"));
-        assert!(run("system.remind", &json!({ "cancel": "sshd" }), d.path()).unwrap().unwrap_err().contains("not a SIOS reminder"));
+        assert!(run("system.remind.cancel", &json!({ "cancel": "sshd" }), d.path()).unwrap().unwrap_err().contains("not a SIOS reminder"));
+        // a reminder call can't cancel anything: it needs minutes and text
+        assert!(run("system.remind", &json!({ "cancel": "sios-remind-0123456789" }), d.path()).unwrap().unwrap_err().contains("1 to 1440"));
+        assert!(crate::tools::spec("system.remind.cancel").is_none(), "undo-only, never a tool");
         // bad arguments stop before anything runs
         assert!(run("settings.set_volume", &json!({ "level": 140 }), d.path()).unwrap().unwrap_err().contains("0 to 100"));
         assert!(run("settings.set_theme", &json!({ "theme": "neon" }), d.path()).unwrap().is_err());
