@@ -63,6 +63,30 @@ Window {
         assistant.ask(text);
         input.text = "";
     }
+    // a step's tool in plain words ("apps.open" -> "Opened Terminal"); names from the
+    // step's own arguments are shown as text, and an unknown tool keeps its name
+    function stepWords(tool, a) {
+        a = a || {};
+        const name = p => String(p || "").split("/").pop();
+        const w = ({
+            "files.list": "Looked in " + (a.path || "a folder"), "files.find": "Searched for " + (a.query ? "\u201c" + a.query + "\u201d" : "files"),
+            "files.read": "Read " + name(a.path), "files.preview": "Looked at " + name(a.path), "files.write": "Wrote " + name(a.path),
+            "files.move": "Moved " + name(a.from || a.path) + (a.to ? " to " + a.to : ""), "files.copy": "Copied " + name(a.from || a.path),
+            "files.trash": "Moved " + name(a.path) + " to the Bin", "files.delete": "Deleted " + name(a.path), "files.mkdir": "Made the folder " + (a.path || ""),
+            "files.organize": "Sorted " + (a.path || "the folder"), "files.restore": "Put " + name(a.path) + " back", "files.show": "Showed " + (a.path || "the folder"),
+            "apps.open": "Opened " + (a.app || "the app"), "apps.close": "Closed " + (a.app || "the app"), "apps.focus": "Switched to " + (a.app || "the app"),
+            "apps.arrange": "Put " + (a.left || "") + " and " + (a.right || "") + " side by side", "apps.install": "Installed " + (a.id || a.app || "the app"),
+            "apps.remove": "Removed " + (a.id || a.app || "the app"), "apps.list": "Checked which apps are open",
+            "settings.set_theme": "Switched to the " + (a.theme || a.mode || "") + " look", "settings.set_volume": "Set the volume", "settings.set_brightness": "Set the brightness",
+            "settings.set_wallpaper": "Changed the wallpaper", "settings.dnd": "Changed Do Not Disturb", "network.connect_wifi": "Joined " + (a.ssid || "Wi-Fi"),
+            "network.wifi_power": "Turned Wi-Fi " + (a.on === false ? "off" : "on"), "network.bluetooth_power": "Turned Bluetooth " + (a.on === false ? "off" : "on"),
+            "network.list": "Looked for networks", "system.notify": "Sent you a notice", "system.remind": "Set a reminder", "system.lock": "Locked the screen",
+            "system.state": "Checked the computer", "mail.send": "Sent the email", "memory.search": "Looked in what SIOS remembers",
+            "memory.save": "Remembered it", "memory.forget": "Forgot it", "people.resolve": "Looked up " + (a.name || "a contact")
+        })[tool];
+        return w || tool || "";
+    }
+
     // one goal's events in plain words, for the assistant view
     function say(e) {
         switch (e.t) {
@@ -71,7 +95,7 @@ Window {
         case "review": return ["shield-check", "Waiting for your OK in the approval window."];
         case "granted": return ["check", e.rule ? "Allowed by your rule: " + e.rule : "You allowed it."];
         case "ask": return ["shield-check", "Step " + e.n + " needs your OK: " + (e.reason || "")];
-        case "step": return [e.decision === "allow" && !e.error ? "check" : "x", (e.kind === "compose" ? "Wrote the text" : (e.tool || "")) + (e.error ? ": " + e.error : e.decision !== "allow" ? ": " + (e.reason || e.decision) : "")];
+        case "step": return [e.decision === "allow" && !e.error ? "check" : "x", (e.kind === "compose" ? "Wrote the text" : stepWords(e.tool, e.args)) + (e.error ? ": " + e.error : e.decision !== "allow" ? ": " + (e.reason || e.decision) : "")];
         case "replan": return ["refresh-cw", "Adjusting the plan."];
         case "undo": return ["rotate-ccw", "Undid the last change."];
         case "done": return ["check", e.text];
@@ -170,7 +194,7 @@ Window {
                             anchors.centerIn: parent
                             spacing: 8
                             Image { anchors.horizontalCenter: parent.horizontalCenter; width: 44; height: 44; sourceSize: Qt.size(88, 88); source: "image://icon/theme/" + modelData.icon }
-                            Text { width: grid.cellWidth - 20; horizontalAlignment: Text.AlignHCenter; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; elide: Text.ElideRight }
+                            Text { width: grid.cellWidth - 20; horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; elide: Text.ElideRight }
                         }
                         MouseArea { id: am; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { search.run(modelData); bar.close(); } }
                     }
@@ -186,7 +210,7 @@ Window {
                 Layout.topMargin: 20
                 Layout.bottomMargin: 12
                 spacing: 10
-                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: assistant.request; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.Medium }
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: assistant.request; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.Medium }
                 Repeater {
                     model: assistant.events.map(e => bar.say(e)).filter(x => x && x[1])
                     delegate: RowLayout {
@@ -194,7 +218,8 @@ Window {
                         Layout.fillWidth: true
                         spacing: 10
                         Icon { name: modelData[0]; size: 16; color: modelData[0] === "x" ? Theme.danger : Theme.aiInk; Layout.alignment: Qt.AlignTop; Layout.topMargin: 2 }
-                        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: modelData[1]; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14 }
+                        // file names, the model's words and errors: plain text, never markup or links
+                        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: modelData[1]; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14 }
                     }
                 }
                 Text { visible: assistant.running; text: "Working…"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
@@ -249,8 +274,8 @@ Window {
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 2
-                            Text { Layout.fillWidth: true; text: row.modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.Medium; elide: Text.ElideRight }
-                            Text { Layout.fillWidth: true; text: row.modelData.sub || ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14; elide: Text.ElideRight }
+                            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: row.modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 17; font.weight: Font.Medium; elide: Text.ElideRight }
+                            Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: row.modelData.sub || ""; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14; elide: Text.ElideRight }
                         }
                         Icon { visible: row.on; name: "corner-down-left"; size: 20; color: Theme.aiInk }
                     }
