@@ -214,6 +214,9 @@ impl Brain {
                 self.ctx.routines.lock().unwrap().clear();
                 Ok(json!({ "cleared": true }))
             }
+            // agents' states carry the goal each one is running, and a goal id is what
+            // lets you follow it: only SIOS's windows (or the owner) may list them
+            "helpers.list" | "watch.list" if !(owner || viewer) => Err("only SIOS's own windows can list agents".into()),
             "helpers.list" => Ok(helpers::status(self)),
             "brains.list" => Ok(json!(helpers::BRAINS.iter().map(|(id, on)| json!({ "id": id, "connected": on })).collect::<Vec<_>>())),
             "helpers.add" => self.helpers.lock().unwrap().add(p).map(|h| {
@@ -286,7 +289,7 @@ impl Brain {
                 model::Model::from_env().and_then(|m| memory::answer_from(&m, p["question"].as_str().unwrap_or(""), &mems)).map(Value::from)
             }
             // SIOS's own windows see every goal (D59); others never list them
-            "goals.recent" if !(owner || shell || viewer) => Err("only SIOS's own windows can list goals".into()),
+            "goals.recent" if !(owner || viewer) => Err("only SIOS's own windows can list goals".into()),
             "goals.recent" => Ok(json!(self.recent.lock().unwrap().iter().rev().take(20).map(|(g, r, p)| json!({ "goal": g, "request": r, "principal": p })).collect::<Vec<_>>())),
             // a goal's events can hold email bodies: SIOS's windows see every goal; anyone
             // else needs the goal's id, which can't be guessed and only its starter got
@@ -334,8 +337,9 @@ fn serve() {
         let proc = by_peer.then(|| peer::of(&conn));
         let who = proc.as_ref().map(|p| peer::classify(p, &peer::OWNER_APPS, None));
         // SIOS's windows may look at goals, once capd confirms it started that very process
-        let viewer = who.is_some_and(|w| w == peer::Who::OwnerApp)
-            || proc.as_ref().is_some_and(|p| {
+        // (not the Ask bar: it's known by program only, which a copied connection can fake;
+        // it starts goals and follows its own by their ids, nothing more)
+        let viewer = proc.as_ref().is_some_and(|p| {
                 peer::classify(p, &peer::VIEWER_APPS, None) == peer::Who::OwnerApp
                     && brain.ctx.capd.call("windows.check", json!({ "pid": p.pid, "start": p.start })).is_ok_and(|v| v["window"] == true)
             });

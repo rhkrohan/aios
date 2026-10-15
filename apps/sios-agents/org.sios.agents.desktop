@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Agents
+Comment=Your AI team: what each agent does, its reports, and what it may touch
+Exec=sios-agents
+Icon=org.sios.agents
+Terminal=false
+Categories=Qt;KDE;Utility;
+StartupNotify=true
