@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-15: Agents, workspaces, proactive SIOS, Memory app and MCP store planned (18-agents-and-connectors.md, D58 to D84, A0 to A10 and C1 to C3). S2 to S9 continue after.
 - 2026-10-14: D57: SIOS reads, finds and changes settings without asking; file changes and anything risky still ask. Next: smarter local search (find by what a file is, not only its name), then S2.
 - 2026-10-14: D56 approval sessions (amends D39): one password until the screen locks, then one click for SIOS's undoable actions; part of S1. Photos and vision deferred; S1 to S9 next.
 - 2026-10-14: D55 amended: SIOS's windows and brain-d stay readable (hiding memory hid their identity and broke owner actions); S1 adds broker-started owner windows after a security review.

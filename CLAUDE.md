@@ -65,6 +65,7 @@ docs/plan/14-design-decisions.md  why it's built this way, with diagrams; propos
 docs/plan/15-build-blueprint.md   engines, pipelines, tested vs not, path to a real device
 docs/plan/16-tool-catalog.md      every AI tool: risk, status, image backend
 docs/plan/17-security-engine.md   security engine: Stop, leases, sentinel, egress, confinement (D40-D55)
+docs/plan/18-agents-and-connectors.md  agents with workspaces, proactive SIOS, Memory, MCP store (D58-D84)
 docs/plan/changelog.md            plan history
 docs/phases/phase-N.md            tasks and gates per phase
 

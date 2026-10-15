@@ -49,6 +49,20 @@ Security track (2026-10-14 plan, D40 to D55, `docs/plan/17-security-engine.md`; 
 - [ ] S8 Security Center app `sios-security`
 - [ ] S9 `capd drill` replays the incident; exportable signed heads
 
+Agents and connectors track (2026-10-15 plan, D58 to D84, `docs/plan/18-agents-and-connectors.md`)
+- [ ] A0 Ship and check the S1, D57 and search image; clean the VM; check user-unit sandbox options
+- [ ] A1 Viewer tier and new broker-started windows; goal events only for viewers and the goal's own caller
+- [ ] A2 Memory app; memory that changes its mind (supersede, soft delete, revert)
+- [ ] A3 Tools the model expects: windows (KWin), reminders, Do Not Disturb, Bluetooth, installs
+- [ ] A4 Agent registry in capd; Agents app (Agents, Inbox, Activity, Permissions)
+- [ ] A5 Agent runner: Claude Code confined in its own unit, reporting back; work leases; git worktrees
+- [ ] A6 Workspaces: a desktop per agent; @name in the Ask bar
+- [ ] A7 Proactive engine, suggestion cards, morning briefing; look then plan
+- [ ] C1 MCP client and connector host in capd; signed catalog; Sign-ins vault; GitHub demo
+- [ ] C2 Mail and calendar as connectors (Google Workspace MCP), native IMAP/CalDAV fallback
+- [ ] C3 Connectors tab in the Store; developer mode
+- [ ] A10 Integration, image, full gate
+
 ## Gate
 - [ ] Voice or command bar: "connect to Wi-Fi", "dim the screen", "organize my Downloads" all succeed
 - [ ] Approval shown at the right times; blocked actions stay blocked
