@@ -36,7 +36,7 @@ qt_add_qml_module(sios-settings
 )
 
 target_link_libraries(sios-settings PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network Qt6::DBus KF6::ConfigCore KF6::CoreAddons
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network Qt6::DBus KF6::ConfigCore KF6::CoreAddons crypt
 )
 
 install(TARGETS sios-settings RUNTIME DESTINATION bin)

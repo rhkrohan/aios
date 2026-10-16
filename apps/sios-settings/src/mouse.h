@@ -1,4 +1,8 @@
-// MouseArea & touchpad: speed, natural scrolling, tap to click (KWin's input devices over D-Bus).
+// Mouse & touchpad: speed, acceleration, natural scrolling, left-handed, scroll
+// speed; for a touchpad also tap to click, two-finger click, disable while
+// typing; and (advanced) middle-click emulation and the scroll method. Set on
+// KWin's input devices over D-Bus (org.kde.KWin /org/kde/KWin/InputDevice/*),
+// which apply at once and keep them in kcminputrc themselves.
 #pragma once
 
 #include "area.h"
