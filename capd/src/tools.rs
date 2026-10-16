@@ -463,7 +463,8 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             let dir = env.state.join("outbox");
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
             std::fs::write(dir.join(format!("{}.json", env.op)), serde_json::to_vec_pretty(&msg).unwrap()).map_err(|e| e.to_string())?;
-            Ok(Outcome { result: json!({ "sent": true, "outbox": format!("outbox/{}.json", env.op) }), undo: None, read, wrote: None })
+            // nothing leaves the computer until mail is connected (C2): say so, never "sent"
+            Ok(Outcome { result: json!({ "sent": false, "saved_to_outbox": true, "outbox": format!("outbox/{}.json", env.op), "note": "Email isn't connected yet, so this was saved in SIOS's outbox and not sent." }), undo: None, read, wrote: None })
         }
         "files.find" => {
             // by name, label and the text inside (search.rs); best first, with why

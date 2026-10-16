@@ -486,6 +486,25 @@ fn serve() {
                                 }
                             }
                         }
+                        // the computer right now, for SIOS's brain before it plans (doc 20): read without
+                        // the lock (it asks a few system tools); nothing secret in it
+                        if method == "system.now" {
+                            let service = match who {
+                                Some(w) => w == peer::Who::Service,
+                                None => st.lock().unwrap_or_else(|p| p.into_inner()).is_service_secret(&req),
+                            };
+                            let resp = if !service {
+                                json!({ "error": "only SIOS's brain asks for this" })
+                            } else if std::env::var("SIOS_ADAPTERS").as_deref() == Ok("real") {
+                                json!({ "ok": adapters::state() })
+                            } else {
+                                json!({ "ok": {} })
+                            };
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
                         // a model call: checked under the lock, sent without it, logged under it
                         if method == "model.complete" || method == "model.test" {
                             let (o, s) = match who {

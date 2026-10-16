@@ -46,11 +46,22 @@ pub struct Ctx {
     pub system: Arc<Mutex<Value>>,
 }
 
+impl Ctx {
+    /// Real email arrives with C2 (mail connectors). Until then every message stays in the outbox.
+    pub fn mail_connected(&self) -> bool {
+        false
+    }
+}
+
 pub type Shared = Arc<Mutex<Goal>>;
 
-/// What a goal leaves behind for the next turn of the conversation.
-#[derive(Clone, Default)]
+/// What a goal leaves behind for the next turn of the conversation. Saved (threads.json),
+/// so a follow-up still has its context after brain-d restarts.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Turn {
+    /// When it finished (seconds), so old conversations can be let go.
+    #[serde(default)]
+    pub at: u64,
     pub request: String,
     pub understanding: String,
     pub reply: String,
@@ -103,7 +114,14 @@ impl Run<'_> {
     }
 
     fn plan(&mut self, extra: &str) -> Result<Plan, String> {
-        let system = self.ctx.system.lock().unwrap().clone();
+        // the computer right now (volume, brightness, look, network), so "a bit louder" has a
+        // starting point; what the shell reported (privacy...) stays on top
+        let mut system = self.ctx.capd.call("system.now", json!({})).unwrap_or(json!({}));
+        if let (Some(s), Some(shell)) = (system.as_object_mut(), self.ctx.system.lock().unwrap().as_object()) {
+            for (k, v) in shell {
+                s.insert(k.clone(), v.clone());
+            }
+        }
         let brief = briefing::build_with(&self.ctx.root, &self.ctx.state, &self.request, &system);
         self.model_calls += 1;
         // names and emails leave as placeholders (privacy "only what the task needs")
@@ -284,7 +302,12 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
                 if source == "model" && !replanned_during && r.history.is_empty() && !irreversible {
                     r.ctx.routines.lock().unwrap().save(&r.request, &plan);
                 }
-                let reply = plan::fill(&plan.reply, &texts, false);
+                let mut reply = plan::fill(&plan.reply, &texts, false);
+                // the planner writes the reply before anything runs: if a message wasn't really
+                // sent (mail isn't connected yet), the owner hears that, not "sent"
+                if plan.steps.iter().any(|s| s.tool == "mail.send") && !r.ctx.mail_connected() {
+                    reply = format!("{reply}\n\nNote: email isn't connected yet, so nothing was sent. The message is saved in SIOS's outbox.").trim().to_string();
+                }
                 turn.reply = reply.clone();
                 r.done(if reply.is_empty() { "Done." } else { &reply }, done_steps, json!({ "goal": pass_id, "source": source }));
                 return Ok(());

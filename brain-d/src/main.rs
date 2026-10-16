@@ -60,6 +60,32 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+fn now_secs() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// Conversations survive a restart (doc 20): threads.json, owner-only, the last week's
+/// conversations, at most 30 of them and their last 10 turns each.
+fn threads_load(state: &std::path::Path) -> HashMap<String, Vec<goal::Turn>> {
+    let all: HashMap<String, Vec<goal::Turn>> = std::fs::read(state.join("threads.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let week = now_secs().saturating_sub(7 * 86_400);
+    all.into_iter().filter(|(_, v)| v.last().is_some_and(|t| t.at >= week)).collect()
+}
+
+fn threads_save(state: &std::path::Path, threads: &HashMap<String, Vec<goal::Turn>>) {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut keep: Vec<(&String, &Vec<goal::Turn>)> = threads.iter().collect();
+    keep.sort_by_key(|(_, v)| std::cmp::Reverse(v.last().map(|t| t.at).unwrap_or(0)));
+    let out: HashMap<&String, &[goal::Turn]> = keep.into_iter().take(30).map(|(k, v)| (k, &v[v.len().saturating_sub(10)..])).collect();
+    let path = state.join("threads.json");
+    let tmp = path.with_extension("json.tmp");
+    let ok = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, &serde_json::to_vec(&out).unwrap_or_default()));
+    if ok.is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
+}
+
 pub fn state_dir() -> PathBuf {
     std::env::var("SIOS_STATE").map(PathBuf::from).unwrap_or_else(|_| home().join(".sios"))
 }
@@ -124,7 +150,7 @@ impl Brain {
                 system: Arc::new(Mutex::new(Value::Null)),
             }),
             goals: Mutex::new(HashMap::new()),
-            threads: Arc::new(Mutex::new(HashMap::new())),
+            threads: Arc::new(Mutex::new(threads_load(&state))),
             watchers: Mutex::new(std::fs::read(state.join("watchers.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()),
             helpers: Arc::new(Mutex::new(helpers::Helpers::open(state.join("helpers.json")))),
             suggestions: Arc::new(Mutex::new(suggest::Suggestions::open(state.join("suggestions.json")))),
@@ -156,9 +182,13 @@ impl Brain {
         let ctx = self.ctx.clone();
         let threads = self.threads.clone();
         let (request, principal, th) = (request.to_string(), principal.to_string(), key);
+        let state = self.ctx.state.clone();
         std::thread::spawn(move || {
-            let turn = goal::run(&ctx, &shared, &request, &principal, own, &history, last_goal);
-            threads.lock().unwrap().entry(th).or_default().push(turn);
+            let mut turn = goal::run(&ctx, &shared, &request, &principal, own, &history, last_goal);
+            turn.at = now_secs();
+            let mut t = threads.lock().unwrap();
+            t.entry(th).or_default().push(turn);
+            threads_save(&state, &t);
         });
         (id, thread)
     }
@@ -466,4 +496,25 @@ fn random_hex(n: usize) -> String {
         return format!("{t:x}");
     }
     b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+#[cfg(test)]
+mod thread_tests {
+    use super::*;
+
+    #[test]
+    fn conversations_survive_a_restart_and_old_ones_go() {
+        let d = tempfile::tempdir().unwrap();
+        let mut t: HashMap<String, Vec<goal::Turn>> = HashMap::new();
+        let turn = |req: &str, at: u64| goal::Turn { at, request: req.into(), reply: "ok".into(), ..Default::default() };
+        t.insert("sios\u{1}t1".into(), vec![turn("dark mode", now_secs())]);
+        t.insert("sios\u{1}old".into(), vec![turn("last month", now_secs() - 30 * 86_400)]);
+        t.insert("sios\u{1}long".into(), (0..15).map(|i| turn(&format!("r{i}"), now_secs())).collect());
+        threads_save(d.path(), &t);
+        let back = threads_load(d.path());
+        assert_eq!(back["sios\u{1}t1"][0].request, "dark mode");
+        assert!(!back.contains_key("sios\u{1}old"), "older than a week is let go");
+        assert_eq!(back["sios\u{1}long"].len(), 10, "the last 10 turns are kept");
+        assert_eq!(back["sios\u{1}long"][0].request, "r5");
+    }
 }
