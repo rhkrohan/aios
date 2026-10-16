@@ -44,14 +44,23 @@ BtAgent::BtAgent(BluetoothArea *area)
 {
 }
 
-void BtAgent::ask(const QString &kind, const QDBusObjectPath &device, const QString &code)
+// only BlueZ itself may talk to the agent: anything else on the system bus is turned away
+bool BtAgent::fromBluez()
 {
-    // only BlueZ itself may ask: anything else on the system bus is turned away
     const QString bluez = bus().interface()->serviceOwner(BLUEZ).value();
     if (bluez.isEmpty() || message().service() != bluez) {
         sendErrorReply(QStringLiteral("org.bluez.Error.Rejected"), QStringLiteral("not BlueZ"));
-        return;
+        return false;
     }
+    return true;
+}
+
+void BtAgent::ask(const QString &kind, const QDBusObjectPath &device, const QString &code)
+{
+    if (!fromBluez())
+        return;
+    // every question gets its own number; the window answers that number only
+    ++m_seq;
     if (kind != QLatin1String("display")) {
         if (m_pending.type() == QDBusMessage::MethodCallMessage)
             bus().send(m_pending.createErrorReply(QStringLiteral("org.bluez.Error.Canceled"), QStringLiteral("replaced")));
@@ -59,11 +68,14 @@ void BtAgent::ask(const QString &kind, const QDBusObjectPath &device, const QStr
         m_pending = message();
         m_kind = kind;
     }
-    m_area->put(QStringLiteral("prompt"), QVariantMap{{QStringLiteral("kind"), kind}, {QStringLiteral("device"), m_area->nameOf(device.path())}, {QStringLiteral("code"), code}});
+    m_area->put(QStringLiteral("prompt"), QVariantMap{{QStringLiteral("id"), m_seq}, {QStringLiteral("kind"), kind}, {QStringLiteral("device"), m_area->nameOf(device.path())}, {QStringLiteral("code"), code}});
 }
 
-void BtAgent::answer(bool ok, const QString &value)
+void BtAgent::answer(quint64 id, bool ok, const QString &value)
 {
+    // an answer to an older question (one that was replaced or cancelled) does nothing
+    if (id != m_seq)
+        return;
     if (m_pending.type() != QDBusMessage::MethodCallMessage) {
         m_area->put(QStringLiteral("prompt"), QVariant());
         return;
@@ -89,6 +101,8 @@ void BtAgent::answer(bool ok, const QString &value)
 
 void BtAgent::Release()
 {
+    if (!fromBluez())
+        return;
     m_area->m_agentRegistered = false;
 }
 
@@ -133,6 +147,9 @@ void BtAgent::AuthorizeService(const QDBusObjectPath &device, const QString &uui
 
 void BtAgent::Cancel()
 {
+    if (!fromBluez())
+        return;
+    ++m_seq;
     m_pending = QDBusMessage();
     m_area->put(QStringLiteral("prompt"), QVariant());
 }
@@ -343,7 +360,7 @@ void BluetoothArea::set(const QString &key, const QVariant &value)
 void BluetoothArea::act(const QString &name, const QVariantMap &params)
 {
     if (name == QLatin1String("answer")) {
-        m_agent->answer(params.value(QStringLiteral("ok")).toBool(), params.value(QStringLiteral("value")).toString());
+        m_agent->answer(params.value(QStringLiteral("id")).toULongLong(), params.value(QStringLiteral("ok")).toBool(), params.value(QStringLiteral("value")).toString());
         return;
     }
     const QString adapter = m_state.value(QStringLiteral("adapter")).toMap().value(QStringLiteral("path")).toString();

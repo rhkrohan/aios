@@ -25,7 +25,8 @@ class BtAgent : public QObject, protected QDBusContext
     Q_CLASSINFO("D-Bus Interface", "org.bluez.Agent1")
 public:
     explicit BtAgent(BluetoothArea *area);
-    void answer(bool ok, const QString &value);
+    // `id` is the prompt the owner saw: an answer never reaches a newer request (security review)
+    void answer(quint64 id, bool ok, const QString &value);
 
 public Q_SLOTS:
     Q_SCRIPTABLE void Release();
@@ -43,6 +44,8 @@ private:
     BluetoothArea *m_area;
     QDBusMessage m_pending;
     QString m_kind;
+    quint64 m_seq = 0;
+    bool fromBluez();
 };
 
 class BluetoothArea : public Area

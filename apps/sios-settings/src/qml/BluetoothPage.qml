@@ -227,7 +227,7 @@ ColumnLayout {
         minimumWidth: 480; maximumWidth: 480
         color: Theme.surface
         onVisibleChanged: if (visible) { codeIn.text = ""; requestActivate(); }
-        onClosing: if (prompt.p && prompt.p.kind !== "display") bluetooth.act("answer", { ok: false })
+        onClosing: if (prompt.p && prompt.p.kind !== "display") bluetooth.act("answer", { id: prompt.p ? prompt.p.id : 0, ok: false })
         ColumnLayout {
             id: pc
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
@@ -266,11 +266,11 @@ ColumnLayout {
                 anchors { fill: parent; leftMargin: 20; rightMargin: 20 }
                 spacing: 8
                 Item { Layout.fillWidth: true }
-                Button { visible: !!prompt.p && prompt.p.kind !== "display"; text: "Cancel"; kind: "plain"; onClicked: bluetooth.act("answer", { ok: false }) }
+                Button { visible: !!prompt.p && prompt.p.kind !== "display"; text: "Cancel"; kind: "plain"; onClicked: bluetooth.act("answer", { id: prompt.p ? prompt.p.id : 0, ok: false }) }
                 Button {
                     id: okBtn
                     text: !prompt.p ? "" : prompt.p.kind === "display" ? "Done" : prompt.p.kind === "confirm" ? "They match, pair" : (prompt.p.kind === "authorize" || prompt.p.kind === "service") ? "Allow" : "Pair"
-                    onClicked: bluetooth.act("answer", { ok: true, value: codeIn.text })
+                    onClicked: bluetooth.act("answer", { id: prompt.p ? prompt.p.id : 0, ok: true, value: codeIn.text })
                 }
             }
         }

@@ -242,7 +242,9 @@ void PrintersArea::act(const QString &name, const QVariantMap &params)
         for (const QVariant &v : m_found)
             if (v.toMap().value(QStringLiteral("uri")).toString() == uri)
                 hit = v.toMap();
-        if (hit.isEmpty())
+        // the address comes from the network: only the kinds SIOS asked CUPS for
+        const bool known_kind = uri.startsWith(QLatin1String("dnssd://")) || uri.startsWith(QLatin1String("ipp://")) || uri.startsWith(QLatin1String("ipps://")) || uri.startsWith(QLatin1String("usb://"));
+        if (hit.isEmpty() || !known_kind)
             return;
         const QString n = printerName(params.value(QStringLiteral("name"), hit.value(QStringLiteral("suggested"))).toString());
         const QString info = clean(hit.value(QStringLiteral("info")).toString(), 120);
