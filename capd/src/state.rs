@@ -496,7 +496,7 @@ impl State {
             }
             "model.complete" | "model.test" => self.model_call(req, owner, service),
             // what anyone may know: how many things wait (never what), and which AI SIOS uses
-            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "reports_unread": self.agents.reports.iter().filter(|r| !r.read).count(), "pets": self.pets(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
+            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "reports_unread": self.agents.reports.iter().filter(|r| !r.read).count(), "pets": self.pets().into_iter().map(|mut p| { p.as_object_mut().map(|o| o.remove("id")); p }).collect::<Vec<_>>(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
             // anyone may press Stop: stopping is always safe (D41)
             "ai.stop" => {
@@ -1639,6 +1639,9 @@ impl State {
         if !a.run.is_empty() {
             return Err(format!("{} is still working on its last task", a.name));
         }
+        if self.reviewing.contains(id) {
+            return Err(format!("SIOS is reading {}'s work right now; try again in a moment", a.name));
+        }
         let task = task.trim();
         if task.is_empty() {
             return Err("what should it do?".into());
@@ -1720,8 +1723,8 @@ impl State {
         why.map(String::from)
     }
 
-    /// The pets on the desktop (D103): each agent's colour and mood, no names, tasks or
-    /// reports (status is open to any program on this computer). Mood comes from what
+    /// The pets (D103): each agent's colour and mood. status (open to any program on
+    /// this computer) drops the id too: no names, tasks or reports there. Mood comes from what
     /// the broker knows: paused, its live run, its last report.
     fn pets(&self) -> Vec<Value> {
         let t = now();
@@ -1865,8 +1868,14 @@ impl State {
         }
         let id = req["params"]["id"].as_str().unwrap_or("");
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
-        if merge && !a.run.is_empty() {
-            return Err(format!("{} is still working: merge when it's done", a.name));
+        // its work is read only while it rests (its unit is gone): a working agent could
+        // change its .git between SIOS's check and the fetch
+        if !a.run.is_empty() {
+            return Err(format!("{} is still working: its changes can be read when it's done", a.name));
+        }
+        // nor while its own terminal is open (sign-in, or the owner driving it)
+        if crate::security::unit_active(&format!("{}-signin", crate::runner::unit(a.slug()))) {
+            return Err(format!("close {}'s terminal first, then look at its changes", a.name));
         }
         if !self.reviewing.insert(a.id.clone()) {
             return Err(format!("SIOS is already reading {}'s work; try again in a moment", a.name));
@@ -1913,6 +1922,9 @@ impl State {
     /// Open a terminal in the agent's sandbox so the owner signs Claude Code in once (D61).
     fn agent_signin(&mut self, id: &str) -> Result<Value, String> {
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if !a.run.is_empty() || self.reviewing.contains(id) {
+            return Err(format!("{} is busy: try again when it's done", a.name));
+        }
         let mut tmp = a.clone();
         tmp.lease_until = now() + 1800;
         tmp.session.clear();
@@ -3749,7 +3761,7 @@ mod tests {
         r.st.handle(&json!({ "method": "agents.report", "params": { "agent": "agent:pip", "kind": "done", "text": "secret plans", "failed": true }, "service": svc }));
         let m = mood(&mut r);
         assert_eq!((m["mood"].as_str(), m["unread"].as_u64()), (Some("worried"), Some(1)));
-        assert!(!m.to_string().contains("secret") && !m.to_string().contains("Pip"), "no names or report text for any program");
+        assert!(!m.to_string().contains("secret") && !m.to_string().contains("pip"), "no names, ids or report text for any program");
         r.st.handle(&json!({ "method": "agents.report", "params": { "agent": "agent:pip", "kind": "question", "text": "which folder?" }, "service": svc }));
         assert_eq!(mood(&mut r)["mood"], "asking");
         r.owner("agents.update", json!({ "id": "agent:pip", "active": false }));

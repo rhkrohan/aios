@@ -669,7 +669,7 @@ QQC2.ApplicationWindow {
                     property var data_: ({})
                     property string err: ""
                     property int pick: -1
-                    function load() { if (visible && agentPage.coder) { err = ""; broker.look("agents.changes", { id: agentPage.a.id }, "changes"); } }
+                    function load() { if (visible && agentPage.coder && !agentPage.a.run) { err = ""; broker.look("agents.changes", { id: agentPage.a.id }, "changes"); } }
                     onVisibleChanged: load()
                     Connections { target: win; function onSelChanged() { changes.data_ = ({}); changes.pick = -1; changes.load(); } }
                     Connections {
@@ -714,7 +714,7 @@ QQC2.ApplicationWindow {
                         }
                     }
                     Note { visible: (changes.data_.links || []).length > 0; Layout.leftMargin: 24; Layout.rightMargin: 24; Layout.bottomMargin: 8; icon: "triangle-alert"; tint: Theme.warn; text: "It adds links that point elsewhere: " + (changes.data_.links || []).join(", ") + ". Check where they lead before you merge." }
-                    Note { visible: !!agentPage.a.run; Layout.leftMargin: 24; Layout.rightMargin: 24; icon: "clock"; text: agentPage.a.name + " is still working. You can look now; merging waits until it's done." }
+                    Note { visible: !!agentPage.a.run; Layout.leftMargin: 24; Layout.rightMargin: 24; icon: "clock"; text: agentPage.a.name + " is still working. Its changes can be read and merged when it's done." }
                     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface3 }
                     RowLayout {
                         Layout.fillWidth: true

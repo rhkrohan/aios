@@ -9,7 +9,7 @@
     stays above apps. This widget itself takes no space in the top bar.
 
     Beside it sit the agents' pets (D103), one per agent, each with its mood
-    from the broker; a dot shows new reports, and a click opens that agent.
+    from the broker; a dot shows new reports, and a click opens the team.
 
     Not yet: flying to where the AI is working, carrying files, the chat.
 
@@ -410,7 +410,7 @@ PlasmoidItem {
             try {
                 const ok = JSON.parse(String(data.stdout)).ok;
                 root.waiting = ok.pending || 0;
-                root.pets = (ok.pets || []).filter(p => /^agent:[a-z0-9-]{1,40}$/.test(String(p.id))).slice(0, 6);
+                root.pets = (ok.pets || []).slice(0, 6);
                 const unread = ok.reports_unread || 0;
                 if (unread > root.unread && root.unread >= 0) root.say(unread === 1 ? "An agent has news for you." : "Your agents have " + unread + " new reports.", 4000);
                 root.unread = unread;
@@ -452,11 +452,11 @@ PlasmoidItem {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        // the id is checked above: lowercase letters, digits and dashes only
-                        onClicked: run.connectSource("sios-agents --page " + modelData.id)
+                        // the desktop knows no names (status is open to any program): open the team
+                        onClicked: run.connectSource("sios-agents --page agents")
                     }
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Open agent " + String(modelData.id).replace("agent:", "") + ", " + modelData.mood
+                    Accessible.name: "An agent, " + modelData.mood + ". Open your team"
                 }
             }
         }

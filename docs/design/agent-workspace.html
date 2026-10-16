@@ -1,0 +1,159 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Agent Workspace</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Jost:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--surface:#fff;--s2:#f7f7f5;--s3:#efefeb;--line:#e4e4df;--line2:#cfcfc9;--fg:#1d1d1f;--fg2:#5c5c59;--fg3:#8b8b86;--acc:#2f5d8a;--accSoft:#e8eef5;--ai:#4f7bf7;--aiSoft:#eef2ff;--warn:#b0532f;--danger:#9a4b4b;--ok:#4d7a52;--okSoft:#e8f1e9;--side:#f4f4f1}
+body{margin:0;background:#e9e9e4;color:var(--fg);font-family:"Instrument Sans",sans-serif}
+.blk{padding:24px 40px}h1.top{font-family:Jost,sans-serif;font-size:32px;margin:0}h2.row{font-family:Jost,sans-serif;font-size:22px;margin:0 0 6px}
+p.note{margin:0 0 16px;color:var(--fg2);font-size:14px;max-width:960px;line-height:1.45}
+.win{width:1440px;height:900px;box-sizing:border-box;background:var(--surface);border-radius:14px;overflow:hidden;border:1px solid #dcdcd6;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.12)}
+.bar{height:64px;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--s3);flex-shrink:0}
+.pet{width:40px;height:40px;border-radius:50%;position:relative;flex-shrink:0}
+.pet i{position:absolute;top:44%;width:5px;height:5px;border-radius:50%;background:#1d1d1f}.pet i:first-child{left:32%}.pet i:last-child{right:32%}
+.name{font-family:Jost,sans-serif;font-size:22px;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:12px;font-size:12px;font-weight:600}
+.pill.ok{background:var(--okSoft);color:var(--ok)}.pill.warn{background:#f6ece7;color:var(--warn)}.pill.muted{background:var(--s3);color:var(--fg3)}.pill.acc{background:var(--accSoft);color:var(--acc)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border:1px solid var(--line);border-radius:11px;font-size:12px;color:var(--fg2)}
+.btn{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:16px;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}.btn.d{color:var(--danger);border-color:rgba(154,75,75,.4)}
+.meter{width:150px}.meter .l{display:flex;justify-content:space-between;font-size:11px;color:var(--fg2);margin-bottom:4px}.meter .t{height:5px;border-radius:3px;background:var(--s3)}.meter .f{height:5px;border-radius:3px}
+.body{flex:1;display:flex;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0}
+.pane{border-right:1px solid var(--line)}
+.ph{height:40px;display:flex;align-items:center;gap:8px;padding:0 16px;font-size:12px;font-weight:600;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.ph .grip{margin-left:auto;color:var(--line2);letter-spacing:0}
+.card{margin:0 14px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.step{display:flex;gap:9px;align-items:flex-start;font-size:13px;padding:5px 0}
+.box{width:15px;height:15px;border-radius:5px;border:1.5px solid var(--line2);flex-shrink:0;margin-top:1px;box-sizing:border-box}
+.box.done{background:var(--ok);border-color:var(--ok)}.box.now{border-color:var(--ai);box-shadow:0 0 0 3px var(--aiSoft)}
+.mono{font-family:"JetBrains Mono",monospace}
+.out{flex:1;overflow:hidden;padding:4px 20px 0;background:var(--s2)}
+.ev{display:flex;gap:10px;margin:10px 0}
+.ic{width:26px;height:26px;border-radius:8px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;color:var(--fg2)}
+.evb{flex:1;font-size:13px;line-height:1.45}
+.term{margin-top:6px;background:#1f2328;color:#d6dbe0;border-radius:8px;padding:8px 10px;font-family:"JetBrains Mono",monospace;font-size:11.5px;line-height:1.5;white-space:pre}
+.diff{margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-family:"JetBrains Mono",monospace;font-size:11.5px;line-height:1.55;overflow:hidden}
+.diff div{padding:0 10px;white-space:pre}.diff .a{background:#eaf4ea;color:#2f6b36}.diff .r{background:#f8eceb;color:#8c3d3d}.diff .h{background:var(--s3);color:var(--fg3)}
+.ask{border:1px solid #e9c9b9;background:#fbf3ee;border-radius:12px;padding:12px 14px}
+.input{margin:12px 20px 14px;height:46px;border:1px solid var(--line2);border-radius:14px;display:flex;align-items:center;padding:0 8px 0 14px;font-size:14px;color:var(--fg3);background:var(--surface)}
+.send{margin-left:auto;width:32px;height:32px;border-radius:16px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center}
+.tabs{display:flex;gap:4px;padding:8px 12px 0}.tab{padding:5px 12px;border-radius:14px;font-size:13px;color:var(--fg2)}.tab.on{background:var(--accSoft);color:var(--acc);font-weight:600}
+.tree{padding:6px 12px;font-size:12.5px}
+.tr{display:flex;align-items:center;gap:7px;height:26px;padding:0 6px;border-radius:7px}
+.tr .n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr.lit{background:var(--aiSoft)}.tr.chg{background:#eef5ee}
+.tag{font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:600;padding:1px 5px;border-radius:4px}
+.tag.m{color:var(--ok);background:#e3efe4}.tag.n{color:var(--acc);background:var(--accSoft)}.tag.r{color:var(--ai);background:var(--aiSoft)}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;border:1px solid var(--line);background:var(--surface);font-size:12px;margin:0 6px 6px 0}
+.chip b{font-weight:600}.chip .ro{color:var(--fg3)}.chip .rw{color:var(--warn)}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;color:var(--fg2)}.kv b{color:var(--fg);font-weight:600}
+.mem{font-size:12.5px;padding:6px 8px;border-radius:8px;background:var(--s2);margin-top:6px;color:var(--fg2)}
+.wheel{height:210px;flex-shrink:0;background:#16191d;border-top:1px solid #2a2f35;display:flex;flex-direction:column}
+.wheel .wh{height:34px;display:flex;align-items:center;gap:10px;padding:0 14px;color:#9aa4ad;font-size:12px;border-bottom:1px solid #262b31}
+.wheel pre{margin:0;padding:10px 16px;color:#d6dbe0;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.55;flex:1;overflow:hidden}
+.dlg{width:760px;background:var(--surface);border-radius:14px;border:1px solid #dcdcd6;box-shadow:0 20px 50px rgba(0,0,0,.12);overflow:hidden}
+.prow{display:grid;grid-template-columns:28px 1.3fr 1fr 190px 120px 28px;gap:12px;align-items:center;padding:12px 20px;border-top:1px solid var(--s3);font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}.seg span{padding:5px 10px;font-size:12px}.seg span.on{background:var(--acc);color:#fff;font-weight:600}
+.fold{width:26px;height:22px;border-radius:5px;background:#8fb3ff;position:relative}.fold:before{content:"";position:absolute;left:2px;top:-3px;width:11px;height:5px;border-radius:2px 2px 0 0;background:#8fb3ff}
+</style></head><body>
+<div class="blk"><h1 class="top">The agent Workspace</h1><p class="note" style="margin-top:6px">Mockup only, for the owner's approval (D101, D106). Names, files and numbers are made up. Instead of another desktop, each agent gets one Workspace window laid out from what it is doing: its goal and plan, its live output, the files it is touching, what it knows, its changes, and a terminal to take the wheel. Panes resize and hide; the layout is remembered per agent.</p></div>
+
+<div class="blk"><h2 class="row">1. Pip (Codex) at work</h2><p class="note">Left: the goal, the agent's own plan (from its stream), its ideas and open questions, and who gets the work next. Middle: what it is doing right now, as cards. Right: the folders it can see (its Places), with files lighting up as it reads (blue) or changes them (green), and below that everything it has been given: instructions, memories, connectors, tokens and time. Bottom: Take the wheel, the agent's own CLI in the same sandbox, open only when it isn't running a task.</p>
+<div class="win">
+  <div class="bar">
+    <div class="pet" style="background:#a9cdff"><i></i><i></i></div>
+    <div><div class="name">Pip</div></div>
+    <span class="badge"><b style="color:#10a37f">&#9673;</b> Codex</span>
+    <span class="pill ok"><span class="dot"></span>Working · 14 min</span>
+    <div style="flex:1"></div>
+    <div class="meter"><div class="l"><span>Time left</span><b style="color:var(--fg)">1 h 46 min</b></div><div class="t"><div class="f" style="width:72%;background:var(--acc)"></div></div></div>
+    <div class="meter"><div class="l"><span>Tokens this task</span><b style="color:var(--fg)">412k of 2M</b></div><div class="t"><div class="f" style="width:21%;background:#c1457d"></div></div></div>
+    <span class="btn">+1 hour</span><span class="btn">Pause</span><span class="btn d">Stop</span>
+  </div>
+  <div class="body">
+    <!-- goal and plan -->
+    <div class="col pane" style="width:300px;background:var(--side)">
+      <div class="ph">Goal and plan <span class="grip">⋮⋮</span></div>
+      <div class="card"><div style="font-size:11px;color:var(--fg3);font-weight:600;margin-bottom:4px">TASK FROM YOU</div><div style="font-size:14px;font-weight:600;line-height:1.35">Add a contact form to the portfolio site and make the tests pass</div></div>
+      <div class="card">
+        <div style="font-size:11px;color:var(--fg3);font-weight:600;margin-bottom:4px">ITS PLAN</div>
+        <div class="step"><span class="box done"></span><span style="color:var(--fg3);text-decoration:line-through">Read the site layout and the test setup</span></div>
+        <div class="step"><span class="box done"></span><span style="color:var(--fg3);text-decoration:line-through">Add contact.html with name, email, message</span></div>
+        <div class="step"><span class="box now"></span><b>Validate the email field in form.js</b></div>
+        <div class="step"><span class="box"></span><span>Add tests for the form</span></div>
+        <div class="step"><span class="box"></span><span>Run the tests and commit</span></div>
+      </div>
+      <div class="card">
+        <div style="font-size:11px;color:var(--fg3);font-weight:600;margin-bottom:6px">IDEAS AND QUESTIONS</div>
+        <div style="font-size:12.5px;color:var(--fg2);line-height:1.45">💡 The footer links repeat on every page; a shared include would save work.</div>
+        <div style="font-size:12.5px;color:var(--warn);line-height:1.45;margin-top:6px">? Should the form send to your email or save to a file?</div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg2)">
+        <span>Then</span><div class="pet" style="width:22px;height:22px;background:#c4bbff"><i style="width:3px;height:3px"></i><i style="width:3px;height:3px"></i></div><b style="color:var(--fg)">Docs</b><span>writes it up</span>
+      </div>
+    </div>
+    <!-- live output -->
+    <div class="col pane" style="flex:1">
+      <div class="ph" style="background:var(--s2)">Live output <span style="text-transform:none;letter-spacing:0;font-weight:400">· follows along</span><span class="grip">⋮⋮</span></div>
+      <div class="out">
+        <div class="ev"><div class="ic">💬</div><div class="evb">The form page is in. Now the email check: I'll keep it in form.js so the other pages can use it.</div></div>
+        <div class="ev"><div class="ic" style="color:var(--ok)">✎</div><div class="evb"><span class="mono" style="font-size:12px">Edited site/js/form.js</span>
+          <div class="diff"><div class="h">@@ -12,6 +12,11 @@ export function bindForm(form) {</div><div>   const email = form.querySelector('[name=email]');</div><div class="r">-  form.addEventListener('submit', send);</div><div class="a">+  form.addEventListener('submit', (e) =&gt; {</div><div class="a">+    if (!isEmail(email.value)) { e.preventDefault(); showError(email); return; }</div><div class="a">+    send(e);</div><div class="a">+  });</div></div></div></div>
+        <div class="ev"><div class="ic">▶</div><div class="evb"><span class="mono" style="font-size:12px">Ran npm test</span>
+          <div class="term">  ✓ contact page renders (12 ms)
+  ✓ rejects "sara@" (3 ms)
+  ✗ accepts "sara@studio.example" (4 ms)
+Tests: 1 failed, 11 passed</div></div></div>
+        <div class="ev"><div class="ic">💬</div><div class="evb">One test fails: the pattern doesn't allow subdomains. Fixing isEmail.</div></div>
+        <div class="ev"><div class="ic" style="color:var(--warn)">?</div><div class="evb"><div class="ask"><b>Pip asks you:</b> Should the form send to your email or save to a file?<div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1;height:34px;border:1px solid var(--line2);border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 12px;color:var(--fg3);font-size:13px">Your answer…</div><span class="btn p">Answer</span></div></div></div></div>
+      </div>
+      <div class="input">Pip is working; your next task can start when it's done<span class="send">↑</span></div>
+    </div>
+    <!-- files, memory and context -->
+    <div class="col" style="width:350px">
+      <div class="tabs"><span class="tab on">Files in play</span><span class="tab">Changes · 3</span></div>
+      <div style="padding:10px 12px 2px"><span class="chip"><span class="fold" style="width:14px;height:11px"></span><b>portfolio-site</b> <span class="rw">its copy · read &amp; write</span></span><span class="chip"><span class="fold" style="width:14px;height:11px"></span><b>brand-assets</b> <span class="ro">read only</span></span></div>
+      <div class="tree">
+        <div class="tr"><span style="color:var(--fg3)">▾</span><span class="n">site</span></div>
+        <div class="tr" style="padding-left:20px"><span class="n">index.html</span></div>
+        <div class="tr chg" style="padding-left:20px"><span class="n">contact.html</span><span class="tag n">new</span></div>
+        <div class="tr" style="padding-left:20px"><span style="color:var(--fg3)">▾</span><span class="n">js</span></div>
+        <div class="tr chg" style="padding-left:36px"><span class="n"><b>form.js</b></span><span class="tag m">changed</span></div>
+        <div class="tr lit" style="padding-left:36px"><span class="n">validate.js</span><span class="tag r">reading</span></div>
+        <div class="tr" style="padding-left:20px"><span style="color:var(--fg3)">▸</span><span class="n">css</span></div>
+        <div class="tr"><span style="color:var(--fg3)">▾</span><span class="n">tests</span></div>
+        <div class="tr chg" style="padding-left:20px"><span class="n">form.test.js</span><span class="tag m">changed</span></div>
+        <div class="tr"><span style="color:var(--fg3)">▸</span><span class="n">brand-assets</span><span style="color:var(--fg3);font-size:11px">read only</span></div>
+      </div>
+      <div class="ph" style="border-top:1px solid var(--line);margin-top:4px">Memory and context <span class="grip">⋮⋮</span></div>
+      <div style="padding:0 16px;overflow:hidden">
+        <div class="kv"><span>Its instructions</span><b>Keep pages accessible</b></div>
+        <div class="kv"><span>Context used</span><b>38% of its window</b></div>
+        <div class="kv"><span>Connectors it may use</span><b>GitHub (read only)</b></div>
+        <div style="font-size:12px;color:var(--fg3);margin-top:8px">What SIOS remembered for it (2)</div>
+        <div class="mem">You prefer plain HTML and no frameworks for the site.</div>
+        <div class="mem">Studio emails go to hello@studio.example.</div>
+      </div>
+    </div>
+  </div>
+  <div class="wheel">
+    <div class="wh"><b style="color:#d6dbe0">Take the wheel</b><span>· Codex in Pip's sandbox · shown open here for the mockup; it opens when Pip rests</span><span style="margin-left:auto">▾ hide</span></div>
+<pre><span style="color:#7d9dff">pip</span> ~/portfolio-site (sios/pip) $ codex
+<span style="color:#9aa4ad">╭──────────────────────────────────────────────╮
+│ Codex · workspace-write · SIOS door connected │
+╰──────────────────────────────────────────────╯</span>
+› Make the error message friendlier and match the brand colours
+<span style="color:#9aa4ad">  Reading site/css/brand.css …</span></pre>
+  </div>
+</div></div>
+
+<div class="blk"><h2 class="row">2. Places: which of your folders an agent can see</h2><p class="note">A new way to give a coding agent access. Pick folders on your drive, choose where they appear in its workspace and whether it may change them. Nothing else in your home is visible to it. Sensitive and off-limits folders can't be picked. Adding a place asks for your password and is logged. A read-and-write place that isn't a git project is snapshotted before each task, so its changes can be undone.</p>
+<div class="dlg">
+  <div style="padding:22px 24px 14px;display:flex;align-items:center;gap:12px"><div class="pet" style="background:#a9cdff"><i></i><i></i></div><div><div class="name" style="font-size:20px">Pip's places</div><div style="font-size:13px;color:var(--fg2)">What Pip can see in its workspace, and nothing else</div></div><span class="btn p" style="margin-left:auto">Add a folder</span></div>
+  <div class="prow" style="color:var(--fg3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;border-top:none;padding-top:0;padding-bottom:6px"><span></span><span>Your folder</span><span>Appears as</span><span>Access</span><span>Until</span><span></span></div>
+  <div class="prow"><span class="fold"></span><span><b>Projects/portfolio-site</b><div style="font-size:11.5px;color:var(--fg3)">its own copy on branch sios/pip</div></span><span class="mono" style="font-size:12px">portfolio-site/</span><span class="seg"><span>Read only</span><span class="on">Read &amp; write</span></span><span style="color:var(--fg2)">Always</span><span style="color:var(--fg3)">⋯</span></div>
+  <div class="prow"><span class="fold"></span><span><b>Pictures/Brand</b><div style="font-size:11.5px;color:var(--fg3)">logos and photos</div></span><span class="mono" style="font-size:12px">brand-assets/</span><span class="seg"><span class="on">Read only</span><span>Read &amp; write</span></span><span style="color:var(--fg2)">While it has time</span><span style="color:var(--fg3)">✕</span></div>
+  <div class="prow"><span class="fold"></span><span><b>Documents/Copy</b><div style="font-size:11.5px;color:var(--fg3)">not a git project: snapshot before each task</div></span><span class="mono" style="font-size:12px">copy/</span><span class="seg"><span>Read only</span><span class="on">Read &amp; write</span></span><span style="color:var(--fg2)">Today</span><span style="color:var(--fg3)">✕</span></div>
+  <div style="margin:4px 20px 18px;padding:10px 12px;border-radius:10px;background:var(--s2);font-size:12.5px;color:var(--fg2)">🔒 Documents/Taxes 2025 is off limits to every AI, so it isn't offered. Changes here ask for your password.</div>
+</div></div>
+</body></html>
