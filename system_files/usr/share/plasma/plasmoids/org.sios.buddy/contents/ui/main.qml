@@ -427,7 +427,9 @@ PlasmoidItem {
     // ---- the agents' pets, in a small window to the buddy's left (D103)
     PlasmaCore.Dialog {
         id: petsWin
-        visible: pet.visible && root.pets.length > 0
+        // shown only once its content has a size: a 0x0 dialog can't get a surface,
+        // and that Wayland error takes the whole desktop shell down with it
+        visible: pet.visible && root.pets.length > 0 && petsRow.width > 0
         type: PlasmaCore.Dialog.Notification
         flags: Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus | Qt.FramelessWindowHint
         location: PlasmaCore.Types.Floating
@@ -436,6 +438,10 @@ PlasmoidItem {
         x: root.spot.x - width + 10
         y: root.spot.y + root.box - height - 14
         mainItem: Row {
+            id: petsRow
+            // a fixed size from the count, not from the delegates (which come later)
+            width: root.pets.length * 46 - 6
+            height: 46
             spacing: 6
             Repeater {
                 model: root.pets
