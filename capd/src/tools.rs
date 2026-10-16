@@ -49,7 +49,7 @@ pub const TOOLS: &[ToolSpec] = &[
     ToolSpec { name: "settings.dnd", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Do Not Disturb on or off." },
     ToolSpec { name: "network.wifi_power", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Wi-Fi on or off." },
     ToolSpec { name: "network.bluetooth_power", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Bluetooth on or off." },
-    ToolSpec { name: "settings.set_wallpaper", level: Level::Reversible, egress: false, path_args: &[], about: "Change the wallpaper: dusk or lake." },
+    ToolSpec { name: "settings.set_wallpaper", level: Level::Reversible, egress: false, path_args: &[], about: "Change the wallpaper: dusk, lake or tunnel." },
     ToolSpec { name: "apps.close", level: Level::Reversible, egress: false, path_args: &[], about: "Close an app's window." },
     ToolSpec { name: "apps.focus", level: Level::Read, egress: false, path_args: &[], about: "Bring an app's window to the front." },
     ToolSpec { name: "apps.arrange", level: Level::Read, egress: false, path_args: &[], about: "Put two apps side by side on the screen." },
@@ -184,8 +184,8 @@ pub fn all() -> Vec<&'static ToolSpec> {
     TOOLS.iter().chain(crate::connectors::specs()).collect()
 }
 
-/// How to reverse one change.
-#[derive(Clone, Debug)]
+/// How to reverse one change. Saved with the journal (undo.json), so it survives a restart.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Undo {
     /// Put the saved copy back (the file existed before).
     Restore { real: PathBuf, backup: PathBuf },
@@ -621,8 +621,8 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
         }
         "settings.set_wallpaper" => {
             let w = arg(args, "name")?;
-            if w != "dusk" && w != "lake" {
-                return Err("wallpapers are dusk or lake".into());
+            if w != "dusk" && w != "lake" && w != "tunnel" {
+                return Err("wallpapers are dusk, lake or tunnel".into());
             }
             Ok(done(json!({ "effect": { "type": "wallpaper", "name": w } })))
         }
@@ -704,5 +704,22 @@ mod tests {
         for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send"] {
             assert!(!acts_without_asking(t), "{t} must ask");
         }
+    }
+}
+
+/// The adapter tools an undo may run again (their own previous value, or a reminder's cancel).
+const UNDO_ADAPTERS: [&str; 8] = ["settings.set_volume", "settings.set_brightness", "settings.set_theme", "settings.set_wallpaper", "settings.dnd", "network.wifi_power", "network.bluetooth_power", "system.remind.cancel"];
+
+/// A journal entry read back from disk may only touch the owner's home, SIOS's own
+/// snapshots, or re-run one of the adapter undos: anything else is dropped.
+pub fn undo_is_sane(u: &Undo, root: &Path, state: &Path) -> bool {
+    let home = |p: &Path| p.starts_with(root) && !p.components().any(|c| c == std::path::Component::ParentDir);
+    match u {
+        Undo::Restore { real, backup } => home(real) && backup.starts_with(state.join("snapshots")) && !backup.components().any(|c| c == std::path::Component::ParentDir),
+        Undo::Remove { real } | Undo::RemoveDir { real } => home(real),
+        Undo::MoveBack { now, was, .. } => home(now) && home(was),
+        Undo::Many(v) => v.iter().all(|x| undo_is_sane(x, root, state)),
+        Undo::MemRemove { .. } | Undo::MemRestore { .. } => true,
+        Undo::Adapter { tool, .. } => UNDO_ADAPTERS.contains(&tool.as_str()),
     }
 }

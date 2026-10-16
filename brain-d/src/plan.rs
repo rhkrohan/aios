@@ -225,6 +225,27 @@ pub fn pass_for(plan: &Plan, exists: impl Fn(&str) -> Option<bool>) -> (Vec<Stri
 
 #[cfg(test)]
 mod tests {
+    /// The prompts the training data uses are the ones SIOS runs (llm/prompts/). Skipped
+    /// where the llm folder isn't present (the image build compiles brain-d alone).
+    #[test]
+    fn the_training_prompts_match_the_code() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../llm/prompts");
+        if !dir.is_dir() {
+            return;
+        }
+        let file = |n: &str| std::fs::read_to_string(dir.join(n)).unwrap().trim_end_matches('\n').to_string();
+        assert_eq!(file("planner-v1.txt"), PLANNER);
+        assert_eq!(file("compose-v1.txt"), crate::goal::COMPOSE);
+        assert_eq!(file("pattern-v1.txt"), crate::memory::PATTERN);
+        assert_eq!(file("answer-from-memory-v1.txt"), crate::memory::ANSWER);
+        assert_eq!(file("mcp-door-v1.txt"), crate::mcp::INSTRUCTIONS);
+        assert_eq!(file("mcp-door-paired-v1.txt"), crate::mcp::TYPED);
+        // the sample briefing lists exactly the planner's tools
+        let seed = file("briefing-seed-v1.txt");
+        let tools: Vec<String> = crate::briefing::TOOLS.iter().map(|(n, d)| format!("  {n}: {d}")).collect();
+        assert!(seed.contains(&format!("TOOLS\n{}\n\nRULES", tools.join("\n"))), "briefing-seed-v1.txt's TOOLS block differs from briefing::TOOLS");
+    }
+
     use super::*;
 
     fn step(tool: &str, args: &str) -> Step {

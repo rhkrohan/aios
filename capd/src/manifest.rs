@@ -100,7 +100,7 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
         "settings.set_theme" => json!({ "type": "object", "properties": { "theme": { "type": "string", "enum": ["light", "dark"] } }, "required": ["theme"], "additionalProperties": false }),
         "settings.set_volume" | "settings.set_brightness" => json!({ "type": "object", "properties": { "level": { "type": "integer", "description": "0 to 100" } }, "required": ["level"], "additionalProperties": false }),
         "settings.dnd" | "network.wifi_power" | "network.bluetooth_power" => json!({ "type": "object", "properties": { "on": { "type": "boolean" } }, "required": ["on"], "additionalProperties": false }),
-        "settings.set_wallpaper" => json!({ "type": "object", "properties": { "name": { "type": "string", "enum": ["dusk", "lake"] } }, "required": ["name"], "additionalProperties": false }),
+        "settings.set_wallpaper" => json!({ "type": "object", "properties": { "name": { "type": "string", "enum": ["dusk", "lake", "tunnel"] } }, "required": ["name"], "additionalProperties": false }),
         "apps.close" | "apps.focus" => json!({ "type": "object", "properties": { "app": { "type": "string", "enum": ["files", "browser", "mail", "settings", "terminal", "store", "security", "goals", "activity"] } }, "required": ["app"], "additionalProperties": false }),
         "apps.arrange" => json!({ "type": "object", "properties": { "left": { "type": "string" }, "right": { "type": "string" } }, "required": ["left", "right"], "additionalProperties": false }),
         "system.lock" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),

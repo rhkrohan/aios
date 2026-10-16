@@ -195,7 +195,7 @@ impl State {
             used: HashMap::new(),
             sessions: HashMap::new(),
             pending: HashMap::new(),
-            undo: Vec::new(),
+            undo: Self::load_undo(dir, root),
             iam: crate::iam::Iam::open(&dir.join("iam.json"), now()),
             log: Log::open(&dir.join("audit.jsonl"))?,
             meta: Store::open(&dir.join("meta.json")),
@@ -623,6 +623,7 @@ impl State {
                 if r.is_ok() && reset {
                     // a fresh home: nothing from before can be undone or continued
                     self.undo.clear();
+                    self.save_undo();
                     self.sessions.clear();
                     self.pending.clear();
                 }
@@ -1327,6 +1328,7 @@ impl State {
         let _ = self.meta.save();
         if let Some(u) = out.undo {
             self.undo.push((op.clone(), sid, u));
+            self.save_undo();
         }
         let mut result = out.result;
         result["op"] = json!(op);
@@ -1957,6 +1959,7 @@ impl State {
                 self.record(&cap, tool, &target, "you", "you did this yourself", &json!([]));
                 if let Some(u) = o.undo {
                     self.undo.push((op, "you".into(), u));
+                    self.save_undo();
                 }
                 Ok(o.result)
             }
@@ -1968,6 +1971,7 @@ impl State {
     fn owner_undo(&mut self) -> Result<Value, String> {
         let i = self.undo.iter().rposition(|(_, s, _)| s == "you").ok_or("nothing of yours to undo")?;
         let (_, _, u) = self.undo.remove(i);
+        self.save_undo();
         self.apply_undo(&u)?;
         let _ = self.meta.save();
         self.record(&Self::owner_cap(), "undo", "", "you", "you undid your last change", &json!([]));
@@ -2199,6 +2203,28 @@ impl State {
         }
     }
 
+    /// The undo journal on disk (undo.json, owner-only): the newest 500 changes, so
+    /// "undo that" still works after the broker restarts.
+    fn save_undo(&self) {
+        use std::os::unix::fs::OpenOptionsExt;
+        let start = self.undo.len().saturating_sub(500);
+        let path = self.dir.join("undo.json");
+        let tmp = path.with_extension("json.tmp");
+        let ok = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, &serde_json::to_vec(&self.undo[start..]).unwrap_or_default()));
+        if ok.is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
+    }
+
+    /// Read the journal back, keeping only entries that stay in the owner's home and
+    /// SIOS's snapshots (a changed file can't point undo anywhere else).
+    fn load_undo(dir: &Path, root: &Path) -> Vec<(String, String, tools::Undo)> {
+        let all: Vec<(String, String, tools::Undo)> = std::fs::read(dir.join("undo.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        all.into_iter().filter(|(_, _, u)| tools::undo_is_sane(u, &root, dir)).collect()
+    }
+
     /// Undo everything a goal changed, newest first.
     fn undo_goal(&mut self, goal: &str) -> Result<Value, String> {
         let mut n = 0;
@@ -2216,6 +2242,7 @@ impl State {
         }
         keep.reverse();
         self.undo = keep;
+        self.save_undo();
         let _ = self.meta.save();
         Ok(json!({ "undone": n, "errors": errors }))
     }
@@ -2381,6 +2408,26 @@ mod tests {
         assert_eq!(r.st.agents.get("agent:coder").unwrap().lease_until, until + 3600);
         r.owner("agents.lease", json!({ "id": "agent:coder", "hours": 8, "add": true }));
         assert!(r.st.agents.get("agent:coder").unwrap().lease_until <= now() + 8 * 3600);
+    }
+
+    #[test]
+    fn the_undo_journal_survives_a_restart_and_a_changed_file_cant_point_it_elsewhere() {
+        let r = rig();
+        let (dir, root) = (r._dirs.0.path().to_path_buf(), r._dirs.1.path().canonicalize().unwrap());
+        let mut st = r.st;
+        let inside = root.join("Downloads/deck.txt");
+        st.undo.push(("op1".into(), "g1".into(), tools::Undo::MoveBack { now: root.join("Documents/deck.txt"), was: inside.clone(), rel_now: "Documents/deck.txt".into(), rel_was: "Downloads/deck.txt".into() }));
+        st.undo.push(("op2".into(), "g1".into(), tools::Undo::Adapter { tool: "settings.set_volume".into(), args: json!({ "level": 40 }) }));
+        st.save_undo();
+        // someone edits undo.json: a restore onto a file outside the home, an unknown adapter
+        let mut all: Vec<Value> = serde_json::from_slice(&std::fs::read(dir.join("undo.json")).unwrap()).unwrap();
+        all.push(json!(["op3", "g1", { "Restore": { "real": "/etc/passwd", "backup": dir.join("snapshots/x/before") } }]));
+        all.push(json!(["op4", "g1", { "Adapter": { "tool": "apps.remove", "args": { "app": "firefox" } } }]));
+        all.push(json!(["op5", "g1", { "Remove": { "real": root.join("../outside") } }]));
+        std::fs::write(dir.join("undo.json"), serde_json::to_vec(&all).unwrap()).unwrap();
+        let again = State::open(&dir, &root).unwrap();
+        let ops: Vec<&str> = again.undo.iter().map(|(o, _, _)| o.as_str()).collect();
+        assert_eq!(ops, ["op1", "op2"], "kept what's sane, dropped the rest");
     }
 
     // ---- C1: connectors

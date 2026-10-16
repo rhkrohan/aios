@@ -11,6 +11,11 @@ use serde_json::json;
 
 use crate::capd::Capd;
 
+/// Spotting one stable preference in recent goals (llm/prompts/pattern-v1.txt).
+pub const PATTERN: &str = "You look at what an assistant did for its owner recently and decide whether ONE stable preference clearly shows up at least twice (where things go, how they like things done). Never anything about passwords, health or money amounts. If nothing is clear, found=false.";
+/// The memory simulation's answer step (llm/prompts/answer-from-memory-v1.txt).
+pub const ANSWER: &str = "Answer the owner's question in a few words, using only these memories (most relevant first). If they disagree, say which one you went with.";
+
 /// Swaps real names and emails for placeholders on the way to the model, and back on the way out.
 #[derive(Default, Clone)]
 pub struct Redactor {
@@ -174,7 +179,7 @@ pub fn find_pattern(model: &crate::model::Model, eps: &[String]) -> Option<serde
     });
     let v = model
         .structured(
-            "You look at what an assistant did for its owner recently and decide whether ONE stable preference clearly shows up at least twice (where things go, how they like things done). Never anything about passwords, health or money amounts. If nothing is clear, found=false.",
+            PATTERN,
             &format!("RECENT GOALS (oldest first)\n{}", eps.join("\n")),
             "pattern",
             schema,
@@ -186,7 +191,7 @@ pub fn find_pattern(model: &crate::model::Model, eps: &[String]) -> Option<serde
 /// For the memory simulation: answer a question only from the memories a briefing would hold.
 pub fn answer_from(model: &crate::model::Model, question: &str, memories: &[String]) -> Result<String, String> {
     model.text(
-        "Answer the owner's question in a few words, using only these memories (most relevant first). If they disagree, say which one you went with.",
+        ANSWER,
         &format!("WHAT I REMEMBER\n{}\n\nQUESTION: {question}", memories.join("\n")),
     )
 }

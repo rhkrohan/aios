@@ -49,6 +49,9 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("files.organize", "{moves: [{from, to}]} change, undoable: move many files in one step; end each folder destination with / (\"Downloads/Finance/\"), folders are created"),
     ("files.copy", "{from, to} change, undoable: copy a file exactly; end `to` with / to copy into a folder"),
     ("files.trash", "{path} change, undoable: move a file or folder to the Trash"),
+    ("files.mkdir", "{path} change, undoable: make a folder (and any missing parents)"),
+    ("files.restore", "{path} change, undoable: put a file back from the Trash where it was (path is its Trash path)"),
+    ("files.delete", "{path} can't be undone, ALWAYS asks the owner: delete for good, only something already in the Trash"),
     ("mail.send", "{to: [emails], subject, body, attach?} can't be undone, ALWAYS asks the owner first"),
     ("apps.open", "{app} shows something: open files, browser, mail, settings, terminal, store, security, goals or activity"),
     ("files.show", "{path} shows something: open a folder in Files"),
@@ -61,7 +64,7 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("settings.set_volume", "{level: 0-100} change, undoable: sound volume"),
     ("settings.set_brightness", "{level: 0-100} change, undoable: screen brightness"),
     ("settings.dnd", "{on: true|false} change, undoable: Do Not Disturb"),
-    ("settings.set_wallpaper", "{name: dusk|lake} change, undoable"),
+    ("settings.set_wallpaper", "{name: dusk|lake|tunnel} change, undoable"),
     ("apps.close", "{app} change: close an app (unsaved work in it can be lost)"),
     ("apps.focus", "{app} shows something: bring an app to the front"),
     ("apps.arrange", "{left, right} shows something: two apps side by side"),
@@ -73,6 +76,9 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("memory.save", "{text, kind: fact|preference|person, group: People|Habits|Work|Personal|Finance} change, undoable: remember something the owner said; never passwords or keys"),
     ("memory.forget", "{id} change, undoable: forget one memory (ids are shown in WHAT I REMEMBER)"),
     ("people.resolve", "{query} read: find people by name or role with their emails"),
+    ("apps.list", "{} read: which apps have windows open now"),
+    ("network.list", "{} read: network devices and the Wi-Fi networks around"),
+    ("system.state", "{} read: volume, brightness, look, wallpaper and network right now"),
 ];
 
 pub fn build(root: &Path, state: &Path, request: &str) -> Briefing {

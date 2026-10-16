@@ -63,14 +63,14 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `settings.set_volume` | level 0 to 100 | Change | Shell | Sound volume | `wpctl set-volume @DEFAULT_AUDIO_SINK@` (M6) |
 | `settings.set_brightness` | level 0 to 100 | Change | Shell | Screen brightness | D-Bus `org.kde.ScreenBrightness` (M6). Fails cleanly when there's no adjustable screen |
 | `settings.set_theme` | theme: light or dark | Change | Shell | Light or dark desktop | `plasma-apply-lookandfeel` with the SIOS looks (M6) |
-| `settings.set_wallpaper` | name: dusk or lake | Change | Shell | Wallpaper | `plasma-apply-wallpaperimage` (M6) |
+| `settings.set_wallpaper` | name: dusk, lake or tunnel | Change | Shell | Wallpaper | `plasma-apply-wallpaperimage` (M6) |
 | `settings.dnd` | on: true or false | Change | Real (A3) | Do Not Disturb | `kwriteconfig6 --notify` on plasmanotifyrc `DoNotDisturb/Until` (applied live, seen on the VM) |
 
 ## network: connections
 
 | Tool | Arguments | Risk | Status | What it does | On the SIOS image |
 | --- | --- | --- | --- | --- | --- |
-| `network.list` | none | Read | Not yet | Connections and nearby Wi-Fi networks | `nmcli` (M6) |
+| `network.list` | none | Read | Image (capd adapter) | Connections and nearby Wi-Fi networks | `nmcli` (M6) |
 | `network.connect_wifi` | ssid | Change | Shell | Joins a Wi-Fi network. Passwords are never a model argument | `nmcli device wifi connect` (M6) |
 | `network.wifi_power` | on: true or false | Change | Shell | Wi-Fi on or off | `nmcli radio wifi` (M6) |
 | `network.bluetooth_power` | on: true or false | Change | Real (A3) | Bluetooth on or off | BlueZ `Adapter1.Powered` with busctl; says plainly when there's no Bluetooth |
@@ -79,7 +79,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 
 | Tool | Arguments | Risk | Status | What it does | On the SIOS image |
 | --- | --- | --- | --- | --- | --- |
-| `system.state` | none | Read | Not yet | The computer right now: volume, brightness, theme, network, battery, Do Not Disturb, the focused app | Collected from the adapters above (M6) |
+| `system.state` | none | Read | Image (capd adapter) | The computer right now: volume, brightness, theme, wallpaper, network (battery and the focused app come with L1) | Collected from the adapters above (M6) |
 | `system.notify` | text | Read | Shell | A short notification for the owner | `org.freedesktop.Notifications` (M6) |
 | `system.lock` | none | Change | Shell | Locks the screen | `org.freedesktop.ScreenSaver.Lock` (M6) |
 | `system.remind` | minutes 1 to 1440, text | Change | Real (A3) | Reminds the owner later | A `systemd-run --user` timer that sends a notification; undo cancels the timer (seen on the VM) |
