@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-16: D101, D106 and D107 accepted: the owner approved the agent Workspace design (Live, Review, Desktop, Places).
 - 2026-10-16: D107 (proposed): the agent Workspace gets Review (diff, line comments back to the agent, open its folder or editor, run its tests, approve and merge) and Desktop (the agent's own headless desktop in its sandbox, shown live; the owner can take control) tabs. Owner's request; mockup updated.
 - 2026-10-16: Doc 21: agent pets and workflow (review and merge, replies, pause freezes, schedules, hand-off), Codex, Cursor and Gemini as agent brains, the agent Workspace layout and Places (owner's folders mapped into an agent's workspace), four waves of system tools, and the MCP store (Store page, OAuth, local servers). D100 to D106 proposed; owner approved.
 - 2026-10-16: Doc 20, practical daily use: gap audit plus research, 10 gaps ranked, milestones P-A (fast and honest on day one) to P-D; D95 Reflex, D96 first-run setup, D97 terminal snapshots, D98 Activity timeline, D99 cloud routing asks until the owner chooses. Owner approved.
