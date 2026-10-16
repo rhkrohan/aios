@@ -67,6 +67,7 @@ docs/plan/16-tool-catalog.md      every AI tool: risk, status, image backend
 docs/plan/17-security-engine.md   security engine: Stop, leases, sentinel, egress, confinement (D40-D55)
 docs/plan/18-agents-and-connectors.md  agents with workspaces, proactive SIOS, Memory, MCP store (D58-D84)
 docs/plan/19-machine-and-model.md     every abstraction and terminal command, plan v2, the SIOS model (D88-D94)
+docs/plan/20-practical-daily-use.md   biggest gaps for daily use and the order to close them (D95-D99)
 docs/plan/changelog.md            plan history
 docs/phases/phase-N.md            tasks and gates per phase
 

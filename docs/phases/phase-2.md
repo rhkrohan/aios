@@ -66,6 +66,8 @@ Agents and connectors track (2026-10-15 plan, D58 to D84, `docs/plan/18-agents-a
 - [x] L2 Terminal (D89): command catalog generated at image build for every program (2,343 on the image); terminal.read and terminal.run (words or pipelines, sandboxed, risk per program, subcommand and flag) (built and checked on the VM with a test broker; next: more reviewed rules, tldr examples, picking the relevant commands for each briefing)
 - [ ] L3 Workflows (D90 to D92): plan v2 typed graph, parallel executor, one approval with dry run and lease, taint rules, recipes and Reflex
 - [ ] L4 The SIOS model (D93, D94): bake-off, export.py, scenario generator, eval set, first SFT run, llama-server unit
+- [ ] P-A Fast, honest, usable on day one (doc 20): Reflex, first-run setup, conversations kept, usage meter and cheaper small calls, honest mail
+- [ ] P-B Daily driver: real mail and calendar, Activity timeline with undo receipts, clipboard, screenshots, media, git tools, terminal snapshots
 - [ ] C2 Mail and calendar as connectors (Google Workspace MCP), native IMAP/CalDAV fallback
 - [ ] C3 Connectors tab in the Store; developer mode
 - [ ] A10 Integration, image, full gate
