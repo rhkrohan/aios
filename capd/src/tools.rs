@@ -179,6 +179,10 @@ pub fn sources_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
 /// Every path a call touches, including each move inside files.organize.
 pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
     let mut out: Vec<&str> = spec.path_args.iter().filter_map(|a| args.get(*a).and_then(|v| v.as_str())).collect();
+    // the whole home unless a folder is named: a pass for one folder can't look at all of it
+    if (spec.name == "disk.usage" && out.is_empty()) || spec.name == "trash.list" || spec.name == "trash.empty" {
+        out.push("");
+    }
     if spec.name == "files.organize" {
         for m in args.get("moves").and_then(|v| v.as_array()).into_iter().flatten() {
             out.extend(["from", "to"].iter().filter_map(|k| m.get(*k).and_then(|v| v.as_str())));
@@ -193,6 +197,10 @@ pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
 /// undone by setting them back. Not reading a file's contents (that text can go
 /// to an online model), not joining a Wi-Fi network (it decides where all
 /// traffic goes), never a file change, nothing irreversible, nothing sent out.
+/// Tools that ask the owner every time, whoever calls and whatever role or rule they hold:
+/// the clipboard, the screen, the microphone, opening things and devices (security review).
+pub const ALWAYS_ASK: &[&str] = &["clipboard.read", "clipboard.write", "screen.capture", "files.open", "web.open", "audio.mic_mute", "bluetooth.connect", "reminders.cancel"];
+
 pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     // looking up
     "files.list", "files.find", "files.show", "files.preview", "apps.list", "apps.open", "apps.focus", "apps.arrange",
@@ -206,7 +214,7 @@ pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     // never audio.mic_mute: unmuting the microphone is the owner's to approve (W1 security review)
     // everyday (wave 2): look-ups and small undoable steps; the clipboard, screenshots, web
     // pages, opening files and emptying the Trash always ask
-    "media.now_playing", "media.control", "apps.search", "reminders.list", "reminders.cancel", "trash.list", "disk.usage",
+    "media.now_playing", "media.control", "apps.search", "reminders.list", "trash.list", "disk.usage",
 ];
 
 pub fn acts_without_asking(name: &str) -> bool {
@@ -277,7 +285,18 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
     let done = |result: Value| Outcome { result, undo: None, read: vec![], wrote: None };
     // on SIOS, system tools change the real system (M6); files and mail stay below
     if crate::adapters::enabled() {
-        if let Some(r) = crate::adapters::run(tool, args, env.root) {
+        if let Some(mut r) = crate::adapters::run(tool, args, env.root) {
+            // a screenshot is the owner's: labelled Sensitive (never sent or read by an AI), and
+            // its name isn't given back to the AI (security review)
+            if tool == "screen.capture" {
+                if let Ok(d) = r.as_mut() {
+                    if let Some(p) = d.result.get("saved").and_then(|v| v.as_str()).map(String::from) {
+                        meta.files.entry(p).or_default().labels.push("Sensitive".into());
+                        let _ = meta.save();
+                        d.result = json!({ "saved": "a screenshot in Pictures/Screenshots (labelled Sensitive)" });
+                    }
+                }
+            }
             // an adapter may name an undo-only action ("__tool"), which no AI can call
             return r.map(|d| Outcome {
                 result: d.result,
@@ -718,19 +737,31 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
         "trash.empty" => {
             let dir = env.root.join(TRASH);
             let mut n = 0;
+            let mut kept = 0;
             for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
                 let Ok(m) = e.path().symlink_metadata() else { continue };
+                // what trash.list doesn't name (labelled Sensitive, or from an off-limits place)
+                // isn't deleted by an AI either: the owner empties that themselves
+                let rel = format!("{TRASH}/{}", e.file_name().to_string_lossy());
+                let from = meta.files.get(&rel).and_then(|x| x.trashed_from.clone());
+                if meta.labels_at(&rel).iter().any(|l| l == "Sensitive") || from.as_deref().is_some_and(|f| meta.is_blocked(f).is_some() || meta.labels_at(f).iter().any(|l| l == "Sensitive")) {
+                    kept += 1;
+                    continue;
+                }
                 // links are removed as links; nothing outside the Trash is touched
                 let r = if m.is_dir() { std::fs::remove_dir_all(e.path()) } else { std::fs::remove_file(e.path()) };
                 if r.is_ok() {
                     n += 1;
                 }
             }
-            meta.files.retain(|p, _| !(p == TRASH || p.starts_with(&format!("{TRASH}/"))));
-            Ok(done(json!({ "deleted": n })))
+            meta.files.retain(|p, _| !(p.starts_with(&format!("{TRASH}/")) && !env.root.join(p).symlink_metadata().is_ok()));
+            Ok(done(json!({ "deleted": n, "left_for_you": kept })))
         }
         "disk.usage" => {
             let r = res(env.root, args.get("path").and_then(|v| v.as_str()).unwrap_or(""))?;
+            if meta.labels_at(&r.rel).iter().any(|l| l == "Sensitive") || meta.is_blocked(&r.rel).is_some() {
+                return Err(format!("{} is off limits or labelled Sensitive", r.rel));
+            }
             if !r.real.is_dir() {
                 return Err(format!("{} isn't a folder", if r.rel.is_empty() { "your home" } else { &r.rel }));
             }
@@ -823,9 +854,9 @@ mod tests {
         for t in ACTS_WITHOUT_ASKING {
             let s = spec(t).unwrap_or_else(|| panic!("{t} isn't a tool"));
             assert!(!s.egress && s.level != Level::Irreversible, "{t}");
-            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "keyboard.layout", "media.control", "reminders.cancel"].contains(t), "{t}: only look-ups and settings");
+            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "keyboard.layout", "media.control"].contains(t), "{t}: only look-ups and settings");
         }
-        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send", "audio.mic_mute", "bluetooth.connect", "clipboard.read", "clipboard.write", "screen.capture", "web.open", "files.open", "trash.empty"] {
+        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send", "audio.mic_mute", "bluetooth.connect", "clipboard.read", "clipboard.write", "screen.capture", "web.open", "files.open", "trash.empty", "reminders.cancel"] {
             assert!(!acts_without_asking(t), "{t} must ask");
         }
     }

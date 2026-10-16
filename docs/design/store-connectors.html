@@ -1,0 +1,102 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Store Connectors</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Jost:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--surface:#fff;--s2:#f7f7f5;--s3:#efefeb;--line:#e4e4df;--line2:#cfcfc9;--fg:#1d1d1f;--fg2:#5c5c59;--fg3:#8b8b86;--acc:#2f5d8a;--accSoft:#e8eef5;--warn:#b0532f;--danger:#9a4b4b;--ok:#4d7a52;--okSoft:#e8f1e9;--side:#f4f4f1}
+body{margin:0;background:#e9e9e4;color:var(--fg);font-family:"Instrument Sans",sans-serif}
+.blk{padding:24px 40px}h1.top{font-family:Jost,sans-serif;font-size:32px;margin:0}h2.sec{font-family:Jost,sans-serif;font-size:22px;margin:0 0 6px}
+p.note{margin:0 0 16px;color:var(--fg2);font-size:14px;max-width:960px;line-height:1.45}
+.win{width:1240px;height:800px;box-sizing:border-box;background:var(--side);border-radius:14px;overflow:hidden;border:1px solid #dcdcd6;display:flex;box-shadow:0 20px 50px rgba(0,0,0,.12)}
+nav{width:240px;flex-shrink:0;padding:26px 16px 18px;display:flex;flex-direction:column;gap:2px;box-sizing:border-box}
+nav .t{font-family:Jost,sans-serif;font-size:30px;font-weight:600;padding:0 10px 16px}
+nav a{display:flex;align-items:center;gap:12px;padding:7px 10px;border-radius:10px;font-size:14px;color:var(--fg)}
+nav a.on{background:var(--acc);color:#fff;font-weight:600}
+nav a i{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-style:normal;color:#fff;font-size:14px}
+nav a.on i{background:rgba(255,255,255,.18)!important}
+main{flex:1;background:var(--surface);border-left:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column}
+.head{padding:28px 36px 10px}
+.h1{font-family:Jost,sans-serif;font-size:34px;font-weight:600}
+.sub{color:var(--fg2);font-size:15px;margin-top:4px}
+.search{margin-top:16px;height:40px;border:1px solid var(--line2);border-radius:12px;display:flex;align-items:center;padding:0 14px;color:var(--fg3);font-size:14px;width:520px}
+.chips{display:flex;gap:8px;margin-top:14px}.chip{padding:6px 14px;border-radius:16px;border:1px solid var(--line2);font-size:13px;color:var(--fg2)}.chip.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.grid{padding:16px 36px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.card{border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:11px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex-shrink:0}
+.nm{font-weight:600;font-size:15px}.pub{font-size:12px;color:var(--fg3)}
+.ver{display:inline-flex;align-items:center;gap:3px;color:var(--acc);font-weight:600;font-size:11px}
+.ab{font-size:13px;color:var(--fg2);line-height:1.4;min-height:36px}
+.risk{display:flex;gap:6px;flex-wrap:wrap}
+.r{font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px}
+.r.read{background:var(--okSoft);color:var(--ok)}.r.chg{background:var(--accSoft);color:var(--acc)}.r.send{background:#f6ece7;color:var(--warn)}.r.x{background:#f6e4e4;color:var(--danger)}.r.net{background:var(--s3);color:var(--fg2)}
+.btn{display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:16px;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}
+.ok{color:var(--ok);font-size:12px;font-weight:600}
+.page{padding:26px 36px;display:flex;gap:26px;overflow:hidden}
+.box{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.bt{font-weight:600;font-size:14px;margin-bottom:10px}
+.tool{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--s3);font-size:13px}
+.tool:first-of-type{border-top:none}
+.mono{font-family:"JetBrains Mono",monospace;font-size:12px}
+.who{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px}
+.tog{margin-left:auto;width:34px;height:20px;border-radius:10px;background:var(--line2);position:relative}.tog:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#fff}
+.tog.on{background:var(--acc)}.tog.on:after{left:16px}
+.pet{width:24px;height:24px;border-radius:12px;position:relative;flex-shrink:0}.pet:before,.pet:after{content:"";position:absolute;top:10px;width:3px;height:3px;border-radius:2px;background:#1d1d1f}.pet:before{left:7px}.pet:after{right:7px}
+.warnbox{border:1px solid #e9c9b9;background:#fbf3ee;border-radius:12px;padding:12px 14px;font-size:13px;color:var(--fg2);line-height:1.45}
+</style></head><body>
+<div class="blk"><h1 class="top">Store: Connectors</h1><p class="note" style="margin-top:6px">Mockup only, for the owner's approval (C3, D105). Names and tools are examples. Connectors are services and tools an AI can use (MCP servers). Each one says who makes it, where it connects, and what each of its tools can do, before anything is installed. Installing and choosing who can use it ask for your password.</p></div>
+
+<div class="blk"><h2 class="sec">1. Browse</h2><p class="note">Search and categories like the app store. Every card shows the publisher, a Verified badge when SIOS checked it, and a risk summary of its tools. Local connectors run on this computer in a locked container; online ones talk to one service you can see.</p>
+<div class="win">
+  <nav><div class="t">Store</div>
+    <a><i style="background:#3b74bf">◎</i>Discover</a><a><i style="background:#2e8d5c">▣</i>Installed</a><a><i style="background:#dc7637">↻</i>Updates</a><a class="on"><i style="background:#c1457d">⏚</i>Connectors</a>
+  </nav>
+  <main>
+    <div class="head"><div class="h1">Connectors</div><div class="sub">Give your AIs safe access to services and tools. SIOS checks every call they make.</div>
+      <div class="search">Search connectors: GitHub, calendar, notes…</div>
+      <div class="chips"><span class="chip on">All</span><span class="chip">Developer</span><span class="chip">Work</span><span class="chip">Mail and calendar</span><span class="chip">Notes and docs</span><span class="chip">On this computer</span></div>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="row"><div class="logo">GH</div><div><div class="nm">GitHub</div><div class="pub">GitHub, Inc. <span class="ver">✓ Verified</span></div></div></div><div class="ab">Read your pull requests, issues, notifications and files.</div><div class="risk"><span class="r read">9 read</span><span class="r net">api.githubcopilot.com</span></div><div class="row"><span class="ok">✓ Installed</span><span style="flex:1"></span><span class="btn">Open</span></div></div>
+      <div class="card"><div class="row"><div class="logo" style="color:#5e6ad2">L</div><div><div class="nm">Linear</div><div class="pub">Linear Orbit <span class="ver">✓ Verified</span></div></div></div><div class="ab">See and update your issues and projects.</div><div class="risk"><span class="r read">6 read</span><span class="r chg">3 change</span><span class="r net">mcp.linear.app</span></div><div class="row"><span class="pub">Sign in with your browser</span><span style="flex:1"></span><span class="btn p">Install</span></div></div>
+      <div class="card"><div class="row"><div class="logo">N</div><div><div class="nm">Notion</div><div class="pub">Notion Labs <span class="ver">✓ Verified</span></div></div></div><div class="ab">Search and read your pages and databases.</div><div class="risk"><span class="r read">4 read</span><span class="r chg">2 change</span><span class="r net">mcp.notion.com</span></div><div class="row"><span class="pub">Sign in with your browser</span><span style="flex:1"></span><span class="btn p">Install</span></div></div>
+      <div class="card"><div class="row"><div class="logo" style="color:#ea4335">M</div><div><div class="nm">Gmail</div><div class="pub">Google <span class="ver">✓ Verified</span></div></div></div><div class="ab">Find, read and draft email. Sending always asks.</div><div class="risk"><span class="r read">5 read</span><span class="r chg">1 change</span><span class="r send">1 sends</span><span class="r net">gmail.googleapis.com</span></div><div class="row"><span class="pub">Coming next</span><span style="flex:1"></span><span class="btn" style="opacity:.5">Install</span></div></div>
+      <div class="card"><div class="row"><div class="logo" style="color:#362d59">S</div><div><div class="nm">Sentry</div><div class="pub">Functional Software <span class="ver">✓ Verified</span></div></div></div><div class="ab">Look at errors and performance in your projects.</div><div class="risk"><span class="r read">7 read</span><span class="r net">mcp.sentry.dev</span></div><div class="row"><span class="pub">Sign in with your browser</span><span style="flex:1"></span><span class="btn p">Install</span></div></div>
+      <div class="card"><div class="row"><div class="logo" style="background:var(--s2)">⌘</div><div><div class="nm">Git (local)</div><div class="pub">MCP project <span class="ver">✓ Verified</span></div></div></div><div class="ab">Runs on this computer in a locked container with no internet.</div><div class="risk"><span class="r read">5 read</span><span class="r chg">2 change</span><span class="r net">no internet</span></div><div class="row"><span class="pub">On this computer</span><span style="flex:1"></span><span class="btn p">Install</span></div></div>
+    </div>
+  </main>
+</div></div>
+
+<div class="blk"><h2 class="sec">2. A connector's page</h2><p class="note">Before installing: who makes it, the one address it talks to, and every tool with what it can do. After: who can use it (SIOS, your paired AI apps, your agents), each on its own switch. If the service changes a tool, SIOS switches the connector off and shows what changed, so it can't quietly gain powers.</p>
+<div class="win">
+  <nav><div class="t">Store</div>
+    <a><i style="background:#3b74bf">◎</i>Discover</a><a><i style="background:#2e8d5c">▣</i>Installed</a><a><i style="background:#dc7637">↻</i>Updates</a><a class="on"><i style="background:#c1457d">⏚</i>Connectors</a>
+  </nav>
+  <main>
+    <div class="page">
+      <div style="flex:1">
+        <div class="row" style="gap:16px;margin-bottom:18px"><div class="logo" style="width:64px;height:64px;font-size:26px;border-radius:16px;color:#5e6ad2">L</div><div><div class="h1" style="font-size:30px">Linear</div><div class="pub" style="font-size:13px">Linear Orbit <span class="ver">✓ Verified by SIOS</span> · talks only to <span class="mono">mcp.linear.app</span></div></div><span style="flex:1"></span><span class="btn p">Install and sign in</span></div>
+        <div class="box"><div class="bt">What its tools can do</div>
+          <div class="tool"><span class="r read">Reads</span><span class="mono">linear.issues</span><span style="color:var(--fg2)">List and search your issues</span></div>
+          <div class="tool"><span class="r read">Reads</span><span class="mono">linear.issue</span><span style="color:var(--fg2)">One issue with its comments</span></div>
+          <div class="tool"><span class="r read">Reads</span><span class="mono">linear.projects</span><span style="color:var(--fg2)">Your projects and their status</span></div>
+          <div class="tool"><span class="r chg">Changes</span><span class="mono">linear.create_issue</span><span style="color:var(--fg2)">Make a new issue (asks you)</span></div>
+          <div class="tool"><span class="r chg">Changes</span><span class="mono">linear.update_issue</span><span style="color:var(--fg2)">Change an issue's status or owner (asks you)</span></div>
+          <div class="tool"><span class="r chg">Changes</span><span class="mono">linear.comment</span><span style="color:var(--fg2)">Comment on an issue (asks you)</span></div>
+        </div>
+        <div class="warnbox">What a service answers is information, never instructions: SIOS marks it as untrusted, and once an AI has read something on this computer, every call to a service asks you first.</div>
+      </div>
+      <div style="width:360px">
+        <div class="box"><div class="bt">Who can use it</div>
+          <div class="who"><div class="logo" style="width:24px;height:24px;font-size:11px;border-radius:7px">S</div>SIOS (your assistant)<span class="tog on"></span></div>
+          <div class="who"><div class="logo" style="width:24px;height:24px;font-size:11px;border-radius:7px;color:#d97757">C</div>Claude Desktop (paired)<span class="tog"></span></div>
+          <div class="who"><div class="pet" style="background:#a9cdff"></div>Pip (Codex agent)<span class="tog on"></span></div>
+          <div class="who"><div class="pet" style="background:#c4bbff"></div>Docs (Claude Code agent)<span class="tog"></span></div>
+          <div style="font-size:12px;color:var(--fg3);margin-top:6px">Each use by an app or agent asks you, unless its role already allows it. Changes ask for your password.</div>
+        </div>
+        <div class="box"><div class="bt">Sign-in</div><div style="font-size:13px;color:var(--fg2);line-height:1.45">You sign in with Linear in your browser. SIOS keeps the sign-in encrypted; no AI ever sees it.</div></div>
+        <div class="box" style="border-color:#e9c9b9"><div class="bt" style="color:var(--warn)">If it changes</div><div style="font-size:13px;color:var(--fg2);line-height:1.45">Example: <span class="mono">linear.update_issue</span> now also deletes issues. SIOS switched Linear off until you look at the change.</div><div class="row" style="margin-top:10px"><span class="btn">See the change</span><span class="btn p">Allow the new version</span></div></div>
+      </div>
+    </div>
+  </main>
+</div></div>
+</body></html>

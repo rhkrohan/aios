@@ -159,7 +159,11 @@ pub fn evaluate(f: &Facts) -> (Decision, Vec<Check>, String) {
         add!("taint", Res::Skip, "Nothing leaves the computer.".into());
         add!("flow", Res::Skip, "Nothing leaves the computer.".into());
     }
-    // 8. the action's own risk
+    // 8. the action's own risk; some tools ask every time, whatever role or rule the caller has
+    if crate::tools::ALWAYS_ASK.contains(&f.tool) {
+        add!("always", Res::Ask, "This always asks you: it touches your clipboard, screen, microphone or devices, or opens something.".into());
+        asking.push("it always asks".into());
+    }
     match level {
         Level::Irreversible => {
             add!("level", Res::Ask, "Can't be undone, so it always asks.".into());

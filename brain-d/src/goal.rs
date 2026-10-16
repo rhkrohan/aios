@@ -580,7 +580,10 @@ fn found_text(result: &Value) -> String {
 fn no_send(plan: &mut Plan) {
     plan.look.clear();
     let before = plan.steps.len();
-    plan.steps.retain(|s| s.tool != "mail.send");
+    // nothing that sends out: mail, web pages (an address can carry data), and every connector
+    // tool (anything not one of SIOS's own tools talks to a service) (security review)
+    let own = |t: &str| crate::briefing::TOOLS.iter().any(|(n, _)| *n == t);
+    plan.steps.retain(|s| s.kind != "tool" || (own(&s.tool) && s.tool != "mail.send" && s.tool != "web.open"));
     if plan.steps.len() != before {
         plan.reply = format!("{} (I left out sending anything: ask me for that separately.)", plan.reply).trim().to_string();
     }
@@ -667,9 +670,9 @@ mod look_tests {
     fn plans_after_disk_text_never_send() {
         let step = |t: &str| crate::plan::Step { kind: "tool".into(), tool: t.into(), args_json: "{}".into(), sources: vec![], instruction: String::new(), why: String::new() };
         let mut p: crate::plan::Plan = serde_json::from_value(serde_json::json!({ "understanding": "", "steps": [], "reply": "Done", "question": "", "undo_last": false, "manual": [] })).unwrap();
-        p.steps = vec![step("files.move"), step("mail.send")];
+        p.steps = vec![step("files.move"), step("mail.send"), step("web.open"), step("github.prs")];
         super::no_send(&mut p);
-        assert_eq!(p.steps.len(), 1);
+        assert_eq!(p.steps.len(), 1, "mail, web pages and connector tools all go");
         assert!(p.reply.contains("left out sending"));
     }
 

@@ -299,6 +299,20 @@ impl Registry {
         before != self.installed.len()
     }
 
+    /// An identity is gone: no connector is given to it any more (a new one with the same
+    /// id starts from nothing; security review).
+    pub fn forget_ai(&mut self, ai: &str) {
+        let mut changed = false;
+        for i in self.installed.iter_mut() {
+            let before = i.ais.len();
+            i.ais.retain(|a| a != ai);
+            changed |= i.ais.len() != before;
+        }
+        if changed {
+            self.save();
+        }
+    }
+
     pub fn set_ais(&mut self, id: &str, ais: Vec<String>) -> Result<(), String> {
         let i = self.installed.iter_mut().find(|i| i.id == id).ok_or("that connector isn't installed")?;
         i.ais = ais;

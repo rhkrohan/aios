@@ -356,6 +356,11 @@ impl Iam {
             .collect()
     }
 
+    /// Does one of its roles deny this outright?
+    pub fn denies(&self, principal: &str, a: &Action) -> bool {
+        self.roles_of(principal).iter().any(|r| r.statements.iter().any(|s| s.effect == Effect::Deny && deny_covers(s, a)))
+    }
+
     pub fn decide(&self, principal: &str, a: &Action) -> Decided {
         if principal == OWNER {
             return Decided { result: Res::Pass, detail: "You did this yourself. Roles limit AIs, not you.".into() };

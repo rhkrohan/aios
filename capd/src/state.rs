@@ -658,6 +658,7 @@ impl State {
                             }
                         }
                         self.iam.pairings.retain(|_, v| v != &id);
+                        self.connectors.forget_ai(&id);
                         if let Some(Ok((worktree, mine))) = files {
                             remove_agent_folder(&self.root, &worktree);
                             let _ = std::fs::remove_dir_all(&mine);
@@ -1088,6 +1089,7 @@ impl State {
                     return Err("no such AI".into());
                 }
                 self.iam.save();
+                self.connectors.forget_ai(&id);
                 self.record(&me, "iam.remove", &id, "you", &format!("you removed {id}"), &json!([]));
                 Ok(json!({ "removed": id }))
             }
@@ -1459,7 +1461,7 @@ impl State {
         let mut iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
         // a connection the owner gave this AI (Store > Connectors, "who can use it"): its tools
         // are allowed for it, and ask each time unless one of its roles already allows them
-        if iam.result == crate::policy::Res::Fail && cap.principal != crate::iam::SIOS && self.connectors.allows(&tool, &cap.principal).is_ok() {
+        if iam.result == crate::policy::Res::Fail && cap.principal != crate::iam::SIOS && self.connectors.allows(&tool, &cap.principal).is_ok() && !self.iam.denies(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: false }) {
             let name = self.iam.get(&cap.principal).map(|i| i.name.clone()).unwrap_or_default();
             iam = crate::iam::Decided { result: crate::policy::Res::Ask, detail: format!("You gave {name} this connection; each use asks you.") };
         }
@@ -2376,6 +2378,7 @@ impl State {
         !(cap.uses.is_none_or(|u| u > 100)
             || cap.expires_at.saturating_sub(now()) > 3600
             || cap.tools.iter().any(|t| tools::spec(t).map(|s| s.level == crate::policy::Level::Irreversible || s.egress).unwrap_or(true))
+            || cap.tools.iter().any(|t| tools::ALWAYS_ASK.contains(&t.as_str()))
             || (cap.own && cap.tools.iter().any(|t| t.starts_with("memory.") || t == "people.resolve")))
     }
 
@@ -4132,5 +4135,24 @@ mod tests {
         // a place labelled Sensitive later is dropped at the next run
         r.st.meta.files.insert("Documents/Copy".into(), crate::meta::FileMeta { labels: vec!["Sensitive".into()], ..Default::default() });
         assert_eq!(r.st.agent_place_binds(&a, &w).0.len(), 1);
+    }
+
+    #[test]
+    fn some_tools_ask_every_time_whoever_calls() {
+        let mut r = rig();
+        r.st.iam.register("agent:helper", "Helper", "agent", "you", crate::iam::OWNER, vec![crate::iam::ACTS_FOR_YOU.into()], 1);
+        for who in ["sios", "agent:helper"] {
+            let t = r.mint(json!({ "principal": who, "tools": ["clipboard.read", "screen.capture", "web.open", "files.open", "media.control"], "paths": [""] }));
+            let dry = |r: &mut Rig, tool: &str, args: Value| r.agent("call", json!({ "cap": t, "tool": tool, "args": args, "dry_run": true }))["ok"]["decision"].as_str().unwrap_or("?").to_string();
+            for (tool, args) in [("clipboard.read", json!({})), ("screen.capture", json!({})), ("web.open", json!({ "url": "https://example.com" })), ("files.open", json!({ "path": "Projects/notes.md" }))] {
+                assert_eq!(dry(&mut r, tool, args), "ask", "{who} {tool}");
+            }
+            assert_eq!(dry(&mut r, "media.control", json!({ "action": "pause" })), "allow", "{who}: a small undoable step");
+        }
+        // a pass for one folder can't look at the whole Trash or home
+        let t = r.mint(json!({ "principal": "sios", "tools": ["trash.list", "disk.usage"], "paths": ["Projects"] }));
+        assert_eq!(r.agent("call", json!({ "cap": t, "tool": "trash.list", "args": {}, "dry_run": true }))["ok"]["decision"], "block");
+        assert_eq!(r.agent("call", json!({ "cap": t, "tool": "disk.usage", "args": {}, "dry_run": true }))["ok"]["decision"], "block");
+        assert_eq!(r.agent("call", json!({ "cap": t, "tool": "disk.usage", "args": { "path": "Projects" }, "dry_run": true }))["ok"]["decision"], "allow");
     }
 }

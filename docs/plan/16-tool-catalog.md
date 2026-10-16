@@ -28,6 +28,8 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 
 ## files: the owner's files
 
+"Always asks" tools (`tools::ALWAYS_ASK`: the clipboard, screenshots, opening files and web pages, the microphone, Bluetooth connections, cancelling reminders) ask the owner every time in the broker's own policy, whoever calls and whatever role or rule they hold.
+
 | Tool | Arguments | Risk | Status | What it does | On the SIOS image |
 | --- | --- | --- | --- | --- | --- |
 | `files.list` | path | Read | Real | Lists a folder: names, kinds, sizes, labels. Hidden files, links and blocked places are left out | Same, over the home folder |
@@ -99,12 +101,12 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `media.control` | action: play, pause, toggle, next, previous | Change | Real (W2) | Controls the media player; play and pause undo each other | MPRIS Player methods |
 | `clipboard.read` | none | Read (asks) | Real (W2) | The clipboard's text, up to 10,000 characters; always asks and only goes in the reply | `wl-paste --type text/plain` with a 20 KB cap |
 | `clipboard.write` | text | Change (asks) | Real (W2) | Puts text on the clipboard; asks (a pasted command could do harm); no undo, so the old text is never stored | `wl-copy`, started detached |
-| `screen.capture` | what: screen, window | Change (asks) | Real (W2) | Saves a screenshot to Pictures/Screenshots; the model never sees it | `spectacle -b -n -f/-a -o` |
-| `web.open` | url | Read, sends (asks) | Real (W2) | Opens a plain https address in the browser; an address can carry data out, so it asks | `xdg-open` in its own `systemd-run` job |
+| `screen.capture` | what: screen, window | Change (asks) | Real (W2) | Saves a screenshot to Pictures/Screenshots, labelled Sensitive; the model never sees it or its name | `spectacle -b -n -f/-a -o` |
+| `web.open` | url | Read, sends (asks) | Real (W2) | Opens a plain https address of a site on the internet (its name must resolve to public addresses; never this computer, the local network or an IP); always asks; a plan made after a look-up never includes it | `xdg-open` in its own `systemd-run` job |
 | `files.open` | path | Read (asks) | Real (W2) | Opens a file with its usual app; refuses anything executable and launchers, scripts, packages | `xdg-open` on a percent-encoded file URL |
 | `apps.search` | query | Read | Real (W2) | Finds installed apps; `apps.open` takes the id | Parses .desktop files (system, Flatpak, the owner's); hidden ones left out |
 | `reminders.list` | none | Read | Real (W2) | Waiting reminders with ids | `systemctl --user list-timers sios-remind-*` |
-| `reminders.cancel` | id | Change | Real (W2) | Cancels one reminder | Stops its timer |
+| `reminders.cancel` | id | Change (asks) | Real (W2) | Cancels one reminder; asks, since it can't be undone | Stops its timer |
 | `trash.list` | none | Read | Real (W2) | What's in SIOS's Trash and where each came from | Reads `~/.Trash` and the labels store |
 | `trash.empty` | none | Irreversible (asks) | Real (W2) | Deletes everything in the Trash for good | Removes `~/.Trash` entries (links as links) |
 | `disk.usage` | path? | Read | Real (W2) | Free space and the biggest folders in a folder | `df -k` plus a capped walk; hidden and off-limits folders left out |

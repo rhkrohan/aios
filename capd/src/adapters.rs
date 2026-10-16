@@ -374,6 +374,24 @@ fn spawn_detached(prog: &str, args: &[&str], stdin: Option<&[u8]>) -> Result<(),
     Ok(())
 }
 
+/// Does every address this name resolves to belong to the public internet?
+fn resolves_public(name: &str) -> bool {
+    use std::net::{IpAddr, ToSocketAddrs};
+    let Ok(addrs) = (name, 443).to_socket_addrs() else { return false };
+    let addrs: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();
+    !addrs.is_empty() && addrs.iter().all(|ip| match ip {
+        IpAddr::V4(v) => {
+            let o = v.octets();
+            !(v.is_loopback() || v.is_private() || v.is_link_local() || v.is_unspecified() || v.is_broadcast() || v.is_multicast() || o[0] == 0 || (o[0] == 100 && (64..128).contains(&o[1])) || (o[0] == 198 && (18..20).contains(&o[1])))
+        }
+        IpAddr::V6(v) => {
+            let s = v.segments();
+            let mapped = v.to_ipv4_mapped().is_some_and(|m| m.is_loopback() || m.is_private() || m.is_link_local() || m.is_unspecified());
+            !(v.is_loopback() || v.is_unspecified() || v.is_multicast() || (s[0] & 0xfe00) == 0xfc00 || (s[0] & 0xffc0) == 0xfe80 || mapped)
+        }
+    })
+}
+
 /// Opened by the desktop as the owner's own click would be, in its own job (nothing of it
 /// stays attached to the broker). `$` is doubled for systemd.
 fn open_detached(target: &str) -> Result<(), String> {
@@ -690,9 +708,16 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             // printer's or router's admin page), and never a bare IP address
             let name = host.split(':').next().unwrap_or("").trim_end_matches('.').to_lowercase();
             let local = name == "localhost" || name.ends_with(".localhost") || name.ends_with(".local") || name.ends_with(".lan") || name.ends_with(".internal") || name.ends_with(".home.arpa") || !name.contains('.');
-            let ip = name.split('.').all(|p| p.chars().all(|c| c.is_ascii_digit())) || host.starts_with('[');
+            // a name's last part has a letter and isn't a hex number (0x7f.0.0.1 is 127.0.0.1 to a browser)
+            let last = name.rsplit('.').next().unwrap_or("");
+            let ip = host.starts_with('[') || !last.chars().any(|c| c.is_ascii_alphabetic()) || last.starts_with("0x") || name.split('.').any(|p| p.starts_with("0x"));
             if local || ip {
                 return Err("only a site on the internet can be opened by name, not this computer, the local network or an IP address".to_string());
+            }
+            // and the name must lead to the internet: one that resolves to this computer or the
+            // local network (localtest.me, nip.io tricks) is refused too (security review)
+            if !resolves_public(&name) {
+                return Err(format!("{name} leads to this computer or the local network (or doesn't resolve), so SIOS won't open it"));
             }
             open_detached(url)?;
             ok(json!({ "opened": url }))
@@ -866,7 +891,7 @@ mod tests {
             std::fs::write(d.path().join(f), "x").unwrap();
             assert!(run("files.open", &json!({ "path": f }), d.path()).unwrap().unwrap_err().contains("run something"), "{f}: only documents, pictures, sound and video");
         }
-        for bad in ["https://localhost/", "https://127.0.0.1/", "https://192.168.1.1/admin", "https://printer.local/", "https://router/", "https://[::1]/", "https://10.0.0.1:631/"] {
+        for bad in ["https://localhost/", "https://127.0.0.1/", "https://192.168.1.1/admin", "https://printer.local/", "https://router/", "https://[::1]/", "https://10.0.0.1:631/", "https://0x7f.0.0.1/", "https://0x7f000001/", "https://1.1.1.1/"] {
             assert!(run("web.open", &json!({ "url": bad }), d.path()).unwrap().is_err(), "{bad}");
         }
         std::fs::write(d.path().join("notes.bin2"), "x").unwrap();
