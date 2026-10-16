@@ -1711,6 +1711,9 @@ impl State {
                 return Err(format!("\"{}\" can't be a place's name (plain letters, digits, - _ ., unique, not the project's)", place.name));
             }
             let real = self.place_folder(&place.from)?;
+            if !crate::runner::place_path_ok(&real) {
+                return Err(format!("{} has a character in its name (: \" ' \\ % $) that can't be given to an agent safely; rename it first", place.from));
+            }
             if out.iter().any(|o| self.place_folder(&o.from).is_ok_and(|r| r.starts_with(&real) || real.starts_with(&r))) {
                 return Err(format!("{} overlaps another place", place.from));
             }
@@ -1763,7 +1766,14 @@ impl State {
             if pl.write && !real.join(".git").is_dir() {
                 snap.push((pl.name.clone(), real.clone()));
             }
-            binds.push((real, dst, pl.write));
+            // a writable git project keeps its .git read-only for the agent: its hooks and config
+            // run as the owner the next time they use git there (security review)
+            let git = real.join(".git");
+            let keep_git = pl.write && git.symlink_metadata().is_ok();
+            binds.push((real, dst.clone(), pl.write));
+            if keep_git {
+                binds.push((git, dst.join(".git"), false));
+            }
         }
         (binds, hide, snap)
     }
@@ -4112,6 +4122,11 @@ mod tests {
         let w = root.join("Agents/coder/site");
         let (binds, hide, snap) = r.st.agent_place_binds(&a, &w);
         assert_eq!(binds, vec![(root.join("Pictures/Brand Kit"), root.join("Agents/coder/brand"), false), (root.join("Documents/Copy"), root.join("Agents/coder/copy"), true)]);
+        // a writable git project: its .git stays read-only inside
+        std::fs::create_dir_all(root.join("Documents/Copy/.git")).unwrap();
+        let (b2, _, s2) = r.st.agent_place_binds(&a, &w);
+        assert!(b2.contains(&(root.join("Documents/Copy/.git"), root.join("Agents/coder/copy/.git"), false)) && s2.is_empty());
+        std::fs::remove_dir_all(root.join("Documents/Copy/.git")).unwrap();
         assert_eq!(hide, vec![root.join("Agents/coder/brand/Private")], "Sensitive inside a place is hidden where the agent sees it");
         assert_eq!(snap, vec![("copy".to_string(), root.join("Documents/Copy"))], "read-and-write without git: snapshotted");
         // a snapshot, a change by the agent, and the owner puts it back

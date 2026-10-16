@@ -29,10 +29,10 @@ pub fn safe_path(p: &Path) -> bool {
 }
 
 /// One of the owner's folders (a place, D106): any name a person gives a folder, spaces
-/// included, but nothing systemd would read as syntax (: " \\ % $) and no "..".
+/// included, but nothing systemd would read as syntax (: " ' \\ % $) and no "..".
 pub fn place_path_ok(p: &Path) -> bool {
     let s = p.to_string_lossy();
-    p.is_absolute() && !s.contains("..") && !s.chars().any(|c| c.is_control() || ":\"\\%$".contains(c))
+    p.is_absolute() && !s.contains("..") && !s.chars().any(|c| c.is_control() || ":\"'\\%$".contains(c))
 }
 
 /// A bind or hide spec for a unit property, quoted so a space is part of the path.
@@ -137,7 +137,7 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
     // its places: the owner's folders, beside its project; inside them, what's off limits is hidden
     for (src, dst, write) in r.places {
         if !place_path_ok(src) || !safe_path(dst) {
-            return Err(format!("{} can't be given to an agent (its name has : \" \\ % or $)", src.display()));
+            return Err(format!("{} can't be given to an agent (its name has : \" ' \\ % or $; rename it to give it)", src.display()));
         }
         a.extend(["-p".into(), format!("{}={}", if *write { "BindPaths" } else { "BindReadOnlyPaths" }, quoted(&format!("{}:{}", d(src), d(dst))))]);
     }
@@ -469,7 +469,7 @@ mod tests {
         assert!(c.contains(&"BindReadOnlyPaths=\"/home/r/Pictures/Brand Kit:/home/r/Agents/coder/brand\"".to_string()));
         assert!(c.contains(&"BindPaths=/home/r/Documents/Copy:/home/r/Agents/coder/copy".to_string()));
         assert!(c.contains(&"InaccessiblePaths=\"-/home/r/Agents/coder/copy/Private notes\"".to_string()));
-        for bad in ["/home/r/a:b", "/home/r/%h", "/home/r/x\"y", "/home/r/$HOME", "/home/r/../etc"] {
+        for bad in ["/home/r/a:b", "/home/r/%h", "/home/r/Rohan's Docs", "/home/r/x\"y", "/home/r/$HOME", "/home/r/../etc"] {
             let pl = vec![(PathBuf::from(bad), PathBuf::from("/home/r/Agents/coder/x"), false)];
             let mut r3 = run(&p, w);
             r3.places = &pl;
