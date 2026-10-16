@@ -1194,11 +1194,10 @@ impl State {
                     if let Err(e) = crate::terminal::stdin_ok(args["stdin"].as_str().unwrap_or("")) {
                         return refuse(cap, e);
                     }
-                    level = Some(match c {
-                        Class::R => crate::policy::Level::Read,
-                        Class::C => crate::policy::Level::Reversible,
-                        _ => crate::policy::Level::Irreversible,
-                    });
+                    // anything past reading asks every time: a command's changes have no undo, and
+                    // options can make a program do more than its rule says (security review). So the
+                    // class only decides "reads" vs "asks", and the sandbox holds either way
+                    level = Some(if c == Class::R { crate::policy::Level::Read } else { crate::policy::Level::Irreversible });
                     egress = c == Class::S;
                 }
             }

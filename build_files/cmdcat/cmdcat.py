@@ -231,7 +231,7 @@ def main():
         counts[e["class"]] = counts.get(e["class"], 0) + 1
     out = {
         "version": 1,
-        "classes": {"R": "reads only", "C": "changes something (asks once per plan)", "X": "can't be undone (always asks)",
+        "classes": {"R": "reads only (read-only folders, no network)", "C": "changes something (asks every time: commands have no undo)", "X": "can't be undone (always asks)",
                     "S": "sends something out of the computer (always asks; network only then)", "ask": "no rule yet: asks",
                     "block": "never run for an AI"},
         "counts": counts,

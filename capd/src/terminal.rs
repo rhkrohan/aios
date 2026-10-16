@@ -7,6 +7,11 @@
 //! `{pipeline: [[...], [...]]}`: never a shell string; the highest class of any
 //! stage wins.
 //!
+//! What the class decides is only "reads" (asks once per plan, read-only folders, no network)
+//! or "asks every time" (everything else), plus "network" for S. Getting an option wrong can
+//! only cost an extra question, never damage: a misread "reads" still runs read-only and
+//! offline, and nothing but S ever gets the network.
+//!
 //! The sandbox is the real guarantee, not the class: every command runs in its
 //! own transient unit with an empty home (only the pass's folders bound in:
 //! read-only for R, writable for C and X; never dot folders, SIOS's state or the

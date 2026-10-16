@@ -80,7 +80,7 @@ pub const TOOLS: &[(&str, &str)] = &[
     ("network.list", "{} read: network devices and the Wi-Fi networks around"),
     ("system.state", "{} read: volume, brightness, look, wallpaper and network right now"),
     ("terminal.read", "{argv: [program, words...] or pipeline: [[...], [...]], cwd} read: run a read-only command (ls, du -sh, grep, find, git status, df...) in a sandbox that sees only your folders, with no network; never a shell line; what it prints can go in the reply as {{N}}"),
-    ("terminal.run", "{argv or pipeline, cwd, stdin?, timeout?} asks as needed: run any other allowed command (mkdir, git commit, tar, curl...); changes ask once, deleting and sending always ask; sudo-type commands never run"),
+    ("terminal.run", "{argv or pipeline, cwd, stdin?, timeout?} ALWAYS asks the owner: run any other allowed command (mkdir, git commit, tar, curl...); prefer the files.* tools for files (they can be undone); sudo-type commands never run"),
 ];
 
 pub fn build(root: &Path, state: &Path, request: &str) -> Briefing {

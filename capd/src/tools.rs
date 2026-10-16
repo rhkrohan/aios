@@ -69,7 +69,7 @@ pub const TOOLS: &[ToolSpec] = &[
     // terminal commands (D89): every program on the image, sandboxed; the class comes from
     // the command catalog per call (terminal.rs). terminal.read takes only read-only commands.
     ToolSpec { name: "terminal.read", level: Level::Read, egress: false, path_args: &["cwd"], about: "Run a read-only command (ls, du, git status, grep...) in a sandbox that sees only the given folders, with no network. Words, never a shell line." },
-    ToolSpec { name: "terminal.run", level: Level::Irreversible, egress: false, path_args: &["cwd"], about: "Run any allowed command or pipeline in a sandbox; it asks as its command's class says (changes once per plan, can't-undo and sending always)." },
+    ToolSpec { name: "terminal.run", level: Level::Irreversible, egress: false, path_args: &["cwd"], about: "Run any allowed command or pipeline in a sandbox; anything more than reading asks the owner every time (commands have no undo)." },
 ];
 
 /// Names from before the catalog rename (D36). Still accepted everywhere a tool

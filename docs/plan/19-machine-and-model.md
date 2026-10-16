@@ -144,7 +144,7 @@ Each track: a short plan, tests, a security review, llm examples, ticks, Learned
     - `PrivateTmp`, `NoNewPrivileges`, memory, CPU and task caps;
     - **no network unless the class is S and the owner allowed it**;
     - output capped at 64 KB and labelled untrusted (the goal is tainted).
-  - It runs under passes and leases like every other tool. Read-only commands use the D57 path (no asking); C asks once per plan; X and S always ask.
+  - It runs under passes and leases like every other tool. Read-only commands ask once per plan, like reading files (their output goes to the AI); everything else asks every time (commands have no undo, and options can make a program do more than its rule says). The class only decides "reads" vs "asks" and whether there is network (S): a wrong guess costs an extra question, never damage.
 - **What the model sees: no 2,350 entries in the prompt.** The briefing adds only the top-k relevant command entries (search over names, summaries and tldr text), as compact signatures. The grammar then limits argv[0] to the catalog.
 - The owner's own Terminal is untouched. This is only how an AI uses commands.
 

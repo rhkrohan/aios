@@ -4,8 +4,8 @@
 # Options that make a program run another program (tar --to-command, rsync -e, zip -TT...)
 # are X. Shortened long options (--pag) count when they raise a class, never to lower it.
 #
-# Classes: R reads only (runs without asking, sandboxed, no network)
-#          C changes something on this computer (asks once per plan)
+# Classes: R reads only (asks once per plan like reading files; read-only folders, no network)
+#          C changes something on this computer (asks every time: commands have no undo)
 #          X can't be undone (always asks)
 #          S sends something out of the computer (always asks; network only then)
 #          ask: not reviewed yet (asks), block: never for an AI
