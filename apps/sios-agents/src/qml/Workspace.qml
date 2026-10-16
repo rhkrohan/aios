@@ -132,7 +132,7 @@ Window {
                         Text { textFormat: Text.PlainText; text: parent.parent.b[2]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 } }
                 }
                 Chip { text: ws.working && ws.run ? "Working · " + ws.host.span(ws.host.now - ws.run.started) : ws.a.active === false ? "Paused" : (ws.changes.commits || []).length ? "Ready for review" : "Resting"; kind: ws.working ? "ok" : ws.a.active === false ? "warn" : (ws.changes.commits || []).length ? "acc" : "muted" }
-                Rectangle { implicitWidth: br.implicitWidth + 18; implicitHeight: 24; radius: 12; color: Theme.surface; border.width: 1; border.color: Theme.line
+                Rectangle { visible: !!ws.ctx.branch; implicitWidth: br.implicitWidth + 18; implicitHeight: 24; radius: 12; color: Theme.surface; border.width: 1; border.color: Theme.line
                     Text { id: br; anchors.centerIn: parent; textFormat: Text.PlainText; text: ws.ctx.branch || ""; color: Theme.fg2; font.family: "JetBrains Mono"; font.pixelSize: 11 } }
                 Item { Layout.fillWidth: true }
                 Meter { label: "Time left"; value: ws.host && ws.host.leftOf(ws.a) > 0 ? ws.host.span(ws.host.leftOf(ws.a)) : "none"; frac: ws.host ? ws.host.leftOf(ws.a) / Math.max(ws.host.leftOf(ws.a), 2 * 3600) : 0 }

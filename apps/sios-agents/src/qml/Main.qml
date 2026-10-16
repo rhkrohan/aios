@@ -80,9 +80,9 @@ QQC2.ApplicationWindow {
         return new Date(t * 1000).toLocaleDateString(Qt.locale(), "MMM d");
     }
     function span(s) {
-        s = Math.max(0, Math.round(s));
-        const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
-        return h ? h + " h " + (m ? m + " min" : "") : m + " min";
+        // round to whole minutes first, so 1 h 59.6 min reads 2 h, never 1 h 60 min
+        const all = Math.round(Math.max(0, s) / 60), h = Math.floor(all / 60), m = all % 60;
+        return h ? h + " h" + (m ? " " + m + " min" : "") : m + " min";
     }
     function tok(n) {
         n = n || 0;

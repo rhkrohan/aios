@@ -6,6 +6,7 @@
 #include <QCommandLineParser>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDeadlineTimer>
 #include <QLocalSocket>
 
 #include <QApplication>
@@ -59,8 +60,15 @@ static bool brokerOpens()
         return false;
     const QJsonObject req{{QStringLiteral("method"), QStringLiteral("windows.open")}, {QStringLiteral("params"), QJsonObject{{QStringLiteral("app"), QStringLiteral("store")}}}};
     s.write(QJsonDocument(req).toJson(QJsonDocument::Compact) + '\n');
-    if (!s.waitForBytesWritten(1000) || !s.waitForReadyRead(5000))
+    // the answer can arrive while the request is still being written, so wait for a
+    // whole line, not for more data (else an answer already here reads as a failure
+    // and an untrusted second window opens)
+    if (!s.waitForBytesWritten(1000))
         return false;
+    QDeadlineTimer deadline(5000);
+    while (!s.canReadLine())
+        if (deadline.hasExpired() || !s.waitForReadyRead(int(deadline.remainingTime())))
+            return false;
     return QJsonDocument::fromJson(s.readLine()).object().contains(QStringLiteral("ok"));
 }
 
