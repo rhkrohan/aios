@@ -11,8 +11,16 @@ pub struct Routines {
     map: BTreeMap<String, Plan>,
 }
 
-/// "Tidy my Downloads!" and "tidy my downloads" are the same request.
+/// "Please tidy my Downloads!" and "tidy downloads" are the same request: case,
+/// punctuation and polite filler don't count (doc 20). Words that change what's
+/// meant (names, folders, "not", numbers) always do.
 pub fn key(request: &str) -> String {
+    const FILLER: [&str; 17] = ["please", "pls", "can", "could", "would", "you", "hey", "sios", "the", "my", "a", "an", "just", "now", "thanks", "thank", "kindly"];
+    legacy_key(request).split(' ').filter(|w| !FILLER.contains(w)).collect::<Vec<_>>().join(" ")
+}
+
+/// The key routines were saved under before doc 20 (every word counts).
+fn legacy_key(request: &str) -> String {
     request.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect::<Vec<_>>().join(" ")
 }
 
@@ -23,7 +31,7 @@ impl Routines {
     }
 
     pub fn get(&self, request: &str) -> Option<Plan> {
-        self.map.get(&key(request)).cloned()
+        self.map.get(&key(request)).or_else(|| self.map.get(&legacy_key(request))).cloned()
     }
 
     pub fn save(&mut self, request: &str, plan: &Plan) {
@@ -44,6 +52,14 @@ impl Routines {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn polite_words_and_case_dont_make_a_new_request() {
+        assert_eq!(key("Please tidy my Downloads!"), key("tidy downloads"));
+        assert_eq!(key("Hey SIOS, can you tidy the Downloads now?"), "tidy downloads");
+        assert_ne!(key("don't tidy downloads"), key("tidy downloads"), "meaning words stay");
+        assert_ne!(key("move invoices to Finance"), key("move invoices to Work"));
+    }
 
     #[test]
     fn same_words_same_routine() {
