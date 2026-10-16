@@ -69,7 +69,7 @@ The owner approved the Store design and asked for the right logos and every avai
 Order: Workspace window (Live, Review), then the registry fetcher, the Connectors page, remote installs, browser sign-in (C4), the local runner (C5), then the Desktop tab after its VM spike.
 
 
-## Addendum (2026-10-16): the agent's own desktop (D109, proposed)
+## Addendum (2026-10-16): the agent's own desktop (D109, accepted)
 
 The owner's ask: no new system, just an isolated desktop that the agent and the owner can both use, easy to run, with every loophole closed. A spike on the VM (2026-10-16) proved each piece with what the image already has.
 

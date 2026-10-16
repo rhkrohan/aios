@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-16: D109 accepted (owner: build the agent desktop, then a complete system review). Voice-first idea updated: a built-in open-source speech-to-text model on the computer, next after D109 and the review.
 - 2026-10-16: D109 (proposed): the agent's own desktop, a hidden KWin in its sandbox with a private network, shown live in the Workspace and usable by the owner and the agent; VM spike passed; loophole list and tests in doc 21.
 - 2026-10-16: D105 accepted (Store Connectors design) and D108 added: every server in the official MCP Registry on its own shelf beside the signed catalog, remote ones installable under always-ask rules, real logos (Simple Icons, registry icons as PNG/WebP only, monograms).
 - 2026-10-16: D101, D106 and D107 accepted: the owner approved the agent Workspace design (Live, Review, Desktop, Places).

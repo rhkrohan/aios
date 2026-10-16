@@ -10,7 +10,7 @@ New ideas land here first. Status: Exploring, Accepted, Parked. When accepted, l
 | Home brain | User's desktop GPU serves a big model to their laptop | Router provider | Exploring |
 | Recipe sharing | Users share workflows, like an app store for recipes | Phase 4+ | Exploring |
 | Curated tool catalog | Wrapped, typed, well-described MCP servers | Business line | Exploring |
-| Voice-first mode | Wake word + voice commands through Reflex | Phase 1+ | Exploring |
+| Voice-first mode | Wake word + voice commands through Reflex. Owner (2026-10-16): a built-in, open-source speech-to-text model that runs on the computer, so people can say what they would type and it just works. Candidates to compare on the VM: whisper.cpp (MIT, Whisper base/small), Moonshine (MIT, made for live speech on small CPUs), sherpa-onnx with Parakeet or Zipformer (streaming). Audio never leaves the computer; the mic is used only while the owner holds the key or the bar shows it listening | Phase 2 | Next, after D109 and the system review |
 | Signature enforcement | Ship `cosign.pub` + containers policy in the image so bootc only accepts our signed images | Phase 0 or 1, base OS | Exploring |
 | Move ISO tooling to image-builder | bootc-image-builder is archived; migrate `build-disk.yml` to `osbuild/image-builder` (or bootc install / titanboa) | Base OS, after Phase 0 | Exploring |
 | Muse integration | Hand tasks to Muse when an entry point exists | Connections | Parked |
