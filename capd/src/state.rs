@@ -88,6 +88,9 @@ fn folder_size(dir: &Path, cap: u64) -> u64 {
 
 /// Copy a folder's plain files and folders (links are skipped, never followed).
 fn copy_tree(from: &Path, to: &Path, cap: u64) -> Result<(), String> {
+    if !from.symlink_metadata().is_ok_and(|m| m.is_dir()) {
+        return Err(format!("{} isn't a folder", from.display()));
+    }
     if folder_size(from, cap) > cap {
         return Err("too big to copy".into());
     }
@@ -98,10 +101,26 @@ fn copy_tree(from: &Path, to: &Path, cap: u64) -> Result<(), String> {
         if m.is_dir() {
             copy_tree(&e.path(), &dst, cap)?;
         } else if m.is_file() {
-            std::fs::copy(e.path(), &dst).map_err(|e| e.to_string())?;
+            copy_file_nofollow(&e.path(), &dst)?;
         }
     }
     Ok(())
+}
+
+/// Copy one file without ever following a link, even one swapped in after it was checked:
+/// opened with O_NOFOLLOW and checked to be a plain file through the open handle.
+fn copy_file_nofollow(from: &Path, to: &Path) -> Result<(), String> {
+    use std::os::unix::fs::OpenOptionsExt;
+    #[cfg(target_os = "linux")]
+    const O_NOFOLLOW: i32 = 0o400000;
+    #[cfg(not(target_os = "linux"))]
+    const O_NOFOLLOW: i32 = 0x100;
+    let mut src = std::fs::OpenOptions::new().read(true).custom_flags(O_NOFOLLOW).open(from).map_err(|e| format!("{}: {e}", from.display()))?;
+    if !src.metadata().map_err(|e| e.to_string())?.is_file() {
+        return Err(format!("{} isn't a plain file", from.display()));
+    }
+    let mut dst = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).custom_flags(O_NOFOLLOW).open(to).map_err(|e| format!("{}: {e}", to.display()))?;
+    std::io::copy(&mut src, &mut dst).map(|_| ()).map_err(|e| e.to_string())
 }
 
 /// Empty a folder (its links are removed as links; nothing outside it is touched).
@@ -1672,6 +1691,12 @@ impl State {
             if out.iter().any(|o| self.place_folder(&o.from).is_ok_and(|r| r.starts_with(&real) || real.starts_with(&r))) {
                 return Err(format!("{} overlaps another place", place.from));
             }
+            // a read-and-write place belongs to one agent: no other agent may see it or anything
+            // overlapping it (one agent could otherwise change files while another's are copied)
+            let clash = self.agents.agents.iter().filter(|o| o.id != id).find(|o| o.places.iter().any(|q| (q.write || place.write) && self.place_folder(&q.from).is_ok_and(|r| r.starts_with(&real) || real.starts_with(&r))));
+            if let Some(o) = clash {
+                return Err(format!("{} already has {} or a folder overlapping it; a folder another agent can change can't be shared", o.name, place.from));
+            }
             if place.write && !real.join(".git").is_dir() {
                 let size = folder_size(&real, PLACE_SNAPSHOT_MAX);
                 if size > PLACE_SNAPSHOT_MAX {
@@ -1721,6 +1746,9 @@ impl State {
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
         if !a.run.is_empty() {
             return Err(format!("{} is still working: stop it first", a.name));
+        }
+        if crate::security::unit_active(&format!("{}-signin", crate::runner::unit(a.slug()))) {
+            return Err(format!("close {}'s terminal first", a.name));
         }
         let pl = a.places.iter().find(|p| p.name == name).cloned().ok_or("no such place")?;
         let real = self.place_folder(&pl.from)?;
@@ -4052,6 +4080,15 @@ mod tests {
         assert_eq!(std::fs::read_to_string(root.join("Documents/Copy/about.md")).unwrap(), "v1");
         assert!(!root.join("Documents/Copy/junk.txt").exists());
         assert!(std::fs::read_dir(mine.join("replaced")).unwrap().count() == 1, "what was there is kept, not deleted");
+        // a read-and-write place isn't shared with another agent
+        r.owner("agents.add", json!({ "name": "Docs", "brain": "codex", "instructions": "docs", "folder": "Projects/site" }));
+        let e = r.owner("agents.places", json!({ "id": "agent:docs", "places": [{ "from": "Documents/Copy", "as": "copy" }] }))["error"].as_str().unwrap_or("").to_string();
+        assert!(e.contains("can't be shared"), "{e}");
+        // copies never follow a link
+        std::os::unix::fs::symlink(root.join("Downloads/budget.csv"), root.join("Documents/Copy/link.csv")).unwrap();
+        copy_tree(&root.join("Documents/Copy"), &mine.join("snapshots/r2/copy"), PLACE_SNAPSHOT_MAX).unwrap();
+        assert!(!mine.join("snapshots/r2/copy/link.csv").exists());
+        assert!(copy_file_nofollow(&root.join("Documents/Copy/link.csv"), &mine.join("x.csv")).is_err());
         // a place labelled Sensitive later is dropped at the next run
         r.st.meta.files.insert("Documents/Copy".into(), crate::meta::FileMeta { labels: vec!["Sensitive".into()], ..Default::default() });
         assert_eq!(r.st.agent_place_binds(&a, &w).0.len(), 1);
