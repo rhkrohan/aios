@@ -1,6 +1,6 @@
 # 21. Agent pets and workflow, more coding agents, the agent Workspace, system tools and the MCP store
 
-Status: Approved (2026-10-16, owner). Decisions D100 to D106 (proposed) in `11-decisions.md`. Tasks A9, A10b, W1 to W4 and C3 to C5 in `docs/phases/phase-2.md`.
+Status: Approved (2026-10-16, owner). Decisions D100 to D107 (proposed) in `11-decisions.md`. Tasks A9, A10b, W1 to W4 and C3 to C5 in `docs/phases/phase-2.md`.
 
 ## Why
 The owner asked, in this order: agent pets and a real agent workflow; coding agents beyond Claude Code that are possible and viewable; as many missing system tools as make daily life easier; then the start of an MCP store. The owner picked OpenAI Codex CLI, Cursor CLI and Gemini CLI as extra agent brains, and asked for a new kind of workspace instead of another desktop: a layout built from what the agent is doing (its output, files in use, memory and context, ideas and goals), plus a way to map chosen folders on their drive into an agent's workspace.
@@ -38,6 +38,11 @@ Not another desktop: one Workspace window per agent, laid out from what the agen
 6. Take the wheel: the agent's own interactive CLI in an embedded terminal, in the same sandbox, when no headless run is going.
 
 Panes resize and hide; the layout is remembered per agent. A Daylight mockup goes to the owner first. "Show on its own desktop" stays as an option.
+
+**Review and Desktop tabs (D107, owner's note 2026-10-16).** The middle of the Workspace has three tabs:
+- Live: the cards above.
+- Review: like a pull request on the owner's own computer. Files with a check for each one read, the diff with line numbers, comments on any line (sent back to the agent as its next task with one click), "Open folder" (its copy in Files), "Open in editor" (read-only), "Run its tests" (in its sandbox), a before-you-merge checklist, then Approve and merge (password) or Throw away.
+- Desktop: the agent's own desktop, inside its sandbox, shown live in the panel. Each agent gets a separate headless Plasma/KWin session in its own unit (its own Wayland socket and accessibility bus, no access to the owner's session). It works that desktop through accessibility and its own screen only (core rule 7 protects the owner's screen; this one is the agent's). The owner can take control (the agent's input pauses) and give it back with a note. Spike first: headless KWin per agent, its frames into the Workspace (a private Unix socket, never the network), input forwarded only from the Workspace window.
 
 **Places.** Each agent has an access list: a folder on the owner's drive, where it appears inside the agent's workspace, read-only or read-write, and an optional expiry that follows the lease. capd turns the list into systemd binds on the agent's unit (the rest of home stays hidden). Sensitive and off-limits folders can't be picked. Adding a place needs the owner's password and is audited. Read-write places that aren't git projects get an undo snapshot before each run, up to a size cap; bigger folders can only be read-only. The project clone stays the default place.
 
