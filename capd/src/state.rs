@@ -1145,7 +1145,13 @@ impl State {
                 if agent && s("__unit") != format!("{}.service", crate::runner::unit(id.trim_start_matches("agent:"))) {
                     return Err("that agent's pairing only works inside its own workspace".into());
                 }
-                let tools = self.iam.tools_for(&id);
+                let mut tools = self.iam.tools_for(&id);
+                // and the tools of connections the owner gave it (an agent gets them through its door)
+                for t in self.connectors.tools_for(&id) {
+                    if let Some(n) = t["name"].as_str().filter(|n| !tools.iter().any(|x| x == n)) {
+                        tools.push(n.to_string());
+                    }
+                }
                 if tools.is_empty() && !agent {
                     return Err(format!("{id} has no roles yet; give it one in Settings > Connected AI apps"));
                 }
@@ -1450,7 +1456,13 @@ impl State {
         let attaching_untrusted = egress && tlist.iter().any(|t| self.meta.untrusted_at(t));
 
         // roles: what this identity may do, here, now
-        let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
+        let mut iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
+        // a connection the owner gave this AI (Store > Connectors, "who can use it"): its tools
+        // are allowed for it, and ask each time unless one of its roles already allows them
+        if iam.result == crate::policy::Res::Fail && cap.principal != crate::iam::SIOS && self.connectors.allows(&tool, &cap.principal).is_ok() {
+            let name = self.iam.get(&cap.principal).map(|i| i.name.clone()).unwrap_or_default();
+            iam = crate::iam::Decided { result: crate::policy::Res::Ask, detail: format!("You gave {name} this connection; each use asks you.") };
+        }
         let facts = Facts {
             stopped: self.sec.stopped.is_some(),
             token: tok.as_ref().map(|_| ()).map_err(|e| e.clone()),
@@ -3082,9 +3094,19 @@ mod tests {
         // only the AIs the owner picked
         let other = r.mint(json!({ "principal": "b", "tools": ["testhub.search"], "paths": ["Downloads"] }));
         assert_eq!(dry(&mut r, &other), "block");
+        // a paired app the owner gave the connection to: allowed for it, and each use asks
+        r.st.iam.register("app:x", "X", "app", "pairing", crate::iam::OWNER, vec![], 1);
+        r.st.iam.register("app:y", "Y", "app", "pairing", crate::iam::OWNER, vec![], 1);
+        r.st.connectors.set_ais("testhub", vec!["a".into(), "app:x".into()]).unwrap();
+        let tx = r.mint(json!({ "principal": "app:x", "tools": ["testhub.search"], "paths": [""] }));
+        assert_eq!(dry(&mut r, &tx), "ask");
+        let ty = r.mint(json!({ "principal": "app:y", "tools": ["testhub.search"], "paths": [""] }));
+        assert_eq!(dry(&mut r, &ty), "block", "not given to it");
+        assert_eq!(r.st.connectors.tools_for("app:x")[0]["name"], "testhub.search");
         // removed: its tools are gone everywhere
         r.owner("connectors.remove", json!({ "id": "testhub" }));
         assert_eq!(dry(&mut r, &t), "block");
+        assert_eq!(dry(&mut r, &tx), "block");
     }
 
     // ---- D57: SIOS acts without asking on settings and reads
