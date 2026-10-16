@@ -44,6 +44,8 @@ pub struct Run<'a> {
     /// SIOS's MCP door config, kept outside the agent's home and bound read-only
     pub mcp_config: &'a Path,
     pub task: &'a str,
+    /// The owner's standing instructions for this agent (sent with every task).
+    pub instructions: &'a str,
     pub resume: Option<&'a str>,
     pub max_secs: u64,
     pub uid: u32,
@@ -82,7 +84,10 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
     if !r.slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') || r.slug.is_empty() {
         return Err("bad agent name".into());
     }
-    let task: String = r.task.chars().filter(|c| !c.is_control() || *c == '\n').take(4000).collect();
+    let clean = |t: &str, n: usize| -> String { t.chars().filter(|c| !c.is_control() || *c == '\n').take(n).collect() };
+    let (task, standing) = (clean(r.task.trim(), 4000), clean(r.instructions.trim(), 1000));
+    // its standing instructions go first, unless the task is just those (a scheduled run)
+    let prompt = if standing.is_empty() || standing == task { format!("Task from the owner: {task}") } else { format!("Your standing instructions from the owner: {standing}\n\nTask from the owner: {task}") };
     let d = |p: &Path| p.display().to_string();
     let mut a: Vec<String> = vec![
         "--user".into(), "--quiet".into(), "--collect".into(),
@@ -116,7 +121,7 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
         d(r.claude),
         "-p".into(),
         // never read as one of claude's own flags
-        literal(&format!("Task from the owner: {task}")),
+        literal(&prompt),
         "--output-format".into(), "stream-json".into(), "--verbose".into(),
         "--mcp-config".into(), d(r.mcp_config),
         "--strict-mcp-config".into(),
@@ -310,6 +315,7 @@ mod tests {
             pair_file: Path::new("/home/r/.local/share/sios/agents/coder/pair"),
             mcp_config: Path::new("/home/r/.local/share/sios/agents/coder/sios-mcp.json"),
             task,
+            instructions: "",
             resume: None,
             max_secs: 7200,
             uid: 1000,
@@ -332,6 +338,13 @@ mod tests {
         assert!(!a.iter().any(|x| x == "--dangerously-skip-permissions"));
         // the token is never on the command line, only its file for LoadCredential
         assert!(a.iter().any(|x| x.starts_with("LoadCredential=sios-pair:")));
+        // its standing instructions come first, once
+        let mut r = run("Add a contact form", w);
+        r.instructions = "Keep it accessible";
+        let b = build(&r).unwrap();
+        assert!(b.iter().any(|x| x == "Your standing instructions from the owner: Keep it accessible\n\nTask from the owner: Add a contact form"));
+        r.task = "Keep it accessible";
+        assert!(build(&r).unwrap().iter().any(|x| x == "Task from the owner: Keep it accessible"), "a scheduled run doesn't repeat them");
         // odd paths are refused before anything runs
         assert!(build(&run("x", Path::new("/home/r/My Project"))).is_err());
         assert!(build(&run("x", Path::new("/home/r/a:b"))).is_err());

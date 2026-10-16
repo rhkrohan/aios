@@ -90,19 +90,24 @@ QQC2.ApplicationWindow {
         return String(n);
     }
     function jobText(a) {
-        if (a.brain === "claude-code") return "Works on " + a.folder;
+        if (isCoder(a) && a.job === "every") return "Works on " + a.folder + ", every " + (a.every_min >= 60 ? Math.round(a.every_min / 60) + " h" : a.every_min + " min");
+        if (isCoder(a) && a.job === "daily") return "Works on " + a.folder + ", every day at " + a.at;
+        if (isCoder(a)) return "Works on " + a.folder;
         if (a.job === "watch") return "Watches " + a.folder;
         if (a.job === "every") return "Every " + (a.every_min >= 60 ? Math.round(a.every_min / 60) + " h" : a.every_min + " min");
         if (a.job === "daily") return "Every day at " + a.at;
         return "When you ask";
     }
+    // a coding agent: works in its own sandboxed copy of a project (any brain but SIOS's)
+    function isCoder(a) { return !!a && !!a.brain && a.brain !== "builtin"; }
+    function confirm(heading, body, action, go) { alert.open({ kind: "confirm", heading: heading, body: body, retryText: action, retry: go }); }
     function runOf(a) { return runs.find(r => r.agent === a.id); }
     function dayTokens(a) { return runs.filter(r => r.agent === a.id && (!r.ended || r.ended + 86400 > now)).reduce((s, r) => s + (r.tokens || 0), 0); }
     function leftOf(a) { return Math.max(0, (a.lease_until || 0) - now); }
     function stateOf(a) {
         if (!a.active) return ["Paused", "warn"];
         if (a.run) return ["Working", "ok"];
-        if (a.brain === "claude-code" && leftOf(a) <= 0) return ["Resting", "muted"];
+        if (isCoder(a) && leftOf(a) <= 0) return ["Resting", "muted"];
         return ["Ready", "muted"];
     }
     readonly property var pets: ({ mint: "#9ee2c6", sky: "#a9cdff", violet: "#c4bbff", peach: "#ffc9a3", rose: "#ffb3c8", lemon: "#f7df8c", slate: "#c3cbd4", coral: "#ffb0a3" })
@@ -354,7 +359,7 @@ QQC2.ApplicationWindow {
                                 id: card
                                 required property var modelData
                                 readonly property var a: modelData
-                                readonly property bool coder: a.brain === "claude-code"
+                                readonly property bool coder: win.isCoder(a)
                                 readonly property var r: win.runOf(a)
                                 readonly property var st: win.stateOf(a)
                                 readonly property var last: win.reports.find(x => x.agent === a.id)
@@ -404,7 +409,7 @@ QQC2.ApplicationWindow {
                                         Button { visible: card.coder; text: card.a.run ? "Watch" : "Open"; onClicked: { win.sel = card.a.id; win.tab = "now"; } }
                                         Button { visible: card.coder && !!card.a.run; text: "Open workspace"; kind: "plain"; onClicked: win.ask("agents.peek", { id: card.a.id }, "", "Couldn't open its desk") }
                                         Button { visible: !card.coder && card.a.active; text: "Run now"; onClicked: broker.brain("agents.run_now", { id: card.a.id }, card.a.name + " started|Couldn't start " + card.a.name + "|") }
-                                        Button { visible: !card.coder; text: card.a.active ? "Pause" : "Resume"; kind: "plain"; onClicked: win.ask("agents.update", { id: card.a.id, active: !card.a.active }, card.a.active ? card.a.name + " paused" : card.a.name + " is on again", "Couldn't change " + card.a.name) }
+                                        Button { text: card.a.active ? "Pause" : "Resume"; kind: "plain"; onClicked: win.ask("agents.update", { id: card.a.id, active: !card.a.active }, card.a.active ? card.a.name + " paused" : card.a.name + " is on again", "Couldn't change " + card.a.name) }
                                         Button { visible: !card.coder; text: "Details"; kind: "plain"; onClicked: { win.sel = card.a.id; win.tab = "now"; } }
                                         Item { Layout.fillWidth: true }
                                         Button { visible: !!card.a.run; text: "Stop"; kind: "danger"; onClicked: win.ask("agents.stop", { id: card.a.id }, card.a.name + " stopped", "Couldn't stop " + card.a.name, "Its copy of the project and its session are kept.") }
@@ -443,7 +448,7 @@ QQC2.ApplicationWindow {
                 anchors.fill: parent
                 spacing: 0
                 readonly property var a: win.current || ({})
-                readonly property bool coder: a.brain === "claude-code"
+                readonly property bool coder: win.isCoder(a)
                 readonly property var r: win.current ? win.runOf(a) : undefined
                 // the bar on top: where you are, and the agent's three parts
                 Rectangle {
@@ -459,6 +464,7 @@ QQC2.ApplicationWindow {
                         Text { textFormat: Text.PlainText; text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
                         Item { Layout.fillWidth: true }
                         Tab { key: "now"; text: "Now" }
+                        Tab { key: "changes"; text: "Changes"; visible: agentPage.coder }
                         Tab { key: "history"; text: "Activity" }
                         Tab { key: "setup"; text: "Settings" }
                     }
@@ -668,6 +674,128 @@ QQC2.ApplicationWindow {
                     }
                 }
 
+                // --- Changes (D102): what it did on its branch; merge it in or throw it away
+                ColumnLayout {
+                    id: changes
+                    visible: win.tab === "changes"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 0
+                    property var data_: ({})
+                    property string err: ""
+                    property int pick: -1
+                    function load() { if (visible && agentPage.coder) { err = ""; broker.look("agents.changes", { id: agentPage.a.id }, "changes"); } }
+                    onVisibleChanged: load()
+                    Connections { target: win; function onSelChanged() { changes.data_ = ({}); changes.pick = -1; changes.load(); } }
+                    Connections {
+                        target: broker
+                        function onDone(tag, ok, error) {
+                            if (tag !== "changes") return;
+                            if (error) { changes.err = error; changes.data_ = ({}); } else changes.data_ = ok;
+                        }
+                    }
+                    readonly property var files: data_.files || []
+                    readonly property var commits: data_.commits || []
+                    // the diff of one file, cut from the whole diff by its header line
+                    readonly property string shown: {
+                        const d = data_.diff || "";
+                        if (pick < 0 || pick >= files.length) return d;
+                        const parts = d.split(/\n(?=diff --git )/);
+                        const f = files[pick].path;
+                        return parts.find(x => x.split("\n")[0].endsWith(" b/" + f)) || d;
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.margins: 18
+                        Layout.leftMargin: 24
+                        Layout.rightMargin: 24
+                        spacing: 10
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text { textFormat: Text.PlainText; text: changes.err ? "Nothing to review yet" : changes.files.length + (changes.files.length === 1 ? " file" : " files") + " changed in " + changes.commits.length + (changes.commits.length === 1 ? " commit" : " commits"); color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
+                            Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: changes.err ? changes.err : "On its branch " + (changes.data_.branch || "") + (changes.data_.project_moved_on ? ", and your project has " + changes.data_.project_moved_on + " newer commits" : "") + ". Your project changes only when you merge."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                        }
+                        Button { text: "Refresh"; kind: "plain"; onClicked: changes.load() }
+                        Button {
+                            text: "Throw away"; kind: "danger"
+                            visible: !changes.err && !agentPage.a.run
+                            onClicked: win.confirm("Throw away " + agentPage.a.name + "'s work?", "Its copy of the project and everything on its branch is deleted. Your project isn't touched. Its next task starts from your project as it is then.", "Throw away", () => win.ask("agents.discard", { id: agentPage.a.id }, "Its work was thrown away", "Couldn't throw it away"))
+                        }
+                        Button {
+                            text: "Merge into " + String(agentPage.a.folder || "").split("/").pop()
+                            visible: !changes.err && changes.commits.length > 0
+                            onClicked: win.ask("agents.merge", { id: agentPage.a.id }, "Merged", "Couldn't merge", "Its work is in your project now. The step is in Activity if you need to go back.")
+                        }
+                    }
+                    Note { visible: !!agentPage.a.run; Layout.leftMargin: 24; Layout.rightMargin: 24; icon: "clock"; text: agentPage.a.name + " is still working. You can look now; merging waits until it's done." }
+                    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface3 }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 0
+                        // commits and files
+                        ListView {
+                            Layout.preferredWidth: 300
+                            Layout.fillHeight: true
+                            clip: true
+                            topMargin: 12; leftMargin: 16; rightMargin: 12
+                            spacing: 2
+                            model: changes.files
+                            QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                            header: ColumnLayout {
+                                width: 272
+                                spacing: 6
+                                Text { text: "Commits"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase }
+                                Repeater {
+                                    model: changes.commits.slice(0, 12)
+                                    delegate: Text { required property var modelData; Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: modelData.title; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13 }
+                                }
+                                Text { Layout.topMargin: 10; text: "Files (click one for its diff)"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase }
+                                Item { implicitHeight: 2 }
+                            }
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
+                                width: 272; implicitHeight: 32; radius: 8
+                                color: changes.pick === index ? Theme.accentSoft : fm.containsMouse ? Theme.surface2 : "transparent"
+                                RowLayout {
+                                    anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                    spacing: 6
+                                    Text { Layout.fillWidth: true; elide: Text.ElideMiddle; textFormat: Text.PlainText; text: modelData.path; color: Theme.fg; font.family: "JetBrains Mono"; font.pixelSize: 12 }
+                                    Text { textFormat: Text.PlainText; text: modelData.added === null || modelData.added === undefined ? "bin" : "+" + modelData.added; color: Theme.ok; font.family: "JetBrains Mono"; font.pixelSize: 11 }
+                                    Text { visible: modelData.removed !== null && modelData.removed !== undefined; textFormat: Text.PlainText; text: "-" + modelData.removed; color: Theme.danger; font.family: "JetBrains Mono"; font.pixelSize: 11 }
+                                }
+                                MouseArea { id: fm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: changes.pick = changes.pick === index ? -1 : index }
+                            }
+                        }
+                        Rectangle { Layout.fillHeight: true; implicitWidth: 1; color: Theme.line }
+                        // the diff: plain text, line by line coloured
+                        ListView {
+                            id: diffView
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            topMargin: 12; leftMargin: 16; rightMargin: 16; bottomMargin: 12
+                            model: changes.shown.split("\n").slice(0, 6000)
+                            QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                            delegate: Text {
+                                required property string modelData
+                                width: diffView.width - 32
+                                wrapMode: Text.WrapAnywhere
+                                textFormat: Text.PlainText
+                                text: modelData
+                                readonly property string c: modelData.charAt(0)
+                                color: modelData.startsWith("+++") || modelData.startsWith("---") || modelData.startsWith("diff ") ? Theme.fg : c === "+" ? Theme.ok : c === "-" ? Theme.danger : c === "@" ? Theme.accent : Theme.fg2
+                                font.family: "JetBrains Mono"; font.pixelSize: 12
+                                font.weight: modelData.startsWith("diff ") ? Font.DemiBold : Font.Normal
+                            }
+                            Text { anchors.centerIn: parent; visible: diffView.count <= 1; text: "No changes to show."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
+                        }
+                    }
+                    Text { visible: !!changes.data_.cut; Layout.margins: 12; Layout.leftMargin: 24; textFormat: Text.PlainText; text: "The diff is long; only its first part is shown."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                }
+
                 // --- Activity: its tasks, tokens and changes
                 Flickable {
                     id: hist
@@ -812,7 +940,13 @@ QQC2.ApplicationWindow {
                     boundsBehavior: Flickable.StopAtBounds
                     property var taskTok: 0
                     property var dayTok: 0
-                    onVisibleChanged: if (visible) { taskTok = agentPage.a.max_task_tokens; dayTok = agentPage.a.max_day_tokens; what.text = agentPage.a.instructions || ""; }
+                    property string job: "project"
+                    property int every: 60
+                    property string then_: ""
+                    onVisibleChanged: if (visible) {
+                        taskTok = agentPage.a.max_task_tokens; dayTok = agentPage.a.max_day_tokens; what.text = agentPage.a.instructions || "";
+                        job = ["every", "daily"].indexOf(agentPage.a.job) >= 0 ? agentPage.a.job : "project"; every = agentPage.a.every_min || 60; at.text = agentPage.a.at || "09:00"; then_ = agentPage.a.then || "";
+                    }
                     ColumnLayout {
                         id: sc
                         x: Math.max(32, (setup.width - 680) / 2); y: 28
@@ -827,13 +961,40 @@ QQC2.ApplicationWindow {
                                 ColumnLayout { spacing: 6; Text { text: "Tokens per task"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } Seg { options: [[500000, "500k"], [1000000, "1M"], [2000000, "2M"], [5000000, "5M"]]; value: setup.taskTok; onPicked: v => setup.taskTok = v } }
                                 ColumnLayout { spacing: 6; Text { text: "Per 24 hours"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } Seg { options: [[2000000, "2M"], [6000000, "6M"], [20000000, "20M"]]; value: setup.dayTok; onPicked: v => setup.dayTok = v } }
                             }
+                            // when it works on its own (only inside its working time) and who gets its work next
+                            ColumnLayout {
+                                visible: agentPage.coder
+                                spacing: 6
+                                Text { text: "When it works"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                Seg { options: [["project", "When you ask"], ["every", "Every few hours"], ["daily", "Every day"]]; value: setup.job; onPicked: v => setup.job = v }
+                                RowLayout {
+                                    visible: setup.job !== "project"
+                                    spacing: 10
+                                    Seg { visible: setup.job === "every"; options: [[30, "30 min"], [60, "1 h"], [120, "2 h"], [240, "4 h"]]; value: setup.every; onPicked: v => setup.every = v }
+                                    Field { id: at; visible: setup.job === "daily"; Layout.fillWidth: false; implicitWidth: 90; placeholder: "09:00" }
+                                }
+                                Text { visible: setup.job !== "project"; Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "It does what's written above on this schedule, only while it has working time from you."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                            }
+                            ColumnLayout {
+                                visible: agentPage.coder && others.length > 0
+                                readonly property var others: win.agents.filter(x => win.isCoder(x) && x.id !== agentPage.a.id)
+                                id: handoff
+                                spacing: 6
+                                Text { text: "When it finishes, hand its work to"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                Seg { options: [["", "No one"]].concat(handoff.others.map(x => [x.id, x.name])); value: setup.then_; onPicked: v => setup.then_ = v }
+                            }
                             RowLayout {
                                 Item { Layout.fillWidth: true }
                                 Button {
                                     text: "Save"
                                     onClicked: {
                                         const p = { id: agentPage.a.id, instructions: what.text };
-                                        if (agentPage.coder) { p.max_task_tokens = setup.taskTok; p.max_day_tokens = Math.max(setup.dayTok, setup.taskTok); }
+                                        if (agentPage.coder) {
+                                            p.max_task_tokens = setup.taskTok; p.max_day_tokens = Math.max(setup.dayTok, setup.taskTok);
+                                            p.job = setup.job; p.then = setup.then_;
+                                            if (setup.job === "every") p.every_min = setup.every;
+                                            if (setup.job === "daily") p.at = at.text.trim();
+                                        }
                                         win.ask("agents.update", p, "Saved", "Couldn't save " + agentPage.a.name);
                                     }
                                 }
@@ -852,12 +1013,13 @@ QQC2.ApplicationWindow {
                         }
                         Box {
                             Text { textFormat: Text.PlainText; text: agentPage.a.active ? "Pause or remove" : "It's paused"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Pausing keeps it and its work; it does nothing until you resume it. Removing ends its identity, its passes and its reports."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Pausing keeps it and its work; a task it's doing freezes where it is until you resume it. Removing ends its identity, its passes and its reports."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                             RowLayout {
                                 spacing: 8
                                 Button { text: agentPage.a.active ? "Pause" : "Resume"; kind: "plain"; onClicked: win.ask("agents.update", { id: agentPage.a.id, active: !agentPage.a.active }, agentPage.a.active ? agentPage.a.name + " paused" : agentPage.a.name + " is on again", "Couldn't change " + agentPage.a.name) }
                                 Item { Layout.fillWidth: true }
-                                Button { text: "Remove " + (agentPage.a.name || ""); kind: "danger"; onClicked: { win.ask("agents.remove", { id: agentPage.a.id }, agentPage.a.name + " removed", "Couldn't remove " + agentPage.a.name); } }
+                                Button { visible: agentPage.coder; text: "Remove with its files"; kind: "danger"; onClicked: win.confirm("Remove " + agentPage.a.name + " and its files?", "Its copy of the project, its branch and its sign-in are deleted, and any task it's doing stops. Your own project isn't touched.", "Remove", () => win.ask("agents.remove", { id: agentPage.a.id, delete_files: true }, agentPage.a.name + " removed", "Couldn't remove " + agentPage.a.name)) }
+                                Button { text: agentPage.coder ? "Remove, keep files" : "Remove " + (agentPage.a.name || ""); kind: "danger"; onClicked: win.confirm("Remove " + agentPage.a.name + "?", agentPage.coder ? "Its identity, passes and reports go and any task it's doing stops. Its copy of the project stays in Agents in your home." : "Its identity, passes and reports go.", "Remove", () => win.ask("agents.remove", { id: agentPage.a.id }, agentPage.a.name + " removed", "Couldn't remove " + agentPage.a.name)) }
                             }
                         }
                     }
@@ -904,6 +1066,22 @@ QQC2.ApplicationWindow {
                                 }
                                 // the agent's own words: plain text, never rich text or links
                                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: modelData.text; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                                // a question: answer it here, and the agent goes on in the same conversation
+                                RowLayout {
+                                    id: reply
+                                    readonly property var who: win.agents.find(a => a.id === modelData.agent)
+                                    readonly property bool latest: win.reports.find(x => x.agent === modelData.agent) === modelData
+                                    visible: modelData.kind === "question" && latest && win.isCoder(who) && !who.run
+                                    Layout.topMargin: 6
+                                    spacing: 8
+                                    Field { id: answer; placeholder: win.leftOf(reply.who || {}) > 0 ? "Your answer…" : "Give it working time first to answer"; field.enabled: win.leftOf(reply.who || {}) > 0; onAccepted: reply.go() }
+                                    Button { text: "Answer"; onClicked: reply.go() }
+                                    function go() {
+                                        if (!answer.text.trim()) return;
+                                        win.ask("agents.run", { id: modelData.agent, task: "The owner answered your question: " + answer.text.trim() }, "Answer sent", "Couldn't send the answer", reply.who.name + " goes on from where it stopped.");
+                                        answer.text = "";
+                                    }
+                                }
                             }
                         }
                     }
@@ -971,7 +1149,7 @@ QQC2.ApplicationWindow {
                     Layout.fillHeight: true
                     clip: true
                     spacing: 10
-                    model: win.agents.map(a => ({ id: a.id, name: a.name, color: a.color, kind: a.brain === "claude-code" ? "Claude Code agent" : "SIOS agent", paused: !a.active, agent: true }))
+                    model: win.agents.map(a => ({ id: a.id, name: a.name, color: a.color, kind: win.isCoder(a) ? "Coding agent" : "SIOS agent", paused: !a.active, agent: true }))
                            .concat(win.apps.map(a => ({ id: a.id, name: a.name, kind: "Connected app", paused: a.paused, roles: a.roles, agent: false })))
                     delegate: Rectangle {
                         required property var modelData

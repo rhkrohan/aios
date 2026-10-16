@@ -8,7 +8,8 @@ import QtQuick.Window
 
 Window {
     id: alert
-    // "error", "service" (a connected service said no) or "progress"
+    // "error", "service" (a connected service said no), "progress", or "confirm"
+    // (a question before something that can't be taken back: retry is the action)
     property string kind: "error"
     property string logo: ""
     property string heading
@@ -110,8 +111,9 @@ Window {
             anchors { fill: parent; leftMargin: 20; rightMargin: 20 }
             spacing: 8
             Item { Layout.fillWidth: true }
-            Button { visible: !!alert.retry && alert.kind !== "progress"; text: alert.retryText || "Try again"; kind: "plain"; onClicked: { const r = alert.retry; alert.close(); r(); } }
-            Button { text: alert.kind === "progress" ? "Hide" : "OK"; kind: alert.kind === "progress" ? "plain" : "primary"; onClicked: alert.close() }
+            Button { visible: alert.kind === "confirm"; text: "Cancel"; kind: "plain"; onClicked: alert.close() }
+            Button { visible: !!alert.retry && alert.kind !== "progress"; text: alert.retryText || "Try again"; kind: alert.kind === "confirm" ? "danger" : "plain"; onClicked: { const r = alert.retry; alert.close(); r(); } }
+            Button { visible: alert.kind !== "confirm"; text: alert.kind === "progress" ? "Hide" : "OK"; kind: alert.kind === "progress" ? "plain" : "primary"; onClicked: alert.close() }
         }
     }
     Shortcut { sequence: "Escape"; onActivated: alert.close() }

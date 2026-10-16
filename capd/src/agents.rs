@@ -62,6 +62,12 @@ pub struct Agent {
     pub max_task_tokens: u64,
     #[serde(default = "day_tokens")]
     pub max_day_tokens: u64,
+    /// Hand-off (A9a): when a task ends well, this agent gets its summary as a task.
+    #[serde(default)]
+    pub then: String,
+    /// When its schedule (every / daily) last started a task.
+    #[serde(default)]
+    pub last_sched: u64,
 }
 
 /// One task a coding agent worked on: what it cost and what it touched, counted
@@ -86,6 +92,33 @@ pub struct RunInfo {
     pub files: Vec<String>,
     /// working, done, failed, stopped: limit, stopped: time, stopped: you
     pub state: String,
+}
+
+/// A brain that works in its own sandboxed workspace (not SIOS's planner).
+pub fn is_coder(brain: &str) -> bool {
+    brain != "builtin" && BRAINS.contains(&brain)
+}
+
+/// Minutes since local midnight, and which local day it is (for daily jobs).
+pub fn local_now(t: u64) -> (u64, i64) {
+    #[cfg(target_os = "linux")]
+    {
+        // SAFETY: localtime_r fills `tm` from `secs`; both live on this stack.
+        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        let secs = t as libc::time_t;
+        if !unsafe { libc::localtime_r(&secs, &mut tm) }.is_null() {
+            let off = tm.tm_gmtoff;
+            return ((tm.tm_hour * 60 + tm.tm_min) as u64, (t as i64 + off).div_euclid(86400));
+        }
+    }
+    ((t % 86400) / 60, (t / 86400) as i64)
+}
+
+/// Is a daily job at "HH:MM" due, given when it last started?
+pub fn daily_due(at: &str, last: u64, now: u64) -> bool {
+    let Some((h, m)) = at.split_once(':').and_then(|(h, m)| Some((h.parse::<u64>().ok()?, m.parse::<u64>().ok()?))) else { return false };
+    let (mins, day) = local_now(now);
+    mins >= h * 60 + m && (last == 0 || local_now(last).1 < day)
 }
 
 impl Agent {
@@ -192,6 +225,8 @@ impl Registry {
             run: String::new(),
             max_task_tokens: TASK_TOKENS,
             max_day_tokens: DAY_TOKENS,
+            then: String::new(),
+            last_sched: 0,
         };
         let a = Self::apply(a, p)?;
         self.agents.push(a.clone());
@@ -212,7 +247,7 @@ impl Registry {
     fn apply(mut a: Agent, p: &Value) -> Result<Agent, String> {
         if let Some(b) = p["brain"].as_str() {
             if !BRAINS.contains(&b) {
-                return Err("the brain is builtin (SIOS) or claude-code".into());
+                return Err(format!("the brain is one of {}", BRAINS.join(", ")));
             }
             a.brain = b.into();
         }
@@ -237,6 +272,12 @@ impl Registry {
         if let Some(on) = p["active"].as_bool() {
             a.active = on;
         }
+        if let Some(t) = p["then"].as_str() {
+            if !t.is_empty() && (!t.starts_with("agent:") || t == a.id) {
+                return Err("hand its work to another agent".into());
+            }
+            a.then = t.into();
+        }
         if let Some(n) = p["max_task_tokens"].as_u64() {
             a.max_task_tokens = n.clamp(100_000, 50_000_000);
         }
@@ -253,7 +294,7 @@ impl Registry {
         if a.instructions.is_empty() {
             return Err("say what the agent should do".into());
         }
-        if (a.job == "watch" || a.job == "project" || a.brain == "claude-code") && !folder_ok(&a.folder) {
+        if (a.job == "watch" || a.job == "project" || is_coder(&a.brain)) && !folder_ok(&a.folder) {
             return Err("pick a folder in your home (no hidden folders)".into());
         }
         if a.job == "every" && a.every_min == 0 {
@@ -334,6 +375,27 @@ impl Registry {
         }
     }
 
+    /// Coding agents whose schedule says "now" (A9a): only inside a lease, when on and
+    /// resting. Their standing instructions are the task. Marks them as started.
+    pub fn due(&mut self, now: u64) -> Vec<(String, String)> {
+        let mut out = vec![];
+        for a in self.agents.iter_mut().filter(|a| is_coder(&a.brain) && a.active && a.leased(now) && a.run.is_empty()) {
+            let due = match a.job.as_str() {
+                "every" => a.last_sched == 0 || now >= a.last_sched + a.every_min.max(5) * 60,
+                "daily" => daily_due(&a.at, a.last_sched, now),
+                _ => false,
+            };
+            if due {
+                a.last_sched = now;
+                out.push((a.id.clone(), a.instructions.clone()));
+            }
+        }
+        if !out.is_empty() {
+            self.save();
+        }
+        out
+    }
+
     pub fn view(&self) -> Value {
         let unread = self.reports.iter().filter(|r| !r.read).count();
         json!({ "agents": self.agents, "reports": self.reports.iter().take(100).collect::<Vec<_>>(), "runs": self.runs.iter().take(100).collect::<Vec<_>>(), "unread": unread, "brains": BRAINS, "jobs": JOBS, "colors": COLORS })
@@ -385,6 +447,25 @@ mod tests {
         assert_eq!(r.over_limit("r2", 100_001), Some("stopped: time"));
         r.remove("agent:coder");
         assert!(r.runs.is_empty(), "its runs go with it");
+    }
+
+    #[test]
+    fn coding_agents_run_on_their_schedule_only_inside_a_lease() {
+        let d = tempfile::tempdir().unwrap();
+        let mut r = Registry::open(d.path());
+        r.add(&json!({ "name": "Tidy", "brain": "claude-code", "job": "every", "every_min": 30, "instructions": "keep the tests green", "folder": "Projects/site" }), 1).unwrap();
+        assert!(r.due(1000).is_empty(), "no lease, no run");
+        r.get_mut("agent:tidy").unwrap().lease_until = 10_000;
+        assert_eq!(r.due(1000), vec![("agent:tidy".to_string(), "keep the tests green".to_string())]);
+        assert!(r.due(1000 + 29 * 60).is_empty(), "not again before 30 minutes");
+        r.get_mut("agent:tidy").unwrap().run = "r1".into();
+        assert!(r.due(1000 + 31 * 60).is_empty(), "never while it works");
+        r.get_mut("agent:tidy").unwrap().run.clear();
+        r.get_mut("agent:tidy").unwrap().active = false;
+        assert!(r.due(1000 + 31 * 60).is_empty(), "never while paused");
+        assert!(r.update(&json!({ "id": "agent:tidy", "then": "agent:tidy" })).is_err(), "not to itself");
+        assert!(r.update(&json!({ "id": "agent:tidy", "then": "helper:x" })).is_err());
+        assert_eq!(r.update(&json!({ "id": "agent:tidy", "then": "agent:docs" })).unwrap().then, "agent:docs");
     }
 
     #[test]

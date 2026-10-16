@@ -369,6 +369,7 @@ fn serve() {
     for (agent, run, unit, file, worktree) in working {
         watch_run(Arc::clone(&st), agent, run, unit, file, worktree);
     }
+    schedule_agents(Arc::clone(&st));
     // approval sessions end when the screen locks or the computer sleeps (D56)
     if by_peer {
         security::watch_lock();
@@ -556,8 +557,7 @@ fn serve() {
                             if by_peer {
                                 security::show_on_desk(ok["name"].as_str().unwrap_or("Agent"), ok["run_file"].as_str().unwrap_or(""));
                             }
-                            let s = |k: &str| ok[k].as_str().unwrap_or("").to_string();
-                            watch_run(Arc::clone(&st), s("agent"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
+                            watch_started(&st, &ok);
                         }
                         // Stop also ends every MCP door at once (D41)
                         if by_peer && method == "ai.stop" && resp.get("ok").is_some() {
@@ -592,7 +592,27 @@ fn watch_run(st: Arc<Mutex<state::State>>, agent: String, run: String, unit: Str
             std::thread::sleep(std::time::Duration::from_secs(3));
         }
         let pr = runner::progress(&file, &worktree);
-        st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(&agent, &run, &file, pr);
+        let next = st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(&agent, &run, &file, pr);
+        // it handed its work to another agent: that run is watched the same way
+        if let Some(ok) = next {
+            watch_started(&st, &ok);
+        }
+    });
+}
+
+fn watch_started(st: &Arc<Mutex<state::State>>, ok: &Value) {
+    let s = |k: &str| ok[k].as_str().unwrap_or("").to_string();
+    watch_run(Arc::clone(st), s("agent"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
+}
+
+/// Coding agents on a schedule (A9a): every 30 seconds, start the ones that are due.
+fn schedule_agents(st: Arc<Mutex<state::State>>) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(30));
+        let started = st.lock().unwrap_or_else(|p| p.into_inner()).agents_due();
+        for ok in started {
+            watch_started(&st, &ok);
+        }
     });
 }
 

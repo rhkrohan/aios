@@ -24,7 +24,7 @@ pub const OWNER_METHODS: &[&str] = &[
     "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.revert", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
-    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin",
+    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin", "agents.merge", "agents.discard",
     "connectors.install", "connectors.remove", "connectors.set_ais", "signins.remove",
 ];
 
@@ -55,6 +55,37 @@ pub fn now() -> u64 {
 fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     // an empty secret proves nothing
     !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// git as the broker, in repositories whose config is the owner's or the broker's:
+/// no hooks, no fsmonitor, no pager. Fails with git's own (short) words.
+fn git_out(args: &[&str]) -> Result<String, String> {
+    let mut all = vec!["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "--no-pager"];
+    all.extend_from_slice(args);
+    let o = crate::exec::run("/usr/bin/git", &all, None, std::time::Duration::from_secs(120))?;
+    if o.code == Some(0) { Ok(String::from_utf8_lossy(&o.stdout).into_owned()) } else { Err(o.stderr.trim().chars().take(200).collect()) }
+}
+
+fn git_plain(args: &[&str]) -> Result<(), String> {
+    git_out(args).map(|_| ())
+}
+
+/// Text an agent wrote, for a window: no control characters except new lines and tabs.
+fn clean_text(t: &str, n: usize) -> String {
+    t.chars().filter(|c| !c.is_control() || *c == '\n' || *c == '\t').take(n).collect()
+}
+
+/// An agent's copy of a project goes: only a real folder under ~/Agents/<slug>/, never
+/// through a link (remove_dir_all doesn't follow links inside), then its empty parent.
+fn remove_agent_folder(root: &Path, worktree: &Path) {
+    let Ok(agents) = root.join("Agents").canonicalize() else { return };
+    let Some(parent) = worktree.parent() else { return };
+    let real_parent = parent.canonicalize().ok();
+    let is_dir = worktree.symlink_metadata().is_ok_and(|m| m.is_dir());
+    if real_parent.as_deref() == Some(parent) && parent.parent() == Some(agents.as_path()) && is_dir {
+        let _ = std::fs::remove_dir_all(worktree);
+        let _ = std::fs::remove_dir(parent);
+    }
 }
 
 pub fn random_hex(n: usize) -> String {
@@ -521,13 +552,35 @@ impl State {
                     self.iam.paused.push(a.id.clone());
                 }
                 self.iam.save();
+                // a coding agent working now: paused freezes it where it is, on thaws it (A9a)
+                if crate::agents::is_coder(&a.brain) && !a.run.is_empty() {
+                    let unit = format!("{}.service", crate::runner::unit(a.slug()));
+                    let verb = if a.active { "thaw" } else { "freeze" };
+                    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", verb, &unit], None, std::time::Duration::from_secs(10));
+                }
                 self.record(&Self::owner_cap(), "agents.update", &a.id, "you", &format!("you changed {} ({}, {}, {})", a.name, a.job, a.brain, if a.active { "on" } else { "paused" }), &json!([]));
                 json!(a)
             }),
             "agents.remove" => {
                 let id = p["id"].as_str().unwrap_or("").to_string();
+                // its files go only when the owner says so, and only from where they should be
+                let files = match self.agents.get(&id) {
+                    Some(a) if p["delete_files"] == true => Some(self.agent_paths(a).map(|x| (x.1, x.4))),
+                    _ => None,
+                };
                 match self.agents.remove(&id) {
                     Some(a) => {
+                        // a task it's working on stops with it, and so does its stop timer
+                        if crate::agents::is_coder(&a.brain) {
+                            for u in [format!("{}.service", crate::runner::unit(a.slug())), format!("{}-signin.service", crate::runner::unit(a.slug())), format!("{}.timer", crate::runner::lease_unit(a.slug()))] {
+                                let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &u], None, std::time::Duration::from_secs(30));
+                            }
+                        }
+                        self.iam.pairings.retain(|_, v| v != &id);
+                        if let Some(Ok((worktree, mine))) = files {
+                            remove_agent_folder(&self.root, &worktree);
+                            let _ = std::fs::remove_dir_all(&mine);
+                        }
                         // its identity goes, with everything that hung on it: passes it holds,
                         // passes and requests still waiting, memory shares, its pause entry
                         // (a new agent with the same name starts from nothing)
@@ -581,6 +634,11 @@ impl State {
                 Ok(json!({ "lease_until": until }))
             })(),
             "agents.git_init" => self.agent_git_init(p["id"].as_str().unwrap_or("")),
+            // review and merge (D102): what it changed, bring it in (password), or throw it away (password)
+            "agents.changes" if !viewer => Err("only SIOS's own windows can see agents".into()),
+            "agents.changes" => self.agent_changes(p["id"].as_str().unwrap_or("")),
+            "agents.merge" => self.agent_merge(p["id"].as_str().unwrap_or("")),
+            "agents.discard" => self.agent_discard(p["id"].as_str().unwrap_or("")),
             "agents.signin" => self.agent_signin(p["id"].as_str().unwrap_or("")),
             // a task for a coding agent: from SIOS's windows or SIOS's brain, inside a lease
             "agents.run" if !(viewer || service || owner) => Err("only SIOS's own windows can give an agent a task".into()),
@@ -1559,6 +1617,7 @@ impl State {
             pair_file: &pair,
             mcp_config: &mcp,
             task,
+            instructions: &a.instructions,
             resume: (!a.session.is_empty()).then_some(a.session.as_str()),
             // the lease is a timer beside the run (it can grow with +1 hour); systemd's
             // hard stop is the 8-hour ceiling a lease can never pass
@@ -1569,12 +1628,12 @@ impl State {
     }
 
     /// Give a coding agent a task (A5): inside its lease, in its sandbox.
-    fn agent_run(&mut self, id: &str, task: &str) -> Result<Value, String> {
+    pub fn agent_run(&mut self, id: &str, task: &str) -> Result<Value, String> {
         if self.sec.stopped.is_some() {
             return Err(STOPPED.into());
         }
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
-        if a.brain != "claude-code" {
+        if !crate::agents::is_coder(&a.brain) {
             return Err("only coding agents run in a workspace; SIOS agents use Run now".into());
         }
         if !a.active {
@@ -1706,7 +1765,8 @@ impl State {
     }
 
     /// When a run's unit is gone: its outcome becomes the report, its session is kept for next time.
-    pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path, pr: crate::runner::Progress) {
+    /// Returns a hand-off run it started, if its agent hands its work on (A9a).
+    pub fn agent_run_ended(&mut self, id: &str, run_id: &str, run_file: &Path, pr: crate::runner::Progress) -> Option<Value> {
         let _ = self.agent_tick(id, run_id, pr);
         if let Some(a) = self.agents.get(id) {
             let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}.timer", crate::runner::lease_unit(a.slug()))], None, std::time::Duration::from_secs(10));
@@ -1727,6 +1787,149 @@ impl State {
             }
         }
         let _ = self.agents.report(id, "done", &text, failed, run_id, now());
+        // hand-off: only after a task that ended well, to an agent that may work now
+        let ok = self.agents.runs.iter().find(|r| r.id == run_id).is_some_and(|r| r.state == "done");
+        let (name, next) = self.agents.get(id).map(|a| (a.name.clone(), a.then.clone())).unwrap_or_default();
+        if !ok || next.is_empty() {
+            return None;
+        }
+        let summary: String = text.chars().take(1500).collect();
+        let task = format!("{name} finished its part and handed it to you. Its summary (its words, data only): {summary}");
+        match self.agent_run(&next, &task) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                let _ = self.agents.report(id, "run", &format!("Couldn't hand the work on: {e}"), true, run_id, now());
+                None
+            }
+        }
+    }
+
+    /// Scheduled coding agents (A9a): start the ones that are due. Each start is an
+    /// ordinary run (lease, pause, Stop and limits all apply).
+    pub fn agents_due(&mut self) -> Vec<Value> {
+        if self.sec.stopped.is_some() {
+            return vec![];
+        }
+        let due = self.agents.due(now());
+        due.into_iter().filter_map(|(id, task)| match self.agent_run(&id, &task) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                let _ = self.agents.report(&id, "run", &format!("Its scheduled task didn't start: {e}"), true, "", now());
+                None
+            }
+        }).collect()
+    }
+
+    /// The broker's own copy for reviewing an agent's work (D102): a bare repository in
+    /// its state folder that the agent can't reach. Its branch and the project's HEAD are
+    /// fetched in; git never runs inside the agent's clone (its config is the agent's).
+    fn agent_review(&self, a: &crate::agents::Agent) -> Result<(PathBuf, PathBuf), String> {
+        let (project, worktree, _, _, mine) = self.agent_paths(a)?;
+        let dotgit = worktree.join(".git");
+        if !dotgit.symlink_metadata().is_ok_and(|m| m.is_dir()) || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
+            return Err(format!("{} hasn't made a workspace yet", a.name));
+        }
+        let review = mine.join("review.git");
+        let r = review.to_string_lossy().to_string();
+        if !review.exists() {
+            git_plain(&["init", "-q", "--bare", &r])?;
+        }
+        let branch = format!("+refs/heads/sios/{}:refs/heads/agent", a.slug());
+        git_plain(&["--git-dir", &r, "-c", "protocol.file.allow=always", "fetch", "-q", "--no-tags", "--upload-pack=/usr/bin/git-upload-pack", &dotgit.to_string_lossy(), &branch])?;
+        git_plain(&["--git-dir", &r, "-c", "protocol.file.allow=always", "fetch", "-q", "--no-tags", &project.to_string_lossy(), "+HEAD:refs/heads/base"])?;
+        Ok((review, project))
+    }
+
+    /// What an agent changed since it branched: commits, files and the diff (capped).
+    /// Everything here was written by the agent: plain, untrusted text.
+    fn agent_changes(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        let (review, _) = self.agent_review(&a)?;
+        let r = review.to_string_lossy().to_string();
+        let g = |args: &[&str]| -> Result<String, String> {
+            let mut all = vec!["--git-dir", r.as_str()];
+            all.extend_from_slice(args);
+            git_out(&all)
+        };
+        let base = g(&["merge-base", "base", "agent"]).map(|s| s.trim().to_string()).unwrap_or_default();
+        if base.is_empty() {
+            return Err("its branch and your project have nothing in common".into());
+        }
+        let range = format!("{base}..agent");
+        let commits: Vec<Value> = g(&["log", "--no-color", "--format=%h%x09%at%x09%s", "-n", "100", &range])?.lines().filter_map(|l| {
+            let mut it = l.splitn(3, '\t');
+            Some(json!({ "id": it.next()?, "at": it.next()?.parse::<u64>().unwrap_or(0), "title": clean_text(it.next().unwrap_or(""), 200) }))
+        }).collect();
+        let files: Vec<Value> = g(&["diff", "--no-ext-diff", "--no-textconv", "--numstat", &base, "agent"])?.lines().take(500).filter_map(|l| {
+            let mut it = l.splitn(3, '\t');
+            let (add, del, path) = (it.next()?, it.next()?, it.next()?);
+            Some(json!({ "path": clean_text(path, 300), "added": add.parse::<u64>().ok(), "removed": del.parse::<u64>().ok() }))
+        }).collect();
+        let diff = g(&["diff", "--no-color", "--no-ext-diff", "--no-textconv", &base, "agent"])?;
+        let cut = diff.len() > 300_000;
+        let mut end = diff.len().min(300_000);
+        while !diff.is_char_boundary(end) {
+            end -= 1;
+        }
+        let ahead = g(&["rev-list", "--count", "agent..base"]).ok().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0);
+        Ok(json!({ "agent": id, "branch": format!("sios/{}", a.slug()), "commits": commits, "files": files, "diff": clean_text(&diff[..end], 300_000), "cut": cut, "project_moved_on": ahead, "working": !a.run.is_empty() }))
+    }
+
+    /// Bring an agent's work into the owner's project (password, D102): its branch is
+    /// fetched from the broker's review copy and merged into the project's current
+    /// branch. Anything unclear (changes not saved in the project, a conflict) changes nothing.
+    fn agent_merge(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if !a.run.is_empty() {
+            return Err(format!("{} is still working: merge when it's done", a.name));
+        }
+        let (review, project) = self.agent_review(&a)?;
+        let p = project.to_string_lossy().to_string();
+        let pg = |args: &[&str]| -> Result<String, String> {
+            let mut all = vec!["-C", p.as_str()];
+            all.extend_from_slice(args);
+            git_out(&all)
+        };
+        if !pg(&["status", "--porcelain", "--untracked-files=no"])?.trim().is_empty() {
+            return Err("your project has changes that aren't committed: commit or put them aside first".into());
+        }
+        let before = pg(&["rev-parse", "HEAD"])?.trim().to_string();
+        let local = format!("refs/sios/{}", a.slug());
+        pg(&["-c", "protocol.file.allow=always", "fetch", "-q", "--no-tags", &review.to_string_lossy(), &format!("+refs/heads/agent:{local}")])?;
+        if pg(&["merge-base", "--is-ancestor", &local, "HEAD"]).is_ok() {
+            return Ok(json!({ "merged": false, "why": "nothing new: your project already has all of its work" }));
+        }
+        let who: Vec<&str> = if pg(&["config", "user.email"]).is_ok_and(|e| !e.trim().is_empty()) { vec![] } else { vec!["-c", "user.name=SIOS", "-c", "user.email=sios@localhost"] };
+        let msg = format!("Merge the work of agent {} (sios/{})", a.name, a.slug());
+        let mut m: Vec<&str> = who.clone();
+        m.extend_from_slice(&["merge", "--no-edit", "-m", &msg, &local]);
+        if let Err(e) = pg(&m) {
+            let conflicts = pg(&["diff", "--name-only", "--diff-filter=U"]).unwrap_or_default();
+            let _ = pg(&["merge", "--abort"]);
+            let list: Vec<String> = conflicts.lines().take(10).map(|l| clean_text(l, 200)).collect();
+            return Err(if list.is_empty() { format!("the merge didn't go through, nothing changed: {e}") } else { format!("its work clashes with yours in {}; nothing changed. Ask it to rebase on your latest work, or merge by hand.", list.join(", ")) });
+        }
+        let after = pg(&["rev-parse", "HEAD"])?.trim().to_string();
+        self.record(&Self::owner_cap(), "agents.merge", id, "you", &format!("you merged {}'s work into {} (it was at {} before)", a.name, a.folder, &before[..before.len().min(12)]), &json!([]));
+        Ok(json!({ "merged": true, "before": before, "after": after }))
+    }
+
+    /// Throw an agent's work away (password): its copy of the project goes, and its next
+    /// task starts fresh from the project as it is then.
+    fn agent_discard(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if !a.run.is_empty() {
+            return Err(format!("{} is still working: stop it first", a.name));
+        }
+        let (_, worktree, _, _, mine) = self.agent_paths(&a)?;
+        remove_agent_folder(&self.root, &worktree);
+        let _ = std::fs::remove_dir_all(mine.join("review.git"));
+        if let Some(x) = self.agents.get_mut(id) {
+            x.session.clear();
+        }
+        self.agents.save();
+        self.record(&Self::owner_cap(), "agents.discard", id, "you", &format!("you threw away {}'s work; its next task starts from your project", a.name), &json!([]));
+        Ok(json!({ "discarded": id }))
     }
 
     /// Open a terminal in the agent's sandbox so the owner signs Claude Code in once (D61).
@@ -3498,5 +3701,63 @@ mod tests {
         assert_eq!(v["state"], "waiting for the owner");
         let v = r.agent("request_pass", json!({ "principal": "sios", "own": true, "tools": ["files.list"], "paths": ["Downloads"], "ttl": 600, "uses": 5 }))["ok"].clone();
         assert_eq!(v["state"], "granted by your rule");
+    }
+
+    #[test]
+    fn an_agents_work_is_reviewed_and_merged_through_the_broker_and_a_clash_changes_nothing() {
+        let mut r = rig();
+        let root = r.st.root.canonicalize().unwrap();
+        let proj = root.join("Projects/site");
+        std::fs::create_dir_all(&proj).unwrap();
+        std::fs::write(proj.join("index.html"), "one\ntwo\nthree\n").unwrap();
+        let p = proj.to_string_lossy().to_string();
+        let id = ["-c", "user.name=T", "-c", "user.email=t@x"];
+        let git = |dir: &str, args: &[&str]| {
+            let mut all = vec!["-C", dir];
+            all.extend_from_slice(&id);
+            all.extend_from_slice(args);
+            git_out(&all).unwrap()
+        };
+        git(&p, &["init", "-q"]);
+        git(&p, &["add", "-A"]);
+        git(&p, &["commit", "-q", "-m", "start"]);
+        r.owner("agents.add", json!({ "name": "Coder", "brain": "claude-code", "instructions": "help", "folder": "Projects/site" }));
+        assert!(r.st.handle_as(&json!({ "method": "agents.changes", "params": { "id": "agent:coder" } }), Some(crate::peer::Who::OwnerApp))["error"].as_str().unwrap().contains("workspace"));
+        // its clone and branch, as agent_prepare makes them; it commits a change
+        let w = root.join("Agents/coder/site");
+        std::fs::create_dir_all(w.parent().unwrap()).unwrap();
+        let ws = w.to_string_lossy().to_string();
+        git_out(&["clone", "-q", "--no-hardlinks", &p, &ws]).unwrap();
+        git(&ws, &["checkout", "-q", "-B", "sios/coder"]);
+        std::fs::write(w.join("index.html"), "one\nTWO\nthree\n").unwrap();
+        std::fs::write(w.join("form.html"), "<form>").unwrap();
+        git(&ws, &["add", "-A"]);
+        git(&ws, &["commit", "-q", "-m", "Add a form\u{1b}[31m"]);
+        let c = r.st.handle_as(&json!({ "method": "agents.changes", "params": { "id": "agent:coder" } }), Some(crate::peer::Who::OwnerApp))["ok"].clone();
+        assert_eq!(c["commits"][0]["title"], "Add a form[31m", "agent text comes back plain");
+        let paths: Vec<&str> = c["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
+        assert_eq!(paths, ["form.html", "index.html"]);
+        assert!(c["diff"].as_str().unwrap().contains("+TWO"));
+        assert!(r.agent("agents.merge", json!({ "id": "agent:coder" }))["error"].is_string(), "only the owner merges");
+        // the owner's project has uncommitted changes: nothing happens
+        std::fs::write(proj.join("index.html"), "mine\n").unwrap();
+        assert!(r.owner("agents.merge", json!({ "id": "agent:coder" }))["error"].as_str().unwrap().contains("aren't committed"));
+        // a clash: the owner changed the same line; the merge is undone and says where
+        std::fs::write(proj.join("index.html"), "one\nzwei\nthree\n").unwrap();
+        git(&p, &["commit", "-q", "-am", "mine"]);
+        let head = git(&p, &["rev-parse", "HEAD"]);
+        let e = r.owner("agents.merge", json!({ "id": "agent:coder" }))["error"].as_str().unwrap().to_string();
+        assert!(e.contains("index.html") && e.contains("nothing changed"), "{e}");
+        assert_eq!(git(&p, &["rev-parse", "HEAD"]), head);
+        assert!(git(&p, &["status", "--porcelain"]).trim().is_empty(), "the project is as it was");
+        // without the clash it merges
+        git(&p, &["reset", "-q", "--hard", "HEAD~1"]);
+        let m = r.owner("agents.merge", json!({ "id": "agent:coder" }))["ok"].clone();
+        assert_eq!(m["merged"], true);
+        assert_eq!(std::fs::read_to_string(proj.join("form.html")).unwrap(), "<form>");
+        assert_eq!(r.owner("agents.merge", json!({ "id": "agent:coder" }))["ok"]["merged"], false, "nothing new");
+        // discard: its copy goes; the owner's project stays
+        assert!(r.owner("agents.discard", json!({ "id": "agent:coder" }))["ok"].is_object());
+        assert!(!w.exists() && proj.join("form.html").exists());
     }
 }
