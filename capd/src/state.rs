@@ -696,7 +696,7 @@ impl State {
                     Some(a) => {
                         // a task it's working on stops with it, and so does its stop timer
                         if crate::agents::is_coder(&a.brain) {
-                            for u in [format!("{}.service", crate::runner::unit(a.slug())), format!("{}-signin.service", crate::runner::unit(a.slug())), format!("{}.timer", crate::runner::lease_unit(a.slug()))] {
+                            for u in [format!("{}.service", crate::runner::unit(a.slug())), format!("{}-signin.service", crate::runner::unit(a.slug())), format!("{}.timer", crate::runner::lease_unit(a.slug())), format!("{}.service", crate::desk::unit(a.slug()))] {
                                 let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &u], None, std::time::Duration::from_secs(30));
                             }
                         }
@@ -806,6 +806,9 @@ impl State {
                 }).collect::<serde_json::Map<_, _>>());
                 Ok(v)
             }
+            // its own desktop (D109): start, stop or look at its state, from SIOS's windows only
+            "agents.desk" if !viewer => Err("only SIOS's own windows can do that".into()),
+            "agents.desk" => self.agent_desk(p["id"].as_str().unwrap_or(""), p["do"].as_str().unwrap_or("status")),
             // the live log beside an agent (what it reads, changes and runs) and its counts
             "agents.log" if !viewer => Err("only SIOS's own windows can see agents".into()),
             "agents.log" => self.agent_log(p["id"].as_str().unwrap_or("")),
@@ -1985,6 +1988,104 @@ impl State {
             interactive,
         })?;
         Ok((args, run_file))
+    }
+
+    /// An agent's own desktop (D109): "start" (inside its lease), "stop" or "status".
+    /// After a start the broker checks the desktop really sits in a network of its own
+    /// (systemd can skip that in a user unit without saying so) and stops it if not.
+    pub fn agent_desk(&mut self, id: &str, what: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if !crate::agents::is_coder(&a.brain) {
+            return Err("only coding agents have a desktop".into());
+        }
+        let unit = format!("{}.service", crate::desk::unit(a.slug()));
+        let runtime = std::env::var("SIOS_RUNTIME").map(PathBuf::from).map_err(|_| "no SIOS runtime folder")?;
+        let dir = crate::desk::dir(runtime.parent().ok_or("no runtime folder")?, a.slug());
+        let mine = self.dir.join("agents").join(a.slug());
+        let token_file = mine.join("desk-token");
+        let status = |on: bool| json!({ "agent": id, "on": on, "unit": unit, "width": crate::desk::WIDTH, "height": crate::desk::HEIGHT });
+        match what {
+            "status" => Ok(status(crate::security::unit_active(&unit))),
+            "stop" => {
+                let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &unit], None, std::time::Duration::from_secs(20));
+                let _ = std::fs::remove_file(&token_file);
+                let _ = std::fs::remove_file(dir.join("vnc.sock"));
+                self.record(&Self::owner_cap(), "agents.desk", id, "you", &format!("{}'s desktop was closed", a.name), &json!([]));
+                Ok(status(false))
+            }
+            "start" => {
+                if self.sec.stopped.is_some() {
+                    return Err(STOPPED.into());
+                }
+                if !a.active {
+                    return Err(format!("{} is paused", a.name));
+                }
+                if !a.leased(now()) {
+                    return Err(format!("{} has no work lease right now: let it work on its project first", a.name));
+                }
+                if crate::security::unit_active(&unit) {
+                    return Ok(status(true));
+                }
+                let (_, worktree, _, home, _) = self.agent_paths(&a)?;
+                if !worktree.is_dir() || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
+                    return Err(format!("{} has no workspace yet: give it a task first", a.name));
+                }
+                std::fs::create_dir_all(&home).map_err(|e| e.to_string())?;
+                // its socket folder: made here, 0700, never a link
+                {
+                    use std::os::unix::fs::DirBuilderExt;
+                    for d in [dir.parent().unwrap_or(&dir), dir.as_path()] {
+                        if d.symlink_metadata().is_ok_and(|m| !m.is_dir()) {
+                            return Err("its desktop folder isn't a plain folder".into());
+                        }
+                        let _ = std::fs::DirBuilder::new().mode(0o700).create(d);
+                    }
+                }
+                // a fresh token for this start, as a credential; the old one stops working
+                let token = random_hex(32);
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    let _ = std::fs::remove_file(&token_file);
+                    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&token_file).map_err(|e| e.to_string())?;
+                    std::io::Write::write_all(&mut f, token.as_bytes()).map_err(|e| e.to_string())?;
+                }
+                let (places, hide, _) = self.agent_place_binds(&a, &worktree);
+                let places: Vec<(PathBuf, PathBuf)> = places.into_iter().map(|(s, d, _)| (s, d)).collect();
+                let args = crate::desk::build(&crate::desk::Desk {
+                    slug: a.slug(),
+                    dir: &dir,
+                    token_file: &token_file,
+                    worktree: &worktree,
+                    agent_home: &home,
+                    places: &places,
+                    hide: &hide,
+                    max_secs: a.lease_until.saturating_sub(now()),
+                    render: &crate::desk::render_nodes(),
+                })?;
+                let argv: Vec<&str> = args.iter().map(String::as_str).collect();
+                let o = crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(20))?;
+                if o.code != Some(0) {
+                    return Err(format!("couldn't start its desktop: {}", o.stderr.trim().chars().take(200).collect::<String>()));
+                }
+                // fail closed: no proof of its own network, no desktop
+                let mut sealed = false;
+                for _ in 0..40 {
+                    std::thread::sleep(std::time::Duration::from_millis(250));
+                    if crate::desk::session_pids(&unit).into_iter().any(crate::desk::own_network) {
+                        sealed = true;
+                        break;
+                    }
+                }
+                if !sealed {
+                    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &unit], None, std::time::Duration::from_secs(20));
+                    let _ = std::fs::remove_file(&token_file);
+                    return Err("its desktop didn't get a network of its own, so SIOS closed it".into());
+                }
+                self.record(&Self::owner_cap(), "agents.desk", id, "you", &format!("{}'s desktop was opened", a.name), &json!([]));
+                Ok(status(true))
+            }
+            _ => Err("start, stop or status".into()),
+        }
     }
 
     /// Give a coding agent a task (A5): inside its lease, in its sandbox.

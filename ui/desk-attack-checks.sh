@@ -1,0 +1,23 @@
+#!/bin/bash
+# Escape checks run INSIDE an agent desktop sandbox (D109); every line must say "blocked"
+# except internet. Run through ui/desk-attack.sh, which also runs them outside as a control.
+r() { printf "%-46s %s\n" "$1" "$2"; }
+t() { if eval "$2" >/dev/null 2>&1; then r "$1" "REACHED  <-- hole"; else r "$1" "blocked"; fi; }
+t "system bus (udisks, NetworkManager)" "busctl --system list"
+t "owner session bus" "test -S /run/user/1000/bus"
+t "owner screen (wayland-0)" "test -S /run/user/1000/wayland-0"
+t "SIOS broker socket" "test -S /run/user/1000/sios/capd.sock"
+t "other agents desktops" "ls /run/user/1000/sios-desks/decoy"
+t "owner home files" "ls /var/home/rohan/Documents"
+t "owner .ssh" "ls /var/home/rohan/.ssh"
+t "disks (/dev/vda, /dev/sda, nvme)" "ls /dev/nvme* /dev/vd* /dev/sd* 2>/dev/null | grep -q ."
+t "display controller /dev/dri/card0" "test -e /dev/dri/card0"
+t "microphone/sound /dev/snd" "ls /dev/snd"
+t "camera /dev/video0" "test -e /dev/video0"
+t "host-only service 127.0.0.1:8765" "curl -s -m 3 http://127.0.0.1:8765/"
+t "host via gateway :8765" "curl -s -m 3 http://\$(ip route | awk \"/default/{print \\\$3}\"):8765/"
+t "owner processes visible (kwin)" "pgrep -f kwin_wayland"
+t "signal owner plasmashell" "kill -0 $(cat $(dirname "$0")/plasma.pid)"
+t "write into /usr" "touch /usr/bin/x"
+t "become root (sudo)" "sudo -n true"
+r "internet (allowed)" "$(curl -s -o /dev/null -w %{http_code} -m 8 https://fedoraproject.org)"

@@ -9,6 +9,7 @@ mod agents;
 mod audit;
 mod brains;
 mod connectors;
+mod desk;
 mod exec;
 mod fsguard;
 mod gateway;
@@ -108,6 +109,13 @@ fn main() {
         // inside a terminal command's sandbox (D89): start its stages, write the result
         "pipeline-run" => std::process::exit(terminal::pipeline_run(std::path::Path::new(&args.get(1).cloned().unwrap_or_default()), &args.get(2).cloned().unwrap_or_default())),
         "seed" => seed(),
+        // inside an agent's desktop sandbox (D109): its own KWin, sharer and bridge
+        "desk-session" => {
+            if let Err(e) = desk::session() {
+                eprintln!("desk-session: {e}");
+                std::process::exit(1);
+            }
+        }
         // every tool with its exact argument schema, in MCP form (for docs and llm/)
         "catalog" => {
             let all = token::Cap {
