@@ -1,0 +1,4 @@
+# The frozen test set (llm/export.py): never trained on. Add ids by hand; never remove.
+seed-decisions-0009
+seed-plans-0005
+seed-tool_use-0002

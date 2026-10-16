@@ -1,0 +1,175 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "understanding",
+    "steps",
+    "reply",
+    "question",
+    "undo_last",
+    "manual",
+    "look"
+  ],
+  "properties": {
+    "understanding": {
+      "type": "string",
+      "description": "One sentence: what the owner wants."
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "tool",
+          "args_json",
+          "sources",
+          "instruction",
+          "why"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tool",
+              "compose"
+            ]
+          },
+          "tool": {
+            "type": "string",
+            "enum": [
+              "files.list",
+              "files.find",
+              "files.read",
+              "files.write",
+              "files.move",
+              "files.organize",
+              "files.copy",
+              "files.trash",
+              "files.mkdir",
+              "files.restore",
+              "files.delete",
+              "mail.send",
+              "apps.open",
+              "files.show",
+              "files.preview",
+              "system.notify",
+              "settings.set_theme",
+              "network.connect_wifi",
+              "network.wifi_power",
+              "network.bluetooth_power",
+              "settings.set_volume",
+              "settings.set_brightness",
+              "settings.dnd",
+              "settings.set_wallpaper",
+              "apps.close",
+              "apps.focus",
+              "apps.arrange",
+              "system.lock",
+              "system.remind",
+              "apps.install",
+              "apps.remove",
+              "memory.search",
+              "memory.save",
+              "memory.forget",
+              "people.resolve",
+              "apps.list",
+              "network.list",
+              "system.state",
+              ""
+            ],
+            "description": "For tool steps. Empty for compose."
+          },
+          "args_json": {
+            "type": "string",
+            "description": "For tool steps: the arguments as a JSON object. Use {{N}} for the text of compose step N. Empty for compose."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "For compose: files to read (exact paths). Empty for tool steps."
+          },
+          "instruction": {
+            "type": "string",
+            "description": "For compose: what text to write. Empty for tool steps."
+          },
+          "why": {
+            "type": "string",
+            "description": "A few plain words for the owner."
+          }
+        }
+      }
+    },
+    "reply": {
+      "type": "string",
+      "description": "What to tell the owner when it's done. May use {{N}}."
+    },
+    "question": {
+      "type": "string",
+      "description": "Only if the request is genuinely unclear (two people match, no file matches, it contradicts itself): one short question, and no steps. Otherwise empty."
+    },
+    "undo_last": {
+      "type": "boolean",
+      "description": "True only if the owner asks to undo or reverse what was just done. Then no steps."
+    },
+    "look": {
+      "type": "array",
+      "description": "Only when you must find things before you can act on them (\"move my invoices to Finance\", \"trash the old screenshots\"): up to 3 lookups; leave steps empty, and you'll be asked again with what they found. Otherwise empty.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool",
+          "args_json"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "files.find",
+              "files.list"
+            ]
+          },
+          "args_json": {
+            "type": "string",
+            "description": "The arguments as a JSON object, e.g. {\"path\": \"\", \"query\": \"invoices\"}."
+          }
+        }
+      }
+    },
+    "manual": {
+      "type": "array",
+      "description": "Only when you can't or shouldn't do something (off limits, no tool, unsafe): up to 3 one-click actions that SHOW the owner where to do it themselves (open a folder or app, preview a file). Never anything that changes things. Otherwise empty.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "tool",
+          "args_json"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Button text, e.g. \"Open Taxes 2025\"."
+          },
+          "tool": {
+            "type": "string",
+            "enum": [
+              "files.show",
+              "apps.open",
+              "files.preview",
+              "apps.focus"
+            ]
+          },
+          "args_json": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
