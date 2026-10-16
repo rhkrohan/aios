@@ -134,6 +134,35 @@ pub fn understand(request: &str, now: &Value) -> Option<(String, Value, String)>
         return step("power.profile", json!({ "profile": profile }), format!("Power profile set to {}.", profile.replace('-', " ")));
     }
 
+    // media: "pause the music", "play", "next song", "skip", "previous track"
+    let media_words = ["music", "song", "track", "media", "video", "podcast", "playback", "it", "this"];
+    if w.iter().all(|x| media_words.contains(&x.as_str()) || ["pause", "play", "resume", "next", "skip", "previous", "back", "go", "stop"].contains(&x.as_str())) {
+        let action = if has("next") || has("skip") {
+            Some("next")
+        } else if has("previous") || (has("go") && has("back")) {
+            Some("previous")
+        } else if has("pause") || (has("stop") && w.iter().any(|x| media_words.contains(&x.as_str()))) {
+            Some("pause")
+        } else if has("play") || has("resume") {
+            Some("play")
+        } else {
+            None
+        };
+        if let Some(a) = action.filter(|_| w.len() <= 3) {
+            let said = match a { "next" => "Skipped to the next one.", "previous" => "Went back one.", "pause" => "Paused.", _ => "Playing." };
+            return step("media.control", json!({ "action": a }), said.into());
+        }
+    }
+    // a screenshot: "take a screenshot", "screenshot this window"
+    if (has("screenshot") || s == "print screen") && w.iter().all(|x| ["take", "screenshot", "of", "screen", "window", "this", "whole", "print"].contains(&x.as_str())) {
+        let what = if has("window") { "window" } else { "screen" };
+        return step("screen.capture", json!({ "what": what }), "Saved a screenshot in Pictures/Screenshots.".into());
+    }
+    // the Trash: "empty the trash" (it still asks the owner)
+    if has("empty") && (has("trash") || has("bin")) && w.iter().all(|x| ["empty", "trash", "bin", "recycle"].contains(&x.as_str())) {
+        return step("trash.empty", json!({}), "Emptied the Trash.".into());
+    }
+
     // lock: "lock the screen", "lock my computer"
     if w.first().is_some_and(|x| x == "lock") && w.iter().all(|x| ["lock", "screen", "computer", "it", "up"].contains(&x.as_str())) {
         return step("system.lock", json!({}), "Locked the screen.".into());
@@ -230,6 +259,13 @@ mod tests {
         assert_eq!(tool("power saver mode"), Some(("power.profile".into(), json!({ "profile": "power-saver" }))));
         assert_eq!(tool("battery saver off"), Some(("power.profile".into(), json!({ "profile": "balanced" }))));
         assert_eq!(tool("performance mode"), Some(("power.profile".into(), json!({ "profile": "performance" }))));
+        assert_eq!(tool("pause the music"), Some(("media.control".into(), json!({ "action": "pause" }))));
+        assert_eq!(tool("next song"), Some(("media.control".into(), json!({ "action": "next" }))));
+        assert_eq!(tool("skip"), Some(("media.control".into(), json!({ "action": "next" }))));
+        assert_eq!(tool("play"), Some(("media.control".into(), json!({ "action": "play" }))));
+        assert_eq!(tool("take a screenshot"), Some(("screen.capture".into(), json!({ "what": "screen" }))));
+        assert_eq!(tool("screenshot this window"), Some(("screen.capture".into(), json!({ "what": "window" }))));
+        assert_eq!(tool("empty the trash"), Some(("trash.empty".into(), json!({}))));
         let (_, a, r) = understand("Remind me in 2 hours to call the Bank.", &json!({})).unwrap();
         assert_eq!(a, json!({ "minutes": 120, "text": "call the Bank" }));
         assert_eq!(r, "I'll remind you in 2 hours to call the Bank.");
@@ -256,6 +292,10 @@ mod tests {
             "night light at 9pm",
             "mute the mic in zoom",
             "light mode and night light",
+            "play my workout playlist on spotify",
+            "stop",
+            "screenshot the error and email it to Sara",
+            "empty the trash in Downloads",
         ] {
             assert!(tool(req).is_none(), "{req}");
         }

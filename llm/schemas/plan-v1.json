@@ -77,6 +77,31 @@
               "apps.list",
               "network.list",
               "system.state",
+              "system.battery",
+              "power.profile",
+              "settings.night_light",
+              "settings.display_scale",
+              "audio.outputs",
+              "audio.set_output",
+              "audio.mic_mute",
+              "bluetooth.devices",
+              "bluetooth.connect",
+              "keyboard.layout",
+              "printers.list",
+              "system.update_check",
+              "media.now_playing",
+              "media.control",
+              "clipboard.read",
+              "clipboard.write",
+              "screen.capture",
+              "web.open",
+              "files.open",
+              "apps.search",
+              "reminders.list",
+              "reminders.cancel",
+              "trash.list",
+              "trash.empty",
+              "disk.usage",
               "terminal.read",
               "terminal.run",
               ""
@@ -132,7 +157,10 @@
             "type": "string",
             "enum": [
               "files.find",
-              "files.list"
+              "files.list",
+              "apps.search",
+              "trash.list",
+              "reminders.list"
             ]
           },
           "args_json": {

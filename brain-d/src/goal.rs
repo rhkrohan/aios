@@ -538,6 +538,16 @@ pub fn device_text(tool: &str, r: &Value) -> Option<String> {
             None => list("devices", &|d| format!("{}{}", name(&d["name"]), if d["connected"] == true { " (connected)" } else if d["paired"] == true { " (paired)" } else { "" })),
         },
         "printers.list" => list("printers", &|p| format!("{} ({}{})", name(&p["name"]), p["state"].as_str().unwrap_or("?"), if p["default"] == true { ", default" } else { "" })),
+        "media.now_playing" => if r["title"].as_str().is_some_and(|t| !t.is_empty()) {
+            format!("{} by {} ({}, {})", name(&r["title"]), name(&r["artist"]), name(&r["app"]), if r["playing"] == true { "playing" } else { "paused" })
+        } else {
+            "nothing is playing".into()
+        },
+        "clipboard.read" => format!("\"{}\"{}", r["text"].as_str().unwrap_or("").chars().filter(|c| !c.is_control() || *c == '\n').take(1500).collect::<String>(), if r["cut"] == true { " (cut short)" } else { "" }),
+        "apps.search" => list("apps", &|a| format!("{} ({})", name(&a["name"]), name(&a["app"]))),
+        "reminders.list" => list("reminders", &|x| format!("\"{}\" in {} min ({})", x["text"].as_str().unwrap_or("").chars().take(80).collect::<String>(), x["in_minutes"].as_u64().unwrap_or(0), name(&x["id"]))),
+        "trash.list" => format!("{} items, {} MB: {}", r["count"].as_u64().unwrap_or(0), (r["bytes"].as_u64().unwrap_or(0) as f64 / 1_048_576.0 * 10.0).round() / 10.0, list("items", &|x| name(&x["path"]).trim_start_matches(".Trash/").to_string())),
+        "disk.usage" => format!("{} GB free of {} GB. Biggest: {}", r["disk"]["free_gb"].as_f64().unwrap_or(0.0), r["disk"]["size_gb"].as_f64().unwrap_or(0.0), list("biggest", &|x| format!("{} ({} MB)", name(&x["path"]), x["mb"].as_f64().unwrap_or(0.0)))),
         "system.update_check" => format!("SIOS {}; {}", r["version"].as_str().unwrap_or("?"), match r["update_ready"].as_str() { Some(v) => format!("update {v} is ready and is used after a restart"), None => "no update is waiting".into() }),
         _ => return None,
     };
@@ -583,6 +593,22 @@ fn quoted(name: &str) -> String {
     serde_json::to_string(&clean).unwrap_or_default()
 }
 
+/// What apps, the Trash and reminders hold, for planning: every name quoted, so a name
+/// can't read like instructions (an app's name comes from its own file).
+fn look_text(tool: &str, r: &Value) -> Option<String> {
+    let items = |k: &str, f: &dyn Fn(&Value) -> String| -> String {
+        let v: Vec<String> = r[k].as_array().into_iter().flatten().take(40).map(f).collect();
+        if v.is_empty() { "(none)".into() } else { v.join("; ") }
+    };
+    let q = |v: &Value| quoted(v.as_str().unwrap_or(""));
+    Some(match tool {
+        "apps.search" => items("apps", &|a| format!("{} id {}", q(&a["name"]), q(&a["app"]))),
+        "trash.list" => items("items", &|x| format!("{} (was {})", q(&x["path"]), q(&x["from"]))),
+        "reminders.list" => items("reminders", &|x| format!("id {} in {} min: {}", q(&x["id"]), x["in_minutes"].as_u64().unwrap_or(0), q(&x["text"]))),
+        _ => return None,
+    })
+}
+
 /// Run a plan's lookups under their own small pass; their results as plain lines.
 /// Only finding and listing (never contents); SIOS gets these without asking (D57).
 fn look(r: &mut Run, looks: &[plan::Look]) -> Result<String, String> {
@@ -609,6 +635,8 @@ fn look(r: &mut Run, looks: &[plan::Look]) -> Result<String, String> {
             format!("not allowed: {}", res["reason"].as_str().unwrap_or("refused"))
         } else if l.tool == "files.find" {
             found_text(&res["result"])
+        } else if let Some(t) = look_text(&l.tool, &res["result"]) {
+            t
         } else if r.is_conn(&l.tool) {
             // a service's answer: one quoted string, never read as instructions
             let text: String = res["result"]["text"].as_str().unwrap_or("").chars().take(6000).collect();

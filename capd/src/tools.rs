@@ -74,6 +74,20 @@ pub const TOOLS: &[ToolSpec] = &[
     ToolSpec { name: "keyboard.layout", level: Level::Reversible, egress: false, path_args: &[], about: "Switch to another of the owner's keyboard layouts." },
     ToolSpec { name: "printers.list", level: Level::Read, egress: false, path_args: &[], about: "The printers set up on this computer and which is the default." },
     ToolSpec { name: "system.update_check", level: Level::Read, egress: false, path_args: &[], about: "SIOS's version and whether an update is ready." },
+    // everyday (wave 2, D104)
+    ToolSpec { name: "media.now_playing", level: Level::Read, egress: false, path_args: &[], about: "What's playing in the open media player (title, artist, app)." },
+    ToolSpec { name: "media.control", level: Level::Reversible, egress: false, path_args: &[], about: "Play, pause, skip or go back in the media player." },
+    ToolSpec { name: "clipboard.read", level: Level::Read, egress: false, path_args: &[], about: "Read the text on the clipboard (always asks: it may hold something private)." },
+    ToolSpec { name: "clipboard.write", level: Level::Reversible, egress: false, path_args: &[], about: "Put text on the clipboard (asks)." },
+    ToolSpec { name: "screen.capture", level: Level::Reversible, egress: false, path_args: &[], about: "Save a screenshot of the screen or the front window to Pictures/Screenshots (asks; the AI never sees it)." },
+    ToolSpec { name: "web.open", level: Level::Read, egress: true, path_args: &[], about: "Open an https web page in the browser (asks)." },
+    ToolSpec { name: "files.open", level: Level::Read, egress: false, path_args: &["path"], about: "Open a file with its usual app (asks; never anything that runs)." },
+    ToolSpec { name: "apps.search", level: Level::Read, egress: false, path_args: &[], about: "Find installed apps by name or what they do." },
+    ToolSpec { name: "reminders.list", level: Level::Read, egress: false, path_args: &[], about: "The reminders waiting, with their ids." },
+    ToolSpec { name: "reminders.cancel", level: Level::Reversible, egress: false, path_args: &[], about: "Cancel a reminder by its id." },
+    ToolSpec { name: "trash.list", level: Level::Read, egress: false, path_args: &[], about: "What's in the Trash and where it came from." },
+    ToolSpec { name: "trash.empty", level: Level::Irreversible, egress: false, path_args: &[], about: "Delete everything in the Trash for good (always asks)." },
+    ToolSpec { name: "disk.usage", level: Level::Read, egress: false, path_args: &["path"], about: "How full the disk is, and the biggest folders in a folder." },
     // memory (Vault): checked and logged like everything else
     ToolSpec { name: "memory.search", level: Level::Read, egress: false, path_args: &[], about: "Search what the owner asked SIOS to remember: facts, preferences, people, past goals." },
     ToolSpec { name: "memory.save", level: Level::Reversible, egress: false, path_args: &[], about: "Remember a fact or preference the owner stated. Never passwords or keys (refused)." },
@@ -190,6 +204,9 @@ pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     "system.battery", "audio.outputs", "bluetooth.devices", "printers.list", "system.update_check",
     "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "keyboard.layout",
     // never audio.mic_mute: unmuting the microphone is the owner's to approve (W1 security review)
+    // everyday (wave 2): look-ups and small undoable steps; the clipboard, screenshots, web
+    // pages, opening files and emptying the Trash always ask
+    "media.now_playing", "media.control", "apps.search", "reminders.list", "reminders.cancel", "trash.list", "disk.usage",
 ];
 
 pub fn acts_without_asking(name: &str) -> bool {
@@ -678,6 +695,61 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             let kind = if tool == "apps.install" { "install" } else { "uninstall" };
             Ok(done(json!({ "effect": { "type": kind, "app": app } })))
         }
+        // ---- the Trash and the disk (wave 2): the same on the preview and on SIOS
+        "trash.list" => {
+            let dir = env.root.join(TRASH);
+            let mut items: Vec<Value> = std::fs::read_dir(&dir).into_iter().flatten().flatten().filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                let rel = format!("{TRASH}/{name}");
+                let m = e.path().symlink_metadata().ok()?;
+                let size = if m.is_dir() { dir_bytes(&e.path(), 50_000) } else { m.len() };
+                let when = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+                Some(json!({ "path": rel, "from": meta.files.get(&rel).and_then(|x| x.trashed_from.clone()), "folder": m.is_dir(), "bytes": size, "at": when }))
+            }).collect();
+            items.sort_by(|a, b| b["at"].as_u64().cmp(&a["at"].as_u64()));
+            let total: u64 = items.iter().filter_map(|x| x["bytes"].as_u64()).sum();
+            Ok(done(json!({ "items": items.iter().take(100).collect::<Vec<_>>(), "count": items.len(), "bytes": total })))
+        }
+        "trash.empty" => {
+            let dir = env.root.join(TRASH);
+            let mut n = 0;
+            for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                let Ok(m) = e.path().symlink_metadata() else { continue };
+                // links are removed as links; nothing outside the Trash is touched
+                let r = if m.is_dir() { std::fs::remove_dir_all(e.path()) } else { std::fs::remove_file(e.path()) };
+                if r.is_ok() {
+                    n += 1;
+                }
+            }
+            meta.files.retain(|p, _| !(p == TRASH || p.starts_with(&format!("{TRASH}/"))));
+            Ok(done(json!({ "deleted": n })))
+        }
+        "disk.usage" => {
+            let r = res(env.root, args.get("path").and_then(|v| v.as_str()).unwrap_or(""))?;
+            if !r.real.is_dir() {
+                return Err(format!("{} isn't a folder", if r.rel.is_empty() { "your home" } else { &r.rel }));
+            }
+            let df = crate::exec::run("df", &["-k", &r.real.to_string_lossy()], None, std::time::Duration::from_secs(5)).ok().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default();
+            let f: Vec<u64> = df.lines().nth(1).map(|l| l.split_whitespace().skip(1).take(3).filter_map(|x| x.parse().ok()).collect()).unwrap_or_default();
+            let gb = |k: u64| (k as f64 / 1_048_576.0 * 10.0).round() / 10.0;
+            let disk = if f.len() == 3 { json!({ "size_gb": gb(f[0]), "used_gb": gb(f[1]), "free_gb": gb(f[2]) }) } else { json!(null) };
+            // the biggest folders and files right inside it: hidden ones and off-limits places left out
+            let mut big: Vec<(u64, String)> = std::fs::read_dir(&r.real).into_iter().flatten().flatten().filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                let rel = if r.rel.is_empty() { name.clone() } else { format!("{}/{name}", r.rel) };
+                if name.starts_with('.') || meta.is_blocked(&rel).is_some() {
+                    return None;
+                }
+                let m = e.path().symlink_metadata().ok()?;
+                Some((if m.is_dir() { dir_bytes(&e.path(), 200_000) } else if m.is_file() { m.len() } else { 0 }, rel))
+            }).collect();
+            big.sort_by(|a, b| b.0.cmp(&a.0));
+            let biggest: Vec<Value> = big.into_iter().take(10).map(|(b, p)| json!({ "path": p, "mb": (b as f64 / 1_048_576.0 * 10.0).round() / 10.0 })).collect();
+            Ok(done(json!({ "disk": disk, "biggest": biggest })))
+        }
+        // wave 2: the preview acts these out; on SIOS the adapters do them
+        "media.control" | "clipboard.write" | "screen.capture" | "web.open" | "files.open" | "reminders.cancel" => Ok(done(json!({ "effect": { "type": tool, "args": args } }))),
+        "media.now_playing" | "clipboard.read" | "apps.search" | "reminders.list" => Err(format!("{tool} works once SIOS's system adapters are installed")),
         // wave 1 settings: the preview acts them out; on SIOS the adapters do them
         "power.profile" | "settings.night_light" | "settings.display_scale" | "audio.set_output" | "audio.mic_mute" | "bluetooth.connect" | "keyboard.layout" => {
             Ok(done(json!({ "effect": { "type": tool, "args": args } })))
@@ -685,6 +757,27 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
         "apps.list" | "network.list" | "system.state" | "system.battery" | "audio.outputs" | "bluetooth.devices" | "printers.list" | "system.update_check" => Err(format!("{tool} works once SIOS's system adapters are installed")),
         other => Err(format!("{other} isn't a real tool")),
     }
+}
+
+/// Bytes in a folder's plain files, links not followed, at most `entries` looked at.
+fn dir_bytes(dir: &Path, entries: usize) -> u64 {
+    let (mut total, mut seen) = (0u64, 0usize);
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            seen += 1;
+            if seen > entries {
+                return total;
+            }
+            let Ok(m) = e.path().symlink_metadata() else { continue };
+            if m.is_dir() {
+                stack.push(e.path());
+            } else if m.is_file() {
+                total += m.len();
+            }
+        }
+    }
+    total
 }
 
 pub fn undo(u: &Undo, meta: &mut Store) -> Result<(), String> {
@@ -725,18 +818,18 @@ mod tests {
         for t in ACTS_WITHOUT_ASKING {
             let s = spec(t).unwrap_or_else(|| panic!("{t} isn't a tool"));
             assert!(!s.egress && s.level != Level::Irreversible, "{t}");
-            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "keyboard.layout"].contains(t), "{t}: only look-ups and settings");
+            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "keyboard.layout", "media.control", "reminders.cancel"].contains(t), "{t}: only look-ups and settings");
         }
-        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send", "audio.mic_mute", "bluetooth.connect"] {
+        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send", "audio.mic_mute", "bluetooth.connect", "clipboard.read", "clipboard.write", "screen.capture", "web.open", "files.open", "trash.empty"] {
             assert!(!acts_without_asking(t), "{t} must ask");
         }
     }
 }
 
 /// The adapter tools an undo may run again (their own previous value, or a reminder's cancel).
-const UNDO_ADAPTERS: [&str; 15] = [
+const UNDO_ADAPTERS: [&str; 16] = [
     "settings.set_volume", "settings.set_brightness", "settings.set_theme", "settings.set_wallpaper", "settings.dnd", "network.wifi_power", "network.bluetooth_power", "system.remind.cancel",
-    "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "audio.mic_mute", "bluetooth.connect", "keyboard.layout",
+    "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "audio.mic_mute", "bluetooth.connect", "keyboard.layout", "media.control",
 ];
 
 /// A journal entry read back from disk may only touch the owner's home, SIOS's own

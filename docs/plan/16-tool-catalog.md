@@ -95,6 +95,19 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `keyboard.layout` | layout | Change | Real (W1) | Switches among the owner's own layouts | `org.kde.KeyboardLayouts` setLayout over `busctl --user` |
 | `printers.list` | none | Read | Real (W1) | Printers and the default | `lpstat -p -d` |
 | `system.update_check` | none | Read | Real (W1) | SIOS's version and whether an update is downloaded | `rpm-ostree status --json`; applying stays in Settings > System |
+| `media.now_playing` | none | Read | Real (W2) | What's playing, the playing player first | MPRIS over `busctl --user --json`; titles are untrusted and only go in the reply |
+| `media.control` | action: play, pause, toggle, next, previous | Change | Real (W2) | Controls the media player; play and pause undo each other | MPRIS Player methods |
+| `clipboard.read` | none | Read (asks) | Real (W2) | The clipboard's text, up to 10,000 characters; always asks and only goes in the reply | `wl-paste --type text/plain` with a 20 KB cap |
+| `clipboard.write` | text | Change (asks) | Real (W2) | Puts text on the clipboard; asks (a pasted command could do harm); no undo, so the old text is never stored | `wl-copy`, started detached |
+| `screen.capture` | what: screen, window | Change (asks) | Real (W2) | Saves a screenshot to Pictures/Screenshots; the model never sees it | `spectacle -b -n -f/-a -o` |
+| `web.open` | url | Read, sends (asks) | Real (W2) | Opens a plain https address in the browser; an address can carry data out, so it asks | `xdg-open` in its own `systemd-run` job |
+| `files.open` | path | Read (asks) | Real (W2) | Opens a file with its usual app; refuses anything executable and launchers, scripts, packages | `xdg-open` on a percent-encoded file URL |
+| `apps.search` | query | Read | Real (W2) | Finds installed apps; `apps.open` takes the id | Parses .desktop files (system, Flatpak, the owner's); hidden ones left out |
+| `reminders.list` | none | Read | Real (W2) | Waiting reminders with ids | `systemctl --user list-timers sios-remind-*` |
+| `reminders.cancel` | id | Change | Real (W2) | Cancels one reminder | Stops its timer |
+| `trash.list` | none | Read | Real (W2) | What's in SIOS's Trash and where each came from | Reads `~/.Trash` and the labels store |
+| `trash.empty` | none | Irreversible (asks) | Real (W2) | Deletes everything in the Trash for good | Removes `~/.Trash` entries (links as links) |
+| `disk.usage` | path? | Read | Real (W2) | Free space and the biggest folders in a folder | `df -k` plus a capped walk; hidden and off-limits folders left out |
 
 ## mail: sending
 

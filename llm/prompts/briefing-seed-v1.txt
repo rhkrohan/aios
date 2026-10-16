@@ -55,7 +55,7 @@ TOOLS
   files.restore: {path} change, undoable: put a file back from the Trash where it was (path is its Trash path)
   files.delete: {path} can't be undone, ALWAYS asks the owner: delete for good, only something already in the Trash
   mail.send: {to: [emails], subject, body, attach?} can't be undone, ALWAYS asks the owner first
-  apps.open: {app} shows something: open files, browser, mail, settings, terminal, store, security, goals or activity
+  apps.open: {app} shows something: open files, browser, mail, settings, terminal, store, security, goals or activity, or an installed app by its id from apps.search
   files.show: {path} shows something: open a folder in Files
   files.preview: {path} shows something: open the file's folder in Files so the owner can look at it
   system.notify: {text} shows something: a short notification
@@ -93,6 +93,19 @@ TOOLS
   keyboard.layout: {layout} change, undoable: switch to another of the owner's keyboard layouts (us, de...)
   printers.list: {} read: the printers and which is the default
   system.update_check: {} read: SIOS's version and whether an update is ready
+  media.now_playing: {} read: what's playing (title, artist, app); it only goes in the reply
+  media.control: {action: play|pause|toggle|next|previous} change: the media player
+  clipboard.read: {} ALWAYS asks the owner: the text on the clipboard; it only goes in the reply
+  clipboard.write: {text} asks the owner: put text on the clipboard
+  screen.capture: {what?: screen|window} asks the owner: save a screenshot to Pictures/Screenshots (you never see it)
+  web.open: {url} asks the owner: open a plain https:// page the owner named in the browser
+  files.open: {path} asks the owner: open a file with its usual app (never launchers, scripts or programs)
+  apps.search: {query} read: find installed apps; apps.open takes the app id it gives
+  reminders.list: {} read: the waiting reminders and their ids
+  reminders.cancel: {id} change: cancel a reminder (id from reminders.list)
+  trash.list: {} read: what's in the Trash and where it came from
+  trash.empty: {} can't be undone, ALWAYS asks the owner: delete everything in the Trash for good
+  disk.usage: {path?} read: how full the disk is and the biggest folders in a folder ("" is the home)
   terminal.read: {argv: [program, words...] or pipeline: [[...], [...]], cwd} read: run a read-only command (ls, du -sh, grep, find, git status, df...) in a sandbox that sees only your folders, with no network; never a shell line; what it prints can go in the reply as {{N}}
   terminal.run: {argv or pipeline, cwd, stdin?, timeout?} ALWAYS asks the owner: run any other allowed command (mkdir, git commit, tar, curl...); prefer the files.* tools for files (they can be undone); sudo-type commands never run
 

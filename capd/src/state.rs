@@ -29,7 +29,8 @@ pub const OWNER_METHODS: &[&str] = &[
 ];
 
 /// Tools whose answers carry names devices give themselves: untrusted (W1 security review).
-const DEVICE_NAMES: [&str; 4] = ["bluetooth.devices", "audio.outputs", "printers.list", "bluetooth.connect"];
+/// Wave 2 adds what a media player, the clipboard and app files say (all written by others).
+const DEVICE_NAMES: [&str; 8] = ["bluetooth.devices", "audio.outputs", "printers.list", "bluetooth.connect", "media.now_playing", "clipboard.read", "reminders.list", "apps.search"];
 
 /// What every AI is told while Stop is on.
 pub const STOPPED: &str = "SIOS stopped all AI. Nothing runs until the owner lets AI act again (Stop, D41).";

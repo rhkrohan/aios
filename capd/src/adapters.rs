@@ -325,6 +325,114 @@ fn updates() -> Result<Value, String> {
     }))
 }
 
+
+// ------------------------------------------------------------ everyday (wave 2, D104)
+
+/// Media players on the session bus (MPRIS), the playing one first.
+fn players() -> Vec<String> {
+    let names = bus_json(&["--user", "--json=short", "call", "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ListNames"]).unwrap_or_default();
+    let mut list: Vec<String> = names.first().and_then(|d| d.as_array()).and_then(|a| a.first()).and_then(|a| a.as_array()).into_iter().flatten()
+        .filter_map(|n| n.as_str()).filter(|n| n.starts_with("org.mpris.MediaPlayer2.") && n.len() < 120 && n.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)))
+        .map(String::from).collect();
+    list.sort_by_key(|p| player_status(p).as_deref() != Some("Playing"));
+    list
+}
+
+fn player_status(p: &str) -> Option<String> {
+    bus_json(&["--user", "--json=short", "get-property", p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "PlaybackStatus"]).ok()?.first()?.as_str().map(String::from)
+}
+
+fn now_playing() -> Value {
+    let Some(p) = players().into_iter().next() else { return json!({ "playing": false, "note": "nothing is playing (no media player is open)" }) };
+    let meta = bus_json(&["--user", "--json=short", "get-property", &p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Metadata"]).unwrap_or_default();
+    let m = meta.first().cloned().unwrap_or(Value::Null);
+    let text = |k: &str| -> String {
+        let v = &m[k]["data"];
+        let t = v.as_str().map(String::from).or_else(|| v.as_array().map(|a| a.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(", "))).unwrap_or_default();
+        t.chars().filter(|c| !c.is_control()).take(120).collect()
+    };
+    let app = bus_json(&["--user", "--json=short", "get-property", &p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2", "Identity"]).ok().and_then(|v| v.first().and_then(|x| x.as_str()).map(|s| s.chars().take(60).collect::<String>())).unwrap_or_default();
+    json!({ "playing": player_status(&p).as_deref() == Some("Playing"), "status": player_status(&p), "title": text("xesam:title"), "artist": text("xesam:artist"), "app": app })
+}
+
+/// A program that leaves a helper running (wl-copy keeps serving the clipboard; a browser
+/// keeps going): started with its output nowhere, so nothing waits on it.
+fn spawn_detached(prog: &str, args: &[&str], stdin: Option<&[u8]>) -> Result<(), String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut c = Command::new(prog).args(args).stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::null()).stderr(Stdio::null()).spawn().map_err(|e| format!("can't run {prog}: {e}"))?;
+    if let (Some(data), Some(mut w)) = (stdin, c.stdin.take()) {
+        w.write_all(data).map_err(|e| e.to_string())?;
+    }
+    // the first process exits once its helper is running; never wait more than a few seconds
+    for _ in 0..100 {
+        if let Ok(Some(st)) = c.try_wait() {
+            return if st.success() { Ok(()) } else { Err(format!("{} failed", prog.rsplit('/').next().unwrap_or(prog))) };
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    Ok(())
+}
+
+/// Opened by the desktop as the owner's own click would be, in its own job (nothing of it
+/// stays attached to the broker). `$` is doubled for systemd.
+fn open_detached(target: &str) -> Result<(), String> {
+    let t = target.replace('$', "$$");
+    sh("/usr/bin/systemd-run", &["--user", "--quiet", "--collect", "--", "/usr/bin/xdg-open", &t]).map(|_| ())
+}
+
+/// Files that would run something when opened: refused by files.open.
+const RUNS_THINGS: [&str; 26] = ["desktop", "sh", "bash", "zsh", "fish", "csh", "py", "pl", "rb", "js", "mjs", "jar", "exe", "msi", "bat", "cmd", "appimage", "run", "bin", "deb", "rpm", "flatpakref", "flatpakrepo", "kwinscript", "plasmoid", "service"];
+
+/// Installed apps from their .desktop files: (id, name, about), hidden ones left out.
+fn installed_apps() -> Vec<(String, String, String)> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let dirs = [
+        "/usr/share/applications".to_string(),
+        "/var/lib/flatpak/exports/share/applications".to_string(),
+        format!("{home}/.local/share/applications"),
+        format!("{home}/.local/share/flatpak/exports/share/applications"),
+    ];
+    let mut out: Vec<(String, String, String)> = vec![];
+    for d in dirs {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let Some(id) = name.strip_suffix(".desktop") else { continue };
+            if !id.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) || out.iter().any(|(x, ..)| x == id) {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(e.path()) else { continue };
+            let entry = text.split("\n[").next().unwrap_or("");
+            let field = |k: &str| entry.lines().find_map(|l| l.strip_prefix(&format!("{k}="))).unwrap_or("").chars().filter(|c| !c.is_control()).take(100).collect::<String>();
+            if field("NoDisplay") == "true" || field("Hidden") == "true" || field("Type") != "Application" || field("Name").is_empty() {
+                continue;
+            }
+            out.push((id.to_string(), field("Name"), field("Comment")));
+        }
+    }
+    out
+}
+
+/// SIOS's reminders waiting now: (timer, minutes left, text).
+fn reminders() -> Vec<Value> {
+    let out = sh("/usr/bin/systemctl", &["--user", "list-timers", "sios-remind-*", "--all", "--no-legend", "--output=json"]).unwrap_or_default();
+    let list: Value = serde_json::from_str(&out).unwrap_or(json!([]));
+    let now_us = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_micros() as u64).unwrap_or(0);
+    list.as_array().into_iter().flatten().filter_map(|t| {
+        let unit = t["unit"].as_str()?.strip_suffix(".timer")?.to_string();
+        let ok = unit.strip_prefix("sios-remind-").is_some_and(|h| h.len() == 10 && h.chars().all(|c| c.is_ascii_hexdigit()));
+        if !ok {
+            return None;
+        }
+        let next = t["next"].as_u64().unwrap_or(0);
+        // its text is the notification's body: an argument of its service's command
+        let exec = sh("/usr/bin/systemctl", &["--user", "show", &format!("{unit}.service"), "-p", "ExecStart", "--value"]).unwrap_or_default();
+        // "... Notify SIOS 0 sios-logo Reminder <text> [] {} 0 ; ignore_errors=no ..."
+        let text: String = exec.split(" Reminder ").nth(1).and_then(|r| r.split(" [] {} 0").next()).unwrap_or("").trim().chars().filter(|c| !c.is_control()).take(200).collect();
+        Some(json!({ "id": unit, "in_minutes": next.saturating_sub(now_us) / 60_000_000, "text": text }))
+    }).collect()
+}
+
 // ------------------------------------------------------------ the tools
 
 /// Carry out a system tool for real. None: not one of these (the caller decides).
@@ -401,7 +509,12 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
         })(),
         "apps.open" => (|| {
             let app = s("app");
-            let id = APPS.iter().find(|(n, _)| *n == app).map(|(_, d)| *d).ok_or_else(|| format!("no app called {app}"))?;
+            // SIOS's own names, or any installed app's id from apps.search
+            let id = match APPS.iter().find(|(n, _)| *n == app) {
+                Some((_, d)) => d.to_string(),
+                None => installed_apps().into_iter().find(|(id, ..)| id == app).map(|(id, ..)| id).ok_or_else(|| format!("no app called {app} (apps.search finds installed apps)"))?,
+            };
+            let id = id.as_str();
             sh("/usr/bin/kstart", &["--application", id])?;
             ok(json!({ "opened": app }))
         })(),
@@ -498,6 +611,114 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             }
             sh("/usr/bin/systemd-run", &cmd)?;
             ok(json!({ if installing { "installing" } else { "removing" }: id, "job": unit, "note": "it runs in the background; a notification says when it's done" }))
+        })(),
+        // ---- everyday (wave 2, D104)
+        "media.now_playing" => ok(now_playing()),
+        "media.control" => (|| {
+            let action = s("action");
+            let method = match action {
+                "play" => "Play",
+                "pause" => "Pause",
+                "toggle" => "PlayPause",
+                "next" => "Next",
+                "previous" => "Previous",
+                _ => return Err("the action is play, pause, toggle, next or previous".to_string()),
+            };
+            let p = players().into_iter().next().ok_or("no media player is open")?;
+            let was = player_status(&p);
+            sh("/usr/bin/busctl", &["--user", "call", &p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", method])?;
+            let undo = match (action, was.as_deref()) {
+                ("play", Some("Paused")) => Some(json!({ "action": "pause" })),
+                ("pause", Some("Playing")) => Some(json!({ "action": "play" })),
+                ("toggle", Some("Playing")) => Some(json!({ "action": "play" })),
+                ("toggle", Some("Paused")) => Some(json!({ "action": "pause" })),
+                _ => None,
+            };
+            Ok(Done { result: json!({ "done": action, "was": was }), undo })
+        })(),
+        // the owner's clipboard can hold anything (a password just copied): reading it always
+        // asks (tools.rs), and its text only ever goes in the reply (brain-d)
+        "clipboard.read" => (|| {
+            let o = exec::run_with("/usr/bin/wl-paste", &["--no-newline", "--type", "text/plain"], &[], None, Duration::from_secs(5), 20_000)?;
+            let text: String = String::from_utf8_lossy(&o.stdout).chars().filter(|c| !c.is_control() || *c == '\n' || *c == '\t').take(10_000).collect();
+            ok(json!({ "text": text, "cut": o.stdout.len() >= 20_000 }))
+        })(),
+        "clipboard.write" => (|| {
+            let text: String = s("text").chars().take(100_000).collect();
+            if text.is_empty() {
+                return Err("what should go on the clipboard?".to_string());
+            }
+            spawn_detached("/usr/bin/wl-copy", &["--type", "text/plain"], Some(text.as_bytes()))?;
+            ok(json!({ "copied_chars": text.chars().count() }))
+        })(),
+        // a screenshot saved for the owner; the model never sees it (core rule 7)
+        "screen.capture" => (|| {
+            let window = match s("what") {
+                "" | "screen" => false,
+                "window" => true,
+                _ => return Err("what is screen or window".to_string()),
+            };
+            let dir = root.join("Pictures/Screenshots");
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            let stamp = sh("/usr/bin/date", &["+%Y-%m-%d %H-%M-%S"]).unwrap_or_else(|_| crate::state::random_hex(4));
+            let file = dir.join(format!("Screenshot {stamp}.png"));
+            let f = file.to_string_lossy().to_string();
+            sh_within("/usr/bin/spectacle", &["-b", "-n", if window { "-a" } else { "-f" }, "-o", &f], Duration::from_secs(20))?;
+            if !file.exists() {
+                return Err("the screenshot wasn't saved".into());
+            }
+            ok(json!({ "saved": format!("Pictures/Screenshots/Screenshot {stamp}.png") }))
+        })(),
+        // a web page in the browser: https only, a plain address; it always asks (tools.rs)
+        "web.open" => (|| {
+            let url = s("url").trim();
+            let host = url.strip_prefix("https://").and_then(|r| r.split(['/', '?', '#']).next()).unwrap_or("");
+            let plain = url.len() <= 2000 && !url.chars().any(|c| c.is_whitespace() || c.is_control() || "\"'<>\\`".contains(c));
+            if host.is_empty() || !plain || host.contains('@') || !host.chars().all(|c| c.is_ascii_alphanumeric() || ".-:".contains(c)) {
+                return Err("only a plain https:// address can be opened".to_string());
+            }
+            open_detached(url)?;
+            ok(json!({ "opened": url }))
+        })(),
+        // a file with its usual app, as the owner's double-click would; never anything that
+        // runs (launchers, scripts, programs, packages). It always asks (tools.rs).
+        "files.open" => (|| {
+            let r = crate::fsguard::resolve(root, s("path")).map_err(|e| e.to_string())?;
+            let meta = std::fs::symlink_metadata(&r.real).map_err(|_| format!("{} doesn't exist", r.rel))?;
+            if !meta.is_file() {
+                return Err(format!("{} isn't a file (files.show opens folders)", r.rel));
+            }
+            use std::os::unix::fs::PermissionsExt;
+            let ext = r.real.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+            if meta.permissions().mode() & 0o111 != 0 || RUNS_THINGS.contains(&ext.as_str()) {
+                return Err(format!("{} would run something when opened, so SIOS won't open it; open it yourself if you trust it", r.rel));
+            }
+            open_detached(&file_url(&r.real))?;
+            ok(json!({ "opened": r.rel }))
+        })(),
+        "apps.search" => (|| {
+            let q = s("query").to_lowercase();
+            if q.trim().is_empty() {
+                return Err("what app are you looking for?".to_string());
+            }
+            let words: Vec<&str> = q.split_whitespace().collect();
+            let mut hits: Vec<(usize, Value)> = installed_apps().into_iter().filter_map(|(id, name, about)| {
+                let hay = format!("{} {} {}", name.to_lowercase(), about.to_lowercase(), id.to_lowercase());
+                let n = words.iter().filter(|w| hay.contains(*w)).count();
+                (n > 0).then(|| (n * 10 + usize::from(name.to_lowercase().starts_with(words[0])) * 5, json!({ "app": id, "name": name, "about": about })))
+            }).collect();
+            hits.sort_by(|a, b| b.0.cmp(&a.0));
+            ok(json!({ "apps": hits.into_iter().take(10).map(|(_, v)| v).collect::<Vec<_>>() }))
+        })(),
+        "reminders.list" => ok(json!({ "reminders": reminders() })),
+        "reminders.cancel" => (|| {
+            let unit = s("id");
+            let ok_name = unit.strip_prefix("sios-remind-").is_some_and(|h| h.len() == 10 && h.chars().all(|c| c.is_ascii_hexdigit()));
+            if !ok_name {
+                return Err("not a SIOS reminder (ids come from reminders.list)".to_string());
+            }
+            sh("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.timer")])?;
+            ok(json!({ "cancelled": unit }))
         })(),
         // ---- devices (wave 1, D104)
         "system.battery" => ok(battery()),
@@ -615,5 +836,20 @@ mod tests {
         assert!(run("settings.night_light", &json!({}), d.path()).unwrap().unwrap_err().contains("on"));
         assert!(run("audio.mic_mute", &json!({ "on": "yes" }), d.path()).unwrap().is_err());
         assert!(run("bluetooth.connect", &json!({ "device": "x" }), d.path()).unwrap().unwrap_err().contains("on"));
+        // wave 2: bad arguments stop before anything runs
+        assert!(run("media.control", &json!({ "action": "rewind" }), d.path()).unwrap().is_err());
+        for bad in ["http://x.com", "https://", "javascript:alert(1)", "https://a b.com", "https://user@evil.com/", "file:///etc/passwd", "https://x.com/\"$(id)\""] {
+            assert!(run("web.open", &json!({ "url": bad }), d.path()).unwrap().is_err(), "{bad}");
+        }
+        std::fs::write(d.path().join("run.sh"), "x").unwrap();
+        std::fs::write(d.path().join("app.desktop"), "x").unwrap();
+        assert!(run("files.open", &json!({ "path": "run.sh" }), d.path()).unwrap().unwrap_err().contains("run something"));
+        assert!(run("files.open", &json!({ "path": "app.desktop" }), d.path()).unwrap().unwrap_err().contains("run something"));
+        std::fs::write(d.path().join("notes.bin2"), "x").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(d.path().join("notes.bin2"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(run("files.open", &json!({ "path": "notes.bin2" }), d.path()).unwrap().unwrap_err().contains("run something"), "anything executable");
+        assert!(run("reminders.cancel", &json!({ "id": "sshd" }), d.path()).unwrap().unwrap_err().contains("not a SIOS reminder"));
+        assert!(run("screen.capture", &json!({ "what": "everything" }), d.path()).unwrap().is_err());
     }
 }

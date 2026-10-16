@@ -54,7 +54,9 @@ pub struct Look {
 }
 
 /// What a plan may look up first: finding and listing, never reading contents.
-pub const LOOK_TOOLS: [&str; 2] = ["files.find", "files.list"];
+/// Also what's installed, what's in the Trash and which reminders wait (wave 2), so a plan
+/// can open an app by its id, put a file back or cancel a reminder.
+pub const LOOK_TOOLS: [&str; 5] = ["files.find", "files.list", "apps.search", "trash.list", "reminders.list"];
 
 /// The lookups that may run: look tools (and connectors' read tools) only, at most 3 (one round, D72).
 pub fn look_calls<'a>(looks: &'a [Look], connector_reads: &[String]) -> Vec<&'a Look> {
@@ -100,7 +102,7 @@ pub fn schema_with(connector_tools: &[String], connector_reads: &[String]) -> Va
             "undo_last": { "type": "boolean", "description": "True only if the owner asks to undo or reverse what was just done. Then no steps." },
             "look": {
                 "type": "array",
-                "description": "Only when you must find things before you can act on them (\"move my invoices to Finance\", \"trash the old screenshots\"): up to 3 lookups; leave steps empty, and you'll be asked again with what they found. Otherwise empty.",
+                "description": "Only when you must find things before you can act on them (\"move my invoices to Finance\", \"trash the old screenshots\", \"open the calculator\" via apps.search, \"put back the file I deleted\" via trash.list, \"cancel my stretch reminder\" via reminders.list): up to 3 lookups; leave steps empty, and you'll be asked again with what they found. Otherwise empty.",
                 "items": {
                     "type": "object",
                     "additionalProperties": false,
