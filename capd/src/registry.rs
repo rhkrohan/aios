@@ -168,9 +168,8 @@ impl Cache {
             let n = words.iter().filter(|w| hay.contains(w.as_str())).count();
             // the maker's own server first: its registry-checked publisher (a domain or GitHub
             // account the registry verified) carries the name searched for (notion.com, github.com/github)
-            let pubr = s.publisher.to_lowercase();
-            let owner = pubr.split(['/', '.']).filter(|p| !["com", "io", "app", "dev", "ai", "org", "net", "co", "github", "www"].contains(p)).collect::<Vec<_>>();
-            let official = words.iter().any(|w| owner.iter().any(|o| o == w)) || (pubr == format!("github.com/{}", words[0]));
+            let owner = owner_of(&s.publisher);
+            let official = words.iter().any(|w| *w == owner);
             (n == words.len()).then(|| (n * 10 + usize::from(official) * 100 + usize::from(title.starts_with(&words[0])) * 5, s))
         }).collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.title.cmp(&b.1.title)));
@@ -187,12 +186,27 @@ impl Cache {
     }
 }
 
+/// The name a publisher really is: its GitHub account, or the main label of its domain
+/// (mcp.notion.com -> notion; notion.evil.com -> evil; example.co.uk -> example).
+pub fn owner_of(publisher: &str) -> String {
+    let p = publisher.to_lowercase();
+    if let Some(user) = p.strip_prefix("github.com/") {
+        return user.to_string();
+    }
+    let labels: Vec<&str> = p.split('.').filter(|l| !l.is_empty()).collect();
+    let n = labels.len();
+    // two-part endings like co.uk, com.au: the label before them
+    let two = n >= 3 && labels[n - 2].len() <= 3 && labels[n - 1].len() == 2;
+    let i = if two { n.saturating_sub(3) } else { n.saturating_sub(2) };
+    labels.get(i).map(|l| l.to_string()).unwrap_or_default()
+}
+
 /// Is the publisher (a domain or GitHub account the registry verified) the brand its
-/// title names? "Notion" by notion.com, "GitHub" by github.com/github.
+/// title names? "Notion" by notion.com, "GitHub" by github.com/github; never a
+/// look-alike like notion.evil.com (security review).
 fn is_maker(s: &Server) -> bool {
-    let pubr = s.publisher.to_lowercase();
     let first = s.title.to_lowercase().split_whitespace().next().unwrap_or("").to_string();
-    !first.is_empty() && pubr.split(['/', '.']).any(|p| p == first)
+    !first.is_empty() && owner_of(&s.publisher) == first
 }
 
 /// Fetch one icon into the cache: https only, PNG or WebP by its bytes, at most 256 KB.
@@ -247,6 +261,13 @@ mod tests {
         assert_eq!(s.icon, "https://notes.example.com/i.png", "never an SVG");
         assert_eq!(s.publisher, "github.com/alice");
         assert_eq!(publisher("com.linear/mcp"), "linear.com");
+        // only the publisher's own name counts, never a look-alike domain
+        assert_eq!(owner_of("mcp.notion.com"), "notion");
+        assert_eq!(owner_of("notion.evil.com"), "evil");
+        assert_eq!(owner_of("example.co.uk"), "example");
+        assert_eq!(owner_of("github.com/github"), "github");
+        let fake = Server { title: "Notion".into(), publisher: "notion.evil.com".into(), ..Default::default() };
+        assert!(!is_maker(&fake));
         assert!(parse(&json!({ "server": { "name": "" } })).is_none());
         let c = Cache { fetched_at: 1, servers: vec![s, parse(&json!({ "server": { "name": "com.linear/mcp", "title": "Linear", "description": "Issues", "remotes": [{ "type": "streamable-http", "url": "https://mcp.linear.app/mcp" }] } })).unwrap()] };
         let v = c.view("linear", 0, 20);

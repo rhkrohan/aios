@@ -135,11 +135,13 @@ pub fn watch_lock() {
 
 // ------------------------------------------------------- SIOS's own windows
 
-pub const WINDOWS: [(&str, &str); 4] = [
+pub const WINDOWS: [(&str, &str); 5] = [
     ("approve", "/usr/bin/sios-approve"),
     ("settings", "/usr/bin/sios-settings"),
     ("memory", "/usr/bin/sios-memory"),
     ("agents", "/usr/bin/sios-agents"),
+    // the Store's Connectors page talks to the broker (C3, D105, D108)
+    ("store", "/usr/bin/sios-store"),
 ];
 
 /// Windows capd started: pid -> (which window, start time).

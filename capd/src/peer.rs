@@ -57,7 +57,7 @@ pub fn start_time(pid: u32) -> Option<u64> {
     rest.split_whitespace().nth(19)?.parse().ok()
 }
 
-pub const OWNER_APPS: [&str; 4] = ["/usr/bin/sios-approve", "/usr/bin/sios-settings", "/usr/bin/sios-memory", "/usr/bin/sios-agents"];
+pub const OWNER_APPS: [&str; 5] = ["/usr/bin/sios-approve", "/usr/bin/sios-settings", "/usr/bin/sios-memory", "/usr/bin/sios-agents", "/usr/bin/sios-store"];
 /// Off until the owner has an anchor an AI can't fake (see the limit above).
 pub const OWNER_BY_PROGRAM: bool = false;
 pub const SERVICE: (&str, &str) = ("/usr/bin/brain-d", "/sios-brain.service");
