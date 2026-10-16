@@ -529,7 +529,7 @@ class = "X"
 flags = { "--version" = "R", "-v" = "R" }
 [commands.npm]
 class = "X"
-sub = { ls = "R", list = "R", view = "S", outdated = "S", install = "S", ci = "S", publish = "S", run = "X", test = "X" }
+sub = { ls = "R", list = "R", view = "S", outdated = "S", install = "S", i = "S", ci = "S", update = "S", publish = "S", run = "X", test = "X" }
 [commands.npx]
 class = "X"
 [commands.pip]

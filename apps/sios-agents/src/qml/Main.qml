@@ -154,16 +154,23 @@ QQC2.ApplicationWindow {
             Text { textFormat: Text.PlainText; text: parent.parent.text; color: parent.parent.ink; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
         }
     }
+    // what an agent thinks with: SIOS, or one of the coding CLIs (D100)
+    readonly property var brains: ({
+        "builtin": ["bot", "", "SIOS"], "claude-code": ["logo-claude", "#d97757", "Claude Code"], "codex": ["logo-openai", "", "Codex"],
+        "cursor": ["logo-cursor", "", "Cursor"], "gemini": ["logo-googlegemini", "#8e75b2", "Gemini"]
+    })
+    function brainName(a) { return (brains[(a || {}).brain] || brains["builtin"])[2]; }
     component BrainBadge: Rectangle {
-        property bool coder: false
+        property string brain: "builtin"
+        readonly property var b: win.brains[brain] || win.brains["builtin"]
         implicitWidth: bb.implicitWidth + 18; implicitHeight: 22; radius: 11
         color: Theme.surface; border.width: 1; border.color: Theme.line
         Row {
             id: bb
             anchors.centerIn: parent
             spacing: 5
-            Icon { anchors.verticalCenter: parent.verticalCenter; name: parent.parent.coder ? "logo-claude" : "bot"; size: 13; color: parent.parent.coder ? "#d97757" : Theme.ai }
-            Text { textFormat: Text.PlainText; text: parent.parent.coder ? "Claude Code" : "SIOS"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+            Icon { anchors.verticalCenter: parent.verticalCenter; name: parent.parent.b[0]; size: 13; color: parent.parent.brain === "builtin" ? Theme.ai : (parent.parent.b[1] || Theme.fg) }
+            Text { textFormat: Text.PlainText; text: parent.parent.b[2]; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
         }
     }
     component Meter: ColumnLayout {
@@ -369,7 +376,7 @@ QQC2.ApplicationWindow {
                                             RowLayout {
                                                 spacing: 8
                                                 Text { textFormat: Text.PlainText; text: card.a.name; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 16; font.weight: Font.DemiBold }
-                                                BrainBadge { coder: card.coder }
+                                                BrainBadge { brain: card.a.brain }
                                             }
                                             Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText; text: card.a.run && card.r ? card.r.task : win.jobText(card.a); color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                                         }
@@ -417,12 +424,12 @@ QQC2.ApplicationWindow {
                                 spacing: 8
                                 Rectangle { Layout.alignment: Qt.AlignHCenter; implicitWidth: 44; implicitHeight: 44; radius: 22; color: Theme.surface3; Icon { anchors.centerIn: parent; name: "plus"; size: 20; color: Theme.fg2 } }
                                 Text { Layout.alignment: Qt.AlignHCenter; text: "New agent"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
-                                Text { Layout.alignment: Qt.AlignHCenter; text: "Claude Code for building things, SIOS for tidying and reminders"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { Layout.alignment: Qt.AlignHCenter; text: "Claude Code, Codex, Cursor or Gemini for building things; SIOS for tidying and reminders"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             }
                             MouseArea { id: nm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: newAgent.open() }
                         }
                     }
-                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Claude Code agents can still reach the internet freely (that limit comes later). They only ever touch their own copy of a project."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Coding agents can still reach the internet freely (that limit comes later). They only ever touch their own copy of a project."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                 }
             }
 
@@ -478,7 +485,7 @@ QQC2.ApplicationWindow {
                                 ColumnLayout {
                                     spacing: 4
                                     Text { textFormat: Text.PlainText; text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.display; font.pixelSize: 26; font.weight: Font.DemiBold }
-                                    RowLayout { spacing: 6; BrainBadge { coder: agentPage.coder } Pill { text: win.current ? win.stateOf(agentPage.a)[0] : ""; kind: win.current ? win.stateOf(agentPage.a)[1] : "muted"; dot: !!agentPage.a.run } }
+                                    RowLayout { spacing: 6; BrainBadge { brain: agentPage.a.brain || "builtin" } Pill { text: win.current ? win.stateOf(agentPage.a)[0] : ""; kind: win.current ? win.stateOf(agentPage.a)[1] : "muted"; dot: !!agentPage.a.run } }
                                 }
                             }
                             ColumnLayout {
@@ -504,7 +511,7 @@ QQC2.ApplicationWindow {
                                     frac: agentPage.r ? agentPage.r.tokens / Math.max(1, agentPage.a.max_task_tokens) : 0
                                 }
                                 Meter { label: "Tokens today"; tint: "#c1457d"; value: win.current ? win.tok(win.dayTokens(agentPage.a)) + " of " + win.tok(agentPage.a.max_day_tokens) : ""; frac: win.current ? win.dayTokens(agentPage.a) / Math.max(1, agentPage.a.max_day_tokens) : 0 }
-                                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "SIOS counts what Claude Code reports and stops it at the limit."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "SIOS counts what " + win.brainName(agentPage.a) + " reports and stops it at the limit."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             }
                             Box {
                                 visible: agentPage.coder && !!agentPage.r && agentPage.r.files.length > 0
@@ -989,11 +996,14 @@ QQC2.ApplicationWindow {
                         Box {
                             visible: agentPage.coder
                             Text { text: "Its workspace"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Claude Code signs in once, inside its own sandbox, with its own account. A folder that isn't a git project needs to become one first, so the agent can work on its own branch."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            id: wsBox
+                            readonly property string inst: (broker.team.installed || {})[agentPage.a.brain] || "no"
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: win.brainName(agentPage.a) + (wsBox.inst === "yes" ? " signs in once, inside its own sandbox, with its own account." : wsBox.inst === "installing" ? " is installing now." : " isn't installed yet. SIOS installs it from its maker into your home folder (asks for your password).") + " A folder that isn't a git project needs to become one first, so the agent can work on its own branch."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                             Flow {
                                 Layout.fillWidth: true
                                 spacing: 8
-                                Button { text: "Sign it in"; kind: "plain"; onClicked: win.ask("agents.signin", { id: agentPage.a.id }, "A terminal opened in its workspace", "Couldn't open its workspace", "Type /login there and follow the steps.") }
+                                Button { visible: wsBox.inst === "no"; text: "Install " + win.brainName(agentPage.a); onClicked: win.ask("agents.install_brain", { brain: agentPage.a.brain }, "Installing " + win.brainName(agentPage.a), "Couldn't install it", "A notification says when it's done.") }
+                                Button { visible: wsBox.inst === "yes"; text: "Sign it in"; kind: "plain"; onClicked: win.ask("agents.signin", { id: agentPage.a.id }, "A terminal opened in its workspace", "Couldn't open its workspace", "Follow the steps there, then close it.") }
                                 Button { text: "Make it a git project"; kind: "plain"; onClicked: win.ask("agents.git_init", { id: agentPage.a.id }, "It's a git project now", "Couldn't make it a git project") }
                             }
                         }

@@ -24,7 +24,7 @@ pub const OWNER_METHODS: &[&str] = &[
     "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.revert", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
-    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin", "agents.merge", "agents.discard",
+    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin", "agents.merge", "agents.discard", "agents.install_brain",
     "connectors.install", "connectors.remove", "connectors.set_ais", "signins.remove",
 ];
 
@@ -525,7 +525,7 @@ impl State {
                 self.record(&Self::owner_cap(), "agents.add", &a.id, "you", &format!("you made the agent {} ({}, {})", a.name, a.brain, a.job), &json!([]));
                 // a coding agent may get its first working time in the same step (one password)
                 let mut a = a;
-                if let Some(h) = p["lease_hours"].as_u64().filter(|_| a.brain == "claude-code") {
+                if let Some(h) = p["lease_hours"].as_u64().filter(|_| crate::agents::is_coder(&a.brain)) {
                     let h = h.clamp(1, 8);
                     a.lease_until = now() + h * 3600;
                     if let Some(x) = self.agents.get_mut(&a.id) {
@@ -625,6 +625,22 @@ impl State {
                 Ok(json!({ "lease_until": until }))
             })(),
             "agents.git_init" => self.agent_git_init(p["id"].as_str().unwrap_or("")),
+            // install a coding CLI the vendor's documented way, into the owner's ~/.local (password)
+            "agents.install_brain" => (|| {
+                let name = p["brain"].as_str().unwrap_or("");
+                let (_, how) = crate::brains::INSTALL.iter().find(|(n, _)| *n == name).ok_or("that isn't a coding agent SIOS knows")?;
+                let label = crate::brains::Brain::from(name).map(|b| b.label()).unwrap_or(name);
+                let unit = format!("sios-install-{name}");
+                let note = format!("ExecStopPost=/usr/bin/gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify SIOS 0 sios-logo SIOS \"Installing {label} finished. Open Agents to sign it in.\" [] {{}} 6000");
+                // a fixed command from SIOS's own list, never words from a request
+                let args = ["--user", "--quiet", "--collect", "--unit", unit.as_str(), "--property", note.as_str(), "--property", "RuntimeMaxSec=900", "--", "/bin/sh", "-c", how];
+                let o = crate::exec::run("/usr/bin/systemd-run", &args, None, std::time::Duration::from_secs(20))?;
+                if o.code != Some(0) {
+                    return Err(format!("couldn't start installing {label}: {}", o.stderr.trim().chars().take(200).collect::<String>()));
+                }
+                self.record(&Self::owner_cap(), "agents.install_brain", name, "you", &format!("you installed {label} from its maker ({how})"), &json!([]));
+                Ok(json!({ "installing": name, "note": "it downloads in the background; a notification says when it's done" }))
+            })(),
             // review and merge (D102): what it changed, bring it in (password), or throw it away (password)
             // (the broker runs these without its lock, main.rs; here for the Mac and tests)
             "agents.changes" | "agents.merge" => self.review_prepare(req, who).and_then(|j| {
@@ -646,6 +662,13 @@ impl State {
             "agents.view" => {
                 let mut v = self.agents.view();
                 v["moods"] = json!(self.pets().into_iter().map(|p| (p["id"].as_str().unwrap_or("").to_string(), p["mood"].clone())).collect::<serde_json::Map<_, _>>());
+                // which coding CLIs are installed, and whether one is installing now
+                let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
+                v["installed"] = json!(crate::brains::INSTALL.iter().map(|(n, _)| {
+                    let b = crate::brains::Brain::from(n);
+                    let state = if b.and_then(|b| b.find(&home)).is_some() { "yes" } else if crate::security::unit_active(&format!("sios-install-{n}")) { "installing" } else { "no" };
+                    (n.to_string(), json!(state))
+                }).collect::<serde_json::Map<_, _>>());
                 Ok(v)
             }
             // the live log beside an agent (what it reads, changes and runs) and its counts
@@ -1553,7 +1576,7 @@ impl State {
     /// The sandbox, the worktree and the pairing for a run; the systemd-run arguments.
     /// `ceiling`: systemd's hard stop for this unit (a run: 8 hours, its lease is a timer;
     /// the sign-in terminal: 30 minutes, no timer).
-    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str, ceiling: u64) -> Result<(Vec<String>, PathBuf), String> {
+    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str, ceiling: u64, interactive: bool) -> Result<(Vec<String>, PathBuf), String> {
         let (project, worktree, git_dir, home, mine) = self.agent_paths(a)?;
         if !git_dir.is_dir() {
             return Err("that folder isn't a git project yet: use Make it a git project".into());
@@ -1562,7 +1585,8 @@ impl State {
         if worktree.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) || worktree.parent().is_some_and(|p| p.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())) {
             return Err("its workspace folder was replaced by a link; remove it and try again".into());
         }
-        let claude = crate::runner::claude(&std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default())).ok_or("Claude Code isn't installed (claude.ai/install.sh)")?;
+        let brain = crate::brains::Brain::from(&a.brain).ok_or("that agent has no coding brain")?;
+        let install = brain.find(&PathBuf::from(std::env::var("HOME").unwrap_or_default())).ok_or_else(|| format!("{} isn't installed yet: use Install {} in the Agents app", brain.label(), brain.label()))?;
         for d in [&home, &mine.join("runs")] {
             std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
@@ -1598,15 +1622,20 @@ impl State {
             std::io::Write::write_all(&mut f, token.as_bytes()).map_err(|e| e.to_string())?;
         }
         // SIOS's door config lives beside the pairing, outside the home the agent can change,
-        // and is bound in read-only; written fresh (create_new never follows a link) (security review)
-        let mcp = mine.join("sios-mcp.json");
-        {
+        // and is bound in read-only (over the path its CLI reads, for Cursor and Gemini);
+        // written fresh (create_new never follows a link) (security review)
+        let _ = std::fs::remove_file(home.join("sios-mcp.json"));
+        let mut files: Vec<(PathBuf, PathBuf)> = vec![];
+        for (name, at, text) in brain.config_files() {
             use std::os::unix::fs::OpenOptionsExt;
-            let _ = std::fs::remove_file(&mcp);
-            let _ = std::fs::remove_file(home.join("sios-mcp.json"));
-            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o644).open(&mcp).map_err(|e| e.to_string())?;
-            std::io::Write::write_all(&mut f, json!({ "mcpServers": { "sios": { "command": "/usr/bin/brain-d", "args": ["mcp"] } } }).to_string().as_bytes()).map_err(|e| e.to_string())?;
+            let src = mine.join(name);
+            let _ = std::fs::remove_file(&src);
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o644).open(&src).map_err(|e| e.to_string())?;
+            std::io::Write::write_all(&mut f, text.as_bytes()).map_err(|e| e.to_string())?;
+            let dst = if at.is_empty() { src.clone() } else { home.join(at) };
+            files.push((src, dst));
         }
+        let mcp = mine.join("sios-mcp.json");
         let sockets = std::env::var("SIOS_RUNTIME").map(PathBuf::from).map_err(|_| "no SIOS runtime folder")?;
         let run_file = mine.join("runs").join(format!("{run_id}.jsonl"));
         #[cfg(target_os = "linux")]
@@ -1614,22 +1643,29 @@ impl State {
         let uid = unsafe { libc::getuid() };
         #[cfg(not(target_os = "linux"))]
         let uid = 0;
+        let cli_args = if interactive {
+            brain.signin_args().0
+        } else {
+            brain.args(&crate::runner::prompt(task, &a.instructions), crate::runner::RULES, (!a.session.is_empty()).then_some(a.session.as_str()), &mcp)
+        };
+        let env = brain.env(&home);
         let args = crate::runner::build(&crate::runner::Run {
             slug: a.slug(),
             worktree: &worktree,
             agent_home: &home,
             sockets: &sockets,
-            claude: &claude,
             run_file: &run_file,
             pair_file: &pair,
-            mcp_config: &mcp,
-            task,
-            instructions: &a.instructions,
-            resume: (!a.session.is_empty()).then_some(a.session.as_str()),
+            program: &install.program,
+            args: &cli_args,
+            binds: &install.binds,
+            files: &files,
+            env: &env,
             // the lease is a timer beside the run (it can grow with +1 hour); systemd's
             // hard stop is the 8-hour ceiling a lease can never pass
             max_secs: ceiling,
             uid,
+            interactive,
         })?;
         Ok((args, run_file))
     }
@@ -1660,7 +1696,7 @@ impl State {
             return Err("what should it do?".into());
         }
         let run_id = format!("r{}", random_hex(6));
-        let (args, run_file) = self.agent_prepare(&a, task, &run_id, 8 * 3600)?;
+        let (args, run_file) = self.agent_prepare(&a, task, &run_id, 8 * 3600, false)?;
         let argv: Vec<&str> = args.iter().map(String::as_str).collect();
         let o = crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(20))?;
         if o.code != Some(0) {
@@ -1681,16 +1717,16 @@ impl State {
         self.agents.report(id, "run", &format!("Started: {}", task.chars().take(300).collect::<String>()), false, &run_id, now())?;
         self.record(&Self::owner_cap(), "agents.run", id, "allow", &format!("{} started a task in its workspace", a.name), &json!([]));
         let worktree = self.agent_paths(&a).map(|x| x.1).unwrap_or_default();
-        Ok(json!({ "agent": id, "name": a.name, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file, "worktree": worktree }))
+        Ok(json!({ "agent": id, "name": a.name, "brain": a.brain, "run": run_id, "unit": crate::runner::unit(a.slug()), "run_file": run_file, "worktree": worktree }))
     }
 
     /// Runs that were working when the broker last stopped: (agent, run, unit, file, worktree),
     /// so their watchers start again and the limits keep holding.
-    pub fn working_runs(&self) -> Vec<(String, String, String, PathBuf, PathBuf)> {
+    pub fn working_runs(&self) -> Vec<Value> {
         self.agents.agents.iter().filter(|a| !a.run.is_empty()).map(|a| {
             let file = self.dir.join("agents").join(a.slug()).join("runs").join(format!("{}.jsonl", a.run));
             let worktree = self.agent_paths(a).map(|x| x.1).unwrap_or_default();
-            (a.id.clone(), a.run.clone(), crate::runner::unit(a.slug()), file, worktree)
+            json!({ "agent": a.id, "brain": a.brain, "run": a.run, "unit": crate::runner::unit(a.slug()), "run_file": file, "worktree": worktree })
         }).collect()
     }
 
@@ -1780,7 +1816,7 @@ impl State {
                 if self.live.get(id).is_none_or(|(rid, _)| rid != &r.id) {
                     let file = self.dir.join("agents").join(a.slug()).join("runs").join(format!("{}.jsonl", r.id));
                     let worktree = self.agent_paths(&a).map(|x| x.1).unwrap_or_default();
-                    self.live.insert(id.to_string(), (r.id.clone(), crate::runner::progress(&file, &worktree).log));
+                    self.live.insert(id.to_string(), (r.id.clone(), crate::runner::progress_of(&a.brain, &file, &worktree).log));
                 }
                 let l = &self.live[id].1;
                 l[l.len().saturating_sub(400)..].to_vec()
@@ -1815,7 +1851,8 @@ impl State {
         if let Some(a) = self.agents.get(id) {
             let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{}.timer", crate::runner::lease_unit(a.slug()))], None, std::time::Duration::from_secs(10));
         }
-        let (text, session, failed) = crate::runner::outcome(run_file);
+        let (brain, worktree) = self.agents.get(id).map(|a| (a.brain.clone(), self.agent_paths(a).map(|x| x.1).unwrap_or_default())).unwrap_or_default();
+        let (text, session, failed) = crate::runner::outcome_of(&brain, run_file, &worktree);
         if let Some(r) = self.agents.run_mut(run_id) {
             r.ended = now();
             if r.state == "working" {
@@ -1941,33 +1978,15 @@ impl State {
         let mut tmp = a.clone();
         tmp.lease_until = now() + 1800;
         tmp.session.clear();
-        let (args, _) = self.agent_prepare(&tmp, "Say hello (sign-in check).", "signin", 1800)?;
-        // the same sandbox, interactive: drop the output file and the task, keep everything else
-        let mut it: Vec<String> = vec!["-e".into(), "/usr/bin/systemd-run".into(), "--user".into(), "--pty".into(), "--quiet".into(), "--collect".into(), format!("--unit={}-signin", crate::runner::unit(a.slug()))];
-        let mut skip = false;
-        for (i, x) in args.iter().enumerate() {
-            if skip {
-                skip = false;
-                continue;
-            }
-            if x == "--" {
-                it.push("--".into());
-                it.push(args[i + 1].clone());
-                break;
-            }
-            if x.starts_with("--unit=") || x == "--user" || x == "--quiet" || x == "--collect" {
-                continue;
-            }
-            if x == "-p" && args.get(i + 1).is_some_and(|n| n.starts_with("StandardOutput=") || n.starts_with("StandardError=")) {
-                skip = true;
-                continue;
-            }
-            it.push(x.clone());
-        }
+        // the same sandbox, interactive, in a terminal: its CLI's own sign-in
+        let (args, _) = self.agent_prepare(&tmp, "", "signin", 1800, true)?;
+        let mut it: Vec<String> = vec!["-e".into(), "/usr/bin/systemd-run".into()];
+        it.extend(args);
         let argv: Vec<&str> = it.iter().map(String::as_str).collect();
         std::process::Command::new("/usr/bin/konsole").args(&argv).spawn().map_err(|e| format!("couldn't open a terminal: {e}"))?;
         self.record(&Self::owner_cap(), "agents.signin", id, "you", &format!("you opened {}'s workspace to sign it in", a.name), &json!([]));
-        Ok(json!({ "opened": "a terminal in its workspace: sign in with /login, then close it" }))
+        let how = crate::brains::Brain::from(&a.brain).map(|b| b.signin_args().1).unwrap_or("sign in");
+        Ok(json!({ "opened": format!("a terminal in its workspace: {how}, then close it") }))
     }
 
     /// Stop (D41): every pass and session revoked, everything waiting declined,

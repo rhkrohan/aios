@@ -7,6 +7,7 @@
 mod adapters;
 mod agents;
 mod audit;
+mod brains;
 mod connectors;
 mod exec;
 mod fsguard;
@@ -367,8 +368,8 @@ fn serve() {
     let st = Arc::new(Mutex::new(st));
     // agents that were working when the broker last stopped: watch them again
     let working = st.lock().unwrap_or_else(|p| p.into_inner()).working_runs();
-    for (agent, run, unit, file, worktree) in working {
-        watch_run(Arc::clone(&st), agent, run, unit, file, worktree);
+    for ok in working {
+        watch_started(&st, &ok);
     }
     schedule_agents(Arc::clone(&st));
     // approval sessions end when the screen locks or the computer sleeps (D56)
@@ -599,18 +600,18 @@ fn serve() {
 /// Watch a coding agent's run until its unit is gone. Its stream is read outside the
 /// lock (it can be large); the counts go in briefly, and past a limit the broker stops
 /// the unit (the OS enforces, D65). Its outcome becomes the report.
-fn watch_run(st: Arc<Mutex<state::State>>, agent: String, run: String, unit: String, file: std::path::PathBuf, worktree: std::path::PathBuf) {
+fn watch_run(st: Arc<Mutex<state::State>>, agent: String, brain: String, run: String, unit: String, file: std::path::PathBuf, worktree: std::path::PathBuf) {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(3));
         while security::unit_active(&unit) {
-            let pr = runner::progress(&file, &worktree);
+            let pr = runner::progress_of(&brain, &file, &worktree);
             let why = st.lock().unwrap_or_else(|p| p.into_inner()).agent_tick(&agent, &run, pr);
             if why.is_some() {
                 let _ = exec::run("/usr/bin/systemctl", &["--user", "stop", &format!("{unit}.service")], None, std::time::Duration::from_secs(30));
             }
             std::thread::sleep(std::time::Duration::from_secs(3));
         }
-        let pr = runner::progress(&file, &worktree);
+        let pr = runner::progress_of(&brain, &file, &worktree);
         let next = st.lock().unwrap_or_else(|p| p.into_inner()).agent_run_ended(&agent, &run, &file, pr);
         // it handed its work to another agent: that run is watched the same way
         if let Some(ok) = next {
@@ -621,7 +622,7 @@ fn watch_run(st: Arc<Mutex<state::State>>, agent: String, run: String, unit: Str
 
 fn watch_started(st: &Arc<Mutex<state::State>>, ok: &Value) {
     let s = |k: &str| ok[k].as_str().unwrap_or("").to_string();
-    watch_run(Arc::clone(st), s("agent"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
+    watch_run(Arc::clone(st), s("agent"), s("brain"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
 }
 
 /// Coding agents on a schedule (A9a): every 30 seconds, start the ones that are due.

@@ -1,7 +1,7 @@
 //! Agents (A4, D60): the pet team, kept by the broker. Each agent is its own
 //! identity (`agent:<slug>`, kind "agent"), with a brain, a job and reports.
 //!   brain  builtin: SIOS's planner on the AI you chose in Settings (brain-d runs it)
-//!          claude-code: Claude Code in its own sandboxed workspace (A5, runner.rs)
+//!          claude-code, codex, cursor, gemini: a coding CLI in its own sandboxed workspace (A5, D100, runner.rs, brains.rs)
 //!   job    on demand, watch a folder, every N minutes, daily at a time, or a project
 //! Only the owner adds, changes or removes agents (password). SIOS's windows may
 //! look (D59). brain-d reads the list as the service and posts each run's report.
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-pub const BRAINS: [&str; 2] = ["builtin", "claude-code"];
+pub const BRAINS: [&str; 5] = ["builtin", "claude-code", "codex", "cursor", "gemini"];
 pub const JOBS: [&str; 5] = ["on-demand", "watch", "every", "daily", "project"];
 const COLORS: [&str; 8] = ["mint", "sky", "violet", "peach", "rose", "lemon", "slate", "coral"];
 const MAX_REPORTS: usize = 200;

@@ -1,5 +1,5 @@
 // Making an agent (Daylight): its name and colour, what it thinks with (said
-// plainly: Claude Code builds things, SIOS tidies and reminds), its job or its
+// plainly: a coding CLI builds things, SIOS tidies and reminds), its job or its
 // project, and its limits. One password for all of it, including a coding
 // agent's first working time.
 import QtQuick
@@ -10,6 +10,15 @@ import QtQuick.Window
 Window {
     id: na
     property string brain: "claude-code"
+    readonly property bool coder: brain !== "builtin"
+    // the coding CLIs SIOS can run (D100): logo, colour, name, what it is
+    readonly property var coders: [
+        ["claude-code", "logo-claude", "#d97757", "Claude Code", "Anthropic's coding agent."],
+        ["codex", "logo-openai", "", "Codex", "OpenAI's coding agent."],
+        ["cursor", "logo-cursor", "", "Cursor", "Cursor's agent, in the terminal."],
+        ["gemini", "logo-googlegemini", "#8e75b2", "Gemini", "Google's coding agent."]
+    ]
+    readonly property var installed: broker.team.installed || ({})
     property string job: "project"
     property string tint: "mint"
     property int hours: 2
@@ -77,7 +86,7 @@ Window {
                 Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: ch.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
             }
         }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { na.brain = ch.key; na.job = ch.key === "claude-code" ? "project" : "on-demand"; } }
+        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { na.brain = ch.key; na.job = ch.key !== "builtin" ? "project" : "on-demand"; } }
     }
     component Seg: Row {
         id: sg
@@ -130,12 +139,30 @@ Window {
             }
         }
         Label { text: "What it thinks with" }
-        RowLayout {
-            spacing: 10
-            Choice { key: "claude-code"; icon: "logo-claude"; iconColor: "#d97757"; heading: "Claude Code"; sub: "Builds and changes code in a project, in its own copy. Signs in once, in its own sandbox." }
-            Choice { key: "builtin"; icon: "bot"; iconColor: Theme.ai; heading: "SIOS"; sub: "Sorts and moves files, watches folders, reminds you. Can't write code." }
+        Choice { key: "builtin"; icon: "bot"; iconColor: Theme.ai; heading: "SIOS"; sub: "Sorts and moves files, watches folders, reminds you. Can't write code." }
+        // a coding agent: builds and changes code in its own copy of a project, signs in once in its own sandbox
+        GridLayout {
+            Layout.fillWidth: true
+            columns: 2
+            columnSpacing: 10
+            rowSpacing: 10
+            Repeater {
+                model: na.coders
+                delegate: Choice {
+                    required property var modelData
+                    readonly property string inst: na.installed[modelData[0]] || "no"
+                    key: modelData[0]; icon: modelData[1]; iconColor: modelData[2] || Theme.fg; heading: modelData[3]
+                    sub: modelData[4] + (inst === "yes" ? " Installed." : inst === "installing" ? " Installing now…" : " Not installed yet: SIOS can install it (asks for your password).")
+                }
+            }
         }
-        Label { textFormat: Text.PlainText; text: na.brain === "claude-code" ? "Project" : "When it works" }
+        RowLayout {
+            visible: na.coder && (na.installed[na.brain] || "no") === "no"
+            spacing: 10
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "SIOS installs it from its maker into your home folder, then you sign it in once in its own sandbox."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 12 }
+            Button { text: "Install"; kind: "plain"; onClicked: broker.request("agents.install_brain", { brain: na.brain }, "Installing|Couldn't install it|A notification says when it's done.") }
+        }
+        Label { textFormat: Text.PlainText; text: na.coder ? "Project" : "When it works" }
         Flow {
             visible: na.brain === "builtin"
             Layout.fillWidth: true
@@ -155,22 +182,22 @@ Window {
         }
         RowLayout {
             spacing: 8
-            Field { id: folderF; visible: na.brain === "claude-code" || na.job === "watch"; placeholder: na.brain === "claude-code" ? "Project folder in your home, e.g. Projects/portfolio-site" : "Folder, e.g. Downloads" }
+            Field { id: folderF; visible: na.coder || na.job === "watch"; placeholder: na.coder ? "Project folder in your home, e.g. Projects/portfolio-site" : "Folder, e.g. Downloads" }
             Field { id: everyF; visible: na.brain === "builtin" && na.job === "every"; placeholder: "Minutes (at least 5)"; validator: IntValidator { bottom: 5; top: 10080 } }
             Field { id: atF; visible: na.brain === "builtin" && na.job === "daily"; placeholder: "08:30" }
         }
         Text {
-            visible: na.brain === "claude-code"
+            visible: na.coder
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             textFormat: Text.PlainText
             text: "It works on its own branch in its own copy; your files change only when you bring its work in. A folder that isn't a git project yet can become one from its Settings."
             color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
         }
-        Field { id: whatF; placeholder: na.brain === "claude-code" ? "What it works on: “Keep the site working and add the contact page”" : "What it does: “Sort new files into folders by type”" }
-        Label { visible: na.brain === "claude-code"; text: "Limits, per task" }
+        Field { id: whatF; placeholder: na.coder ? "What it works on: “Keep the site working and add the contact page”" : "What it does: “Sort new files into folders by type”" }
+        Label { visible: na.coder; text: "Limits, per task" }
         RowLayout {
-            visible: na.brain === "claude-code"
+            visible: na.coder
             spacing: 18
             ColumnLayout { spacing: 6; Text { text: "Time"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } Seg { options: [[1, "1 h"], [2, "2 h"], [4, "4 h"], [8, "8 h"]]; value: na.hours; onPicked: v => na.hours = v } }
             ColumnLayout { spacing: 6; Text { text: "Tokens"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 } Seg { options: [[500000, "500k"], [1000000, "1M"], [2000000, "2M"], [5000000, "5M"]]; value: na.taskTok; onPicked: v => na.taskTok = v } }
@@ -197,8 +224,8 @@ Window {
                     if (folderF.visible) p.folder = folderF.text;
                     if (everyF.visible) p.every_min = parseInt(everyF.text) || 60;
                     if (atF.visible) p.at = atF.text;
-                    if (na.brain === "claude-code") { p.lease_hours = na.hours; p.max_task_tokens = na.taskTok; p.max_day_tokens = Math.max(na.dayTok, na.taskTok); }
-                    broker.request("agents.add", p, "Agent made|Couldn't make the agent|" + (na.brain === "claude-code" ? "Open it to sign it in and give it a task." : ""));
+                    if (na.coder) { p.lease_hours = na.hours; p.max_task_tokens = na.taskTok; p.max_day_tokens = Math.max(na.dayTok, na.taskTok); }
+                    broker.request("agents.add", p, "Agent made|Couldn't make the agent|" + (na.coder ? "Open it to sign it in and give it a task." : ""));
                 }
             }
         }

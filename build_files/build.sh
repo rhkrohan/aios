@@ -135,6 +135,12 @@ for f in konsoleui.rc sessionui.rc; do
     ! grep -q "<ToolBar" "/usr/share/kxmlgui5/konsole/$f"
 done
 
+### Coding agents' brains (D100): Node.js for Gemini CLI
+# Codex and Cursor bring their own runtimes; Gemini CLI is a Node program the owner
+# installs into ~/.local (npm --prefix), run by this node inside the agent's sandbox.
+rpm -q nodejs > /dev/null || dnf5 -y install nodejs npm
+test -x /usr/bin/node && test -x /usr/bin/npm
+
 ### Terminal commands for AIs (D89): the command catalog
 # Every program on the image, typed, with its risk class (build_files/cmdcat).
 # Made here, inside the image, so it describes exactly what ships; capd reads it.
