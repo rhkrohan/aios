@@ -334,6 +334,12 @@ pub fn progress(run_file: &Path, worktree: &Path) -> Progress {
                                 "Edit" | "MultiEdit" | "NotebookEdit" => ("edit", file.unwrap_or_default()),
                                 "Bash" => ("run", clean(i["command"].as_str().unwrap_or(""), 300)),
                                 "Grep" | "Glob" | "LS" => ("search", clean(i["pattern"].as_str().or(i["path"].as_str()).unwrap_or(""), 160)),
+                                // its own plan (the Workspace's Goal and plan)
+                                "TodoWrite" => {
+                                    let steps: Vec<serde_json::Value> = i["todos"].as_array().into_iter().flatten().take(30).map(|t| json!({ "text": clean(t["content"].as_str().unwrap_or(""), 200), "done": t["status"] == "completed", "now": t["status"] == "in_progress" })).collect();
+                                    out.log.push(json!({ "kind": "plan", "text": format!("{} steps", steps.len()), "steps": steps }));
+                                    continue;
+                                }
                                 n if n.ends_with("sios_ask_owner") => ("ask", clean(i["question"].as_str().or(i["text"].as_str()).unwrap_or(""), 600)),
                                 n if n.ends_with("sios_report") || n.ends_with("sios_done") => ("report", clean(i["text"].as_str().or(i["summary"].as_str()).unwrap_or(""), 600)),
                                 n => ("tool", clean(n, 60)),

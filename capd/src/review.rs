@@ -144,7 +144,10 @@ fn changes(j: &Job, r: &str) -> Result<Value, String> {
         end -= 1;
     }
     let ahead = g(&["rev-list", "--count", "agent..base"]).ok().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0);
-    Ok(json!({ "agent": j.agent, "branch": format!("sios/{}", j.slug), "commits": commits, "files": files, "links": links, "diff": clean_text(&diff[..end], MAX_DIFF), "cut": cut, "project_moved_on": ahead }))
+    // the owner's project: merging needs it without uncommitted changes (its config is the owner's)
+    let pj = j.project.to_string_lossy().to_string();
+    let project_clean = git_out(&["-C", &pj, "status", "--porcelain", "--untracked-files=no"]).map(|o| o.trim().is_empty()).unwrap_or(false);
+    Ok(json!({ "agent": j.agent, "branch": format!("sios/{}", j.slug), "commits": commits, "files": files, "links": links, "diff": clean_text(&diff[..end], MAX_DIFF), "cut": cut, "project_moved_on": ahead, "project_clean": project_clean }))
 }
 
 fn merge(j: &Job, r: &str) -> Result<Value, String> {

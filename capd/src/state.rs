@@ -799,6 +799,12 @@ impl State {
             // the live log beside an agent (what it reads, changes and runs) and its counts
             "agents.log" if !viewer => Err("only SIOS's own windows can see agents".into()),
             "agents.log" => self.agent_log(p["id"].as_str().unwrap_or("")),
+            // the Workspace (D101): what an agent was given and what's in its copy (looking only)
+            "agents.context" if !viewer => Err("only SIOS's own windows can see agents".into()),
+            "agents.context" => self.agent_context(p["id"].as_str().unwrap_or("")),
+            // open its copy of the project for the owner to look at: in Files, or in an editor
+            "agents.open" if !viewer => Err("only SIOS's own windows can do that".into()),
+            "agents.open" => self.agent_open(p["id"].as_str().unwrap_or(""), p["what"].as_str().unwrap_or("folder")),
             // Stop one agent's task: from SIOS's windows, no password (stopping is always safe)
             "agents.stop" if !(viewer || owner) => Err("only SIOS's own windows can stop an agent".into()),
             "agents.stop" => self.agent_stop(p["id"].as_str().unwrap_or("")),
@@ -2124,6 +2130,61 @@ impl State {
             let unread = self.agents.reports.iter().filter(|r| r.agent == a.id && !r.read).count();
             json!({ "id": a.id, "color": a.color, "mood": mood, "unread": unread })
         }).collect()
+    }
+
+    /// What the Workspace shows around the live log: the agent's instructions, its places,
+    /// the connections and memories it was given, its plan (from its own stream), and the
+    /// folders and files in its copy of the project (no hidden ones, at most 400).
+    fn agent_context(&mut self, id: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        let (_, worktree, ..) = self.agent_paths(&a)?;
+        let mut tree: Vec<Value> = vec![];
+        if worktree.canonicalize().ok().as_ref() == Some(&worktree) {
+            let mut stack = vec![(worktree.clone(), 0usize)];
+            while let Some((d, depth)) = stack.pop() {
+                let mut entries: Vec<_> = std::fs::read_dir(&d).into_iter().flatten().flatten().collect();
+                entries.sort_by_key(|e| e.file_name());
+                for e in entries.into_iter().rev() {
+                    if tree.len() >= 400 {
+                        break;
+                    }
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    if name.starts_with('.') || name == "node_modules" || name == "target" {
+                        continue;
+                    }
+                    let Ok(m) = e.path().symlink_metadata() else { continue };
+                    let rel = e.path().strip_prefix(&worktree).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+                    tree.push(json!({ "path": crate::review::clean_text(&rel, 300), "folder": m.is_dir(), "depth": depth }));
+                    if m.is_dir() && depth < 3 {
+                        stack.push((e.path(), depth + 1));
+                    }
+                }
+            }
+            tree.sort_by(|x, y| x["path"].as_str().cmp(&y["path"].as_str()));
+        }
+        // its own plan: the latest todo list in its stream
+        let plan = self.live.get(id).and_then(|(_, l)| l.iter().rev().find(|e| e["kind"] == "plan").cloned());
+        let connectors: Vec<Value> = self.connectors.tools_for(id).iter().filter_map(|t| t["name"].as_str().and_then(|n| n.split('.').next()).map(String::from)).collect::<std::collections::BTreeSet<_>>().into_iter().map(Value::from).collect();
+        let memories = self.memory.shares.get(id).cloned().unwrap_or_default();
+        Ok(json!({ "agent": id, "instructions": a.instructions, "folder": a.folder, "branch": format!("sios/{}", a.slug()), "places": a.places, "connectors": connectors, "memory_groups": memories, "plan": plan, "tree": tree }))
+    }
+
+    /// Open the agent's copy of its project for the owner: its folder in Files, or the folder
+    /// in a code editor (Kate). Only that folder, only for SIOS's own windows.
+    fn agent_open(&mut self, id: &str, what: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        let (_, worktree, ..) = self.agent_paths(&a)?;
+        if !worktree.symlink_metadata().is_ok_and(|m| m.is_dir()) || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
+            return Err(format!("{} hasn't made its copy of the project yet", a.name));
+        }
+        let w = worktree.to_string_lossy().to_string();
+        let r = match what {
+            "editor" if Path::new("/usr/bin/kate").exists() => std::process::Command::new("/usr/bin/kate").args(["-n", &w]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|_| ()),
+            "editor" => return Err("no code editor is installed (Kate); install one from the Store".into()),
+            _ => std::process::Command::new("/usr/bin/kioclient").args(["exec", &crate::adapters::file_url(&worktree)]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|_| ()),
+        };
+        r.map_err(|e| format!("couldn't open it: {e}"))?;
+        Ok(json!({ "opened": what }))
     }
 
     /// The Agents app's live view of one agent: its current (or last) task, what it

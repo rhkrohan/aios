@@ -55,6 +55,7 @@ QQC2.ApplicationWindow {
         function onDone(tag, ok, error) {
             if (tag === "apps") { if (ok) win.apps = ok.apps || []; return; }
             if (tag === "log") { if (!error) logView.data_ = ok; return; }
+            if (String(tag).startsWith("ws-")) return;   // a Workspace window's own reads
             const t = String(tag).split("|");
             if (error) win.failed(t[1] || "That didn't work", error);
             else if (t[0]) notices.add(t[0], t[2] || "");
@@ -100,6 +101,17 @@ QQC2.ApplicationWindow {
     }
     // a coding agent: works in its own sandboxed copy of a project (any brain but SIOS's)
     function isCoder(a) { return !!a && !!a.brain && a.brain !== "builtin"; }
+    // one Workspace window per agent (D101), kept while the app runs
+    property var workspaces: ({})
+    Component { id: wsComp; Workspace {} }
+    function openWorkspace(id) {
+        let w = workspaces[id];
+        if (!w) {
+            w = wsComp.createObject(null, { agentId: id, host: win });
+            const m = Object.assign({}, workspaces); m[id] = w; workspaces = m;
+        }
+        w.show(); w.raise(); w.requestActivate();
+    }
     function confirm(heading, body, action, go) { alert.open({ kind: "confirm", heading: heading, body: body, retryText: action, retry: go }); }
     function moodOf(a) { return a && broker.team.moods ? (broker.team.moods[a.id] || "idle") : "idle"; }
     function runOf(a) { return runs.find(r => r.agent === a.id); }
@@ -399,7 +411,7 @@ QQC2.ApplicationWindow {
                                     RowLayout {
                                         spacing: 8
                                         Button { visible: card.coder; text: card.a.run ? "Watch" : "Open"; onClicked: { win.sel = card.a.id; win.tab = "now"; } }
-                                        Button { visible: card.coder && !!card.a.run; text: "Open workspace"; kind: "plain"; onClicked: win.ask("agents.peek", { id: card.a.id }, "", "Couldn't open its desk") }
+                                        Button { visible: card.coder; text: "Workspace"; kind: "plain"; onClicked: win.openWorkspace(card.a.id) }
                                         Button { visible: !card.coder && card.a.active; text: "Run now"; onClicked: broker.brain("agents.run_now", { id: card.a.id }, card.a.name + " started|Couldn't start " + card.a.name + "|") }
                                         Button { text: card.a.active ? "Pause" : "Resume"; kind: "plain"; onClicked: win.ask("agents.update", { id: card.a.id, active: !card.a.active }, card.a.active ? card.a.name + " paused" : card.a.name + " is on again", "Couldn't change " + card.a.name) }
                                         Button { visible: !card.coder; text: "Details"; kind: "plain"; onClicked: { win.sel = card.a.id; win.tab = "now"; } }
@@ -521,7 +533,7 @@ QQC2.ApplicationWindow {
                                     delegate: Text { required property string modelData; Layout.fillWidth: true; elide: Text.ElideMiddle; textFormat: Text.PlainText; text: modelData; color: Theme.fg2; font.family: "JetBrains Mono"; font.pixelSize: 12 }
                                 }
                             }
-                            Button { visible: agentPage.coder && !!agentPage.a.run; text: "Open workspace"; onClicked: win.ask("agents.peek", { id: agentPage.a.id }, "", "Couldn't open its desk") }
+                            Button { visible: agentPage.coder; text: "Open its Workspace"; onClicked: win.openWorkspace(agentPage.a.id) }
                         }
                     }
                     Rectangle { Layout.fillHeight: true; implicitWidth: 1; color: Theme.line }
@@ -535,7 +547,7 @@ QQC2.ApplicationWindow {
                         spacing: 0
                         property var data_: ({})
                         property bool follow: true
-                        readonly property var entries: agentPage.coder ? (data_.agent && data_.agent.id === agentPage.a.id ? data_.log || [] : []) : win.reports.filter(x => x.agent === agentPage.a.id).slice().reverse().map(x => ({ kind: x.failed ? "failed" : x.kind === "question" ? "ask" : "report", text: x.text, at: x.at }))
+                        readonly property var entries: agentPage.coder ? (data_.agent && data_.agent.id === agentPage.a.id ? (data_.log || []).filter(e => e.kind !== "plan") : []) : win.reports.filter(x => x.agent === agentPage.a.id).slice().reverse().map(x => ({ kind: x.failed ? "failed" : x.kind === "question" ? "ask" : "report", text: x.text, at: x.at }))
                         function load() { if (agentPage.coder && win.current) broker.look("agents.log", { id: agentPage.a.id }, "log"); }
                         Timer { interval: 1500; repeat: true; running: logView.visible && agentPage.coder && !!agentPage.a.run; triggeredOnStart: true; onTriggered: logView.load() }
                         onVisibleChanged: load()
