@@ -1,6 +1,6 @@
 # 21. Agent pets and workflow, more coding agents, the agent Workspace, system tools and the MCP store
 
-Status: Approved (2026-10-16, owner). Decisions D100 to D107 (proposed) in `11-decisions.md`. Tasks A9, A10b, W1 to W4 and C3 to C5 in `docs/phases/phase-2.md`.
+Status: Approved (2026-10-16, owner). Decisions D100 to D108 (proposed) in `11-decisions.md`. Tasks A9, A10b, W1 to W4 and C3 to C5 in `docs/phases/phase-2.md`.
 
 ## Why
 The owner asked, in this order: agent pets and a real agent workflow; coding agents beyond Claude Code that are possible and viewable; as many missing system tools as make daily life easier; then the start of an MCP store. The owner picked OpenAI Codex CLI, Cursor CLI and Gemini CLI as extra agent brains, and asked for a new kind of workspace instead of another desktop: a layout built from what the agent is doing (its output, files in use, memory and context, ideas and goals), plus a way to map chosen folders on their drive into an agent's workspace.
@@ -62,3 +62,9 @@ Each tool: a ToolSpec, a mock, a schema, an adapter with bad-argument tests and 
 
 ## Order
 Plan commit; A9a; A9b; B spike then B; C mockup, then Places, then the Workspace window; D waves 1 and 2; C3, reach, C4; D waves 3 and 4; C5. Each step: tests, a security review, llm examples, ticks, Learned notes, a VM check. A running image build is never cancelled; work queues for the next build.
+
+## Addendum (2026-10-16): the MCP Registry shelf (D108)
+The owner approved the Store design and asked for the right logos and every available server from the standard MCP Registry. The official registry lists over 6,000 servers (5,524 of the first 6,000 reachable online; about 740 packages: npm, PyPI, OCI and others; 1,231 with their own icon). The Connectors page gets two shelves: Verified by SIOS (the signed catalog) and All MCP servers (the registry, cached by the broker, refreshed daily, shown as plain text and "Not reviewed by SIOS"). Remote registry servers install under developer-mode rules (D82): tools pinned at install, every tool always asks until the owner classifies it, only its own address. Package servers are listed and wait for the local runner (C5). Logos come from Simple Icons for verified entries, the registry's own icon (https PNG or WebP, at most 256 KB, cached by the broker, never SVG) or a monogram.
+
+Order: Workspace window (Live, Review), then the registry fetcher, the Connectors page, remote installs, browser sign-in (C4), the local runner (C5), then the Desktop tab after its VM spike.
+
