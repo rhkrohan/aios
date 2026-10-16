@@ -69,6 +69,7 @@ fn https(u: &str) -> Option<String> {
 /// Who published it, from its name: io.github.alice/x -> github.com/alice; com.example/x -> example.com.
 pub fn publisher(name: &str) -> String {
     let ns = name.split('/').next().unwrap_or("");
+    // kept exactly as written (no lowercasing), so a name in capitals never turns into a brand's domain
     if let Some(user) = ns.strip_prefix("io.github.") {
         return format!("github.com/{}", clean(user, 60));
     }
@@ -80,6 +81,10 @@ pub fn publisher(name: &str) -> String {
 /// One registry entry into SIOS's plain form; None when it's malformed.
 pub fn parse(v: &Value) -> Option<Server> {
     let s = &v["server"];
+    // only servers the registry lists as active (not deprecated or deleted)
+    if v["_meta"]["io.modelcontextprotocol.registry/official"]["status"].as_str().is_some_and(|st| st != "active") {
+        return None;
+    }
     let name = s["name"].as_str()?;
     if name.is_empty() || name.len() > 200 || !name.contains('/') {
         return None;
@@ -282,7 +287,9 @@ pub fn brand_of(publisher: &str) -> Option<&'static str> {
 
 /// The same, choosing among brands that share a domain (google.com) by the title.
 pub fn brand_for(publisher: &str, title: &str) -> Option<&'static str> {
-    if publisher.starts_with("github.com/") {
+    // a plain lowercase domain only: no capitals, look-alike letters or other characters
+    // that another parser could read differently (security review)
+    if publisher.starts_with("github.com/") || !publisher.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-') {
         return None;
     }
     let p = publisher.to_lowercase();
@@ -380,6 +387,9 @@ mod tests {
         assert_eq!(brand_of("evilstripe.com"), None);
         assert_eq!(brand_for("google.com", "Google Calendar"), Some("googlecalendar"));
         assert_eq!(brand_for("google.com", "Something"), None, "shared domain, no matching title: no logo guess");
+        assert_eq!(brand_of(&publisher("COM.STRIPE/mcp")), None, "capitals never become a brand");
+        assert_eq!(brand_of(&publisher("com.strіpe/mcp")), None, "a look-alike letter isn't the brand");
+        assert!(parse(&json!({ "server": { "name": "com.stripe/old" }, "_meta": { "io.modelcontextprotocol.registry/official": { "status": "deprecated" } } })).is_none());
         assert!(parse(&json!({ "server": { "name": "" } })).is_none());
         let c = Cache { fetched_at: 1, servers: vec![s, parse(&json!({ "server": { "name": "com.linear/mcp", "title": "Linear", "description": "Issues", "remotes": [{ "type": "streamable-http", "url": "https://mcp.linear.app/mcp" }] } })).unwrap()] };
         let v = c.view("linear", 0, 20);
