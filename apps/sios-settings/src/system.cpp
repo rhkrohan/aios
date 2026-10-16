@@ -90,8 +90,15 @@ QVariantList System::wallpapers() const
 
 void System::setDark(bool dark)
 {
+    // high contrast (Accessibility) outlasts the light/dark switch, which would replace it
+    const bool contrast = KConfig(QStringLiteral("kdeglobals")).group(QStringLiteral("General")).readEntry("ColorScheme", QString()) == QLatin1String("SIOSHighContrast");
     run(QStringLiteral("plasma-apply-lookandfeel"), {QStringLiteral("-a"), dark ? QStringLiteral("org.sios.desktop.dark") : QStringLiteral("org.sios.desktop")},
-        [this](int, const QString &) { readAppearance(); });
+        [this, contrast](int, const QString &) {
+            if (contrast)
+                run(QStringLiteral("plasma-apply-colorscheme"), {QStringLiteral("SIOSHighContrast")}, [this](int, const QString &) { readAppearance(); });
+            else
+                readAppearance();
+        });
     m_dark = dark;
     Q_EMIT appearanceChanged();
 }
