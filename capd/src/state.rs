@@ -278,6 +278,8 @@ pub struct State {
     /// Each agent's latest live log, read by its watcher outside the lock: agent id ->
     /// (run id, entries). The Agents app reads it from here, cheaply.
     pub live: HashMap<String, (String, Vec<Value>)>,
+    /// The official MCP Registry, cached (D108)
+    pub registry: crate::registry::Cache,
     /// Coding CLIs the broker started installing (checked only while listed here).
     pub installing: std::collections::HashSet<String>,
     /// Agents whose work is being read or merged now (one at a time each).
@@ -350,6 +352,7 @@ impl State {
             live: HashMap::new(),
             reviewing: Default::default(),
             installing: Default::default(),
+            registry: crate::registry::Cache::open(dir),
             terminal_jobs: HashMap::new(),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
@@ -571,6 +574,13 @@ impl State {
             "connectors.view" => {
                 let vault = &self.vault;
                 Ok(self.connectors.view(&|id| vault.has(&format!("signin:{id}"))))
+            }
+            // the MCP Registry shelf (D108): SIOS's windows look; fetching runs outside the lock (main.rs)
+            "registry.view" if !viewer => Err("only SIOS's own windows can see this".into()),
+            "registry.view" => {
+                let mut v = self.registry.view(p["query"].as_str().unwrap_or(""), p["offset"].as_u64().unwrap_or(0) as usize, p["limit"].as_u64().unwrap_or(30) as usize);
+                v["stale"] = json!(now().saturating_sub(self.registry.fetched_at) > crate::registry::STALE_SECS);
+                Ok(v)
             }
             "connectors.tools" if !service => Err("only SIOS's brain can do that".into()),
             "connectors.tools" => Ok(json!(self.connectors.tools_for(p["principal"].as_str().unwrap_or("sios")))),
@@ -2169,20 +2179,19 @@ impl State {
         Ok(json!({ "agent": id, "instructions": a.instructions, "folder": a.folder, "branch": format!("sios/{}", a.slug()), "places": a.places, "connectors": connectors, "memory_groups": memories, "plan": plan, "tree": tree }))
     }
 
-    /// Open the agent's copy of its project for the owner: its folder in Files, or the folder
-    /// in a code editor (Kate). Only that folder, only for SIOS's own windows.
+    /// Open the agent's copy of its project in Files for the owner to look at. Never in an
+    /// editor or IDE: the agent wrote those files, and a project file (Kate's .kateproject,
+    /// editor settings) can make an editor start a program as the owner (security review).
     fn agent_open(&mut self, id: &str, what: &str) -> Result<Value, String> {
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if what != "folder" {
+            return Err("SIOS opens an agent's copy only in Files: its files could make an editor run something as you".into());
+        }
         let (_, worktree, ..) = self.agent_paths(&a)?;
         if !worktree.symlink_metadata().is_ok_and(|m| m.is_dir()) || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
             return Err(format!("{} hasn't made its copy of the project yet", a.name));
         }
-        let w = worktree.to_string_lossy().to_string();
-        let r = match what {
-            "editor" if Path::new("/usr/bin/kate").exists() => std::process::Command::new("/usr/bin/kate").args(["-n", &w]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|_| ()),
-            "editor" => return Err("no code editor is installed (Kate); install one from the Store".into()),
-            _ => std::process::Command::new("/usr/bin/kioclient").args(["exec", &crate::adapters::file_url(&worktree)]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|_| ()),
-        };
+        let r = std::process::Command::new("/usr/bin/kioclient").args(["exec", &crate::adapters::file_url(&worktree)]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().map(|_| ());
         r.map_err(|e| format!("couldn't open it: {e}"))?;
         Ok(json!({ "opened": what }))
     }

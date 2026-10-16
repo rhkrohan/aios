@@ -1,7 +1,7 @@
 // The Workspace's Review tab (D107): an agent's changes like a pull request, on the
 // owner's own computer. Files with a check for each one read, the diff with line
 // numbers, a comment on any line (sent back to the agent as its next task), a
-// before-you-merge checklist, and open its copy in Files or an editor. Approve and
+// before-you-merge checklist, and open its copy in Files. Approve and
 // merge or throw away ask for the password (the broker). Diff text is the agent's:
 // plain text only.
 import QtQuick
@@ -276,7 +276,7 @@ RowLayout {
             Rectangle { Layout.fillWidth: true; Layout.topMargin: 6; implicitHeight: 1; color: Theme.line }
             Text { Layout.topMargin: 4; text: "OPEN IT YOURSELF"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 0.6 }
             Button { Layout.fillWidth: true; text: "Its copy in Files"; kind: "plain"; onClicked: rv.ws_.host.ask("agents.open", { id: rv.ws_.agentId, what: "folder" }, "", "Couldn't open it") }
-            Button { Layout.fillWidth: true; text: "Its copy in your editor"; kind: "plain"; onClicked: rv.ws_.host.ask("agents.open", { id: rv.ws_.agentId, what: "editor" }, "", "Couldn't open it") }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "SIOS doesn't open its copy in a code editor for you: files it wrote could make an editor run something as you. The diff here is safe to read."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
             Button { Layout.fillWidth: true; visible: !rv.ws_.working; text: "Ask it to run its tests"; kind: "plain"
                      onClicked: rv.ws_.host.ask("agents.run", { id: rv.ws_.agentId, task: "Run the project's tests and report what passes and fails. Change nothing." }, rv.ws_.a.name + " is running its tests", "Couldn't start it") }
         }

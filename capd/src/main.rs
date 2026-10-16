@@ -22,6 +22,7 @@ mod meta;
 mod owner;
 mod peer;
 mod policy;
+mod registry;
 mod review;
 mod runner;
 mod search;
@@ -372,6 +373,7 @@ fn serve() {
         watch_started(&st, &ok);
     }
     schedule_agents(Arc::clone(&st));
+    refresh_registry_daily(Arc::clone(&st));
     // approval sessions end when the screen locks or the computer sleeps (D56)
     if by_peer {
         security::watch_lock();
@@ -508,6 +510,29 @@ fn serve() {
                             }
                             continue;
                         }
+                        // the MCP Registry (D108): fetched and icons downloaded without the lock;
+                        // only SIOS's own windows may ask
+                        if method == "registry.refresh" || method == "registry.icon" {
+                            let viewer = match who {
+                                Some(w) => w == peer::Who::Owner || w == peer::Who::OwnerApp,
+                                None => st.lock().unwrap_or_else(|p| p.into_inner()).is_owner_secret(&req),
+                            };
+                            let resp = if !viewer {
+                                json!({ "error": "only SIOS's own windows can do that" })
+                            } else if method == "registry.refresh" {
+                                refresh_registry(&st)
+                            } else {
+                                match registry::icon(req["params"]["url"].as_str().unwrap_or(""), &state_dir().join("registry-icons")) {
+                                    Ok(f) => json!({ "ok": { "file": f } }),
+                                    Err(e) => json!({ "error": e }),
+                                }
+                            };
+                            log_line(&req, &resp);
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
                         // reviewing or merging an agent's work (D102): git runs without the lock,
                         // so Stop and everything else stay quick however big its work is
                         if method == "agents.changes" || method == "agents.merge" {
@@ -623,6 +648,38 @@ fn watch_run(st: Arc<Mutex<state::State>>, agent: String, brain: String, run: St
 fn watch_started(st: &Arc<Mutex<state::State>>, ok: &Value) {
     let s = |k: &str| ok[k].as_str().unwrap_or("").to_string();
     watch_run(Arc::clone(st), s("agent"), s("brain"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
+}
+
+/// Fetch the MCP Registry (outside the lock), then keep it. One refresh at a time.
+fn refresh_registry(st: &Arc<Mutex<state::State>>) -> Value {
+    static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if BUSY.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return json!({ "error": "SIOS is already fetching the MCP Registry" });
+    }
+    let r = registry::fetch();
+    BUSY.store(false, std::sync::atomic::Ordering::SeqCst);
+    match r {
+        Ok(servers) => {
+            let n = servers.len();
+            let mut g = st.lock().unwrap_or_else(|p| p.into_inner());
+            g.registry = registry::Cache { fetched_at: state::now(), servers };
+            let dir = state_dir();
+            g.registry.save(&dir);
+            json!({ "ok": { "servers": n } })
+        }
+        Err(e) => json!({ "error": e }),
+    }
+}
+
+/// The MCP Registry once a day, when the copy is old (D108).
+fn refresh_registry_daily(st: Arc<Mutex<state::State>>) {
+    std::thread::spawn(move || loop {
+        let stale = state::now().saturating_sub(st.lock().unwrap_or_else(|p| p.into_inner()).registry.fetched_at) > registry::STALE_SECS;
+        if stale {
+            let _ = refresh_registry(&st);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    });
 }
 
 /// Coding agents on a schedule (A9a): every 30 seconds, start the ones that are due.
