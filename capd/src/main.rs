@@ -394,6 +394,9 @@ fn serve() {
             })
         };
         let first = ask(&conn);
+        // the Store shows Flathub's content; as one of SIOS's windows it may still only use
+        // what its pages need (security review), never approvals, memory or the audit log
+        let store = by_peer && peer::of(&conn).exe == "/usr/bin/sios-store";
         // brain-d connects every few seconds; say so only for the others
         if let Some(w) = first.filter(|w| *w != peer::Who::Agent && *w != peer::Who::Service) {
             println!("{w:?} connected");
@@ -418,6 +421,14 @@ fn serve() {
                         };
                         let method_s = req["method"].as_str().unwrap_or("").to_string();
                         let method = method_s.as_str();
+                        if store && !STORE_METHODS.contains(&method) {
+                            let resp = json!({ "error": "the Store can't do that" });
+                            log_line(&req, &resp);
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
                         // is this process one of SIOS's windows? Only SIOS's brain may ask (D59)
                         if method == "windows.check" {
                             let resp = if who == Some(peer::Who::Service) {
@@ -650,6 +661,9 @@ fn watch_started(st: &Arc<Mutex<state::State>>, ok: &Value) {
     let s = |k: &str| ok[k].as_str().unwrap_or("").to_string();
     watch_run(Arc::clone(st), s("agent"), s("brain"), s("run"), s("unit"), s("run_file").into(), s("worktree").into());
 }
+
+/// What the Store may ask the broker: its Connectors page and nothing else.
+const STORE_METHODS: [&str; 10] = ["connectors.view", "connectors.install", "connectors.remove", "connectors.set_ais", "registry.view", "registry.refresh", "registry.icon", "iam.apps", "agents.view", "windows.open"];
 
 /// Fetch the MCP Registry (outside the lock), then keep it. One refresh at a time.
 fn refresh_registry(st: &Arc<Mutex<state::State>>) -> Value {

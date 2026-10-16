@@ -1,7 +1,7 @@
 // SIOS Store, the preview's Store (StoreApp.tsx) on the real machine: apps
 // from Flathub through Flatpak, each showing what it can reach before you
-// install it. The preview's assistant connections (GitHub, Gmail, ...) have
-// their own page and arrive with the assistant (Stage B).
+// install it. Connectors (MCP servers: SIOS's verified catalog and the
+// official MCP Registry) have their own page (Connectors.qml).
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
@@ -138,7 +138,7 @@ QQC2.ApplicationWindow {
                 Item { Layout.fillHeight: true }
 
                 // the preview's "Add a server by URL", for the assistant (Stage B)
-                NavItem { icon: "plug"; label: "Assistant connections"; on: win.page === "connections"; onClicked: win.go("connections") }
+                NavItem { icon: "plug"; label: "Connectors"; on: win.page === "connections" && !win.detail; onClicked: win.go("connections") }
             }
         }
 
@@ -298,29 +298,11 @@ QQC2.ApplicationWindow {
                 }
             }
 
-            // the preview's assistant connections, which need the assistant running
-            ColumnLayout {
-                anchors.centerIn: parent
-                width: Math.min(parent.width - 80, 520)
+            // Connectors: SIOS's verified catalog and the MCP Registry (C3, D105, D108)
+            Connectors {
+                anchors.fill: parent
                 visible: !win.detail && win.page === "connections"
-                spacing: 12
-                Rectangle {
-                    Layout.alignment: Qt.AlignHCenter
-                    implicitWidth: 64; implicitHeight: 64; radius: 20
-                    color: Theme.aiSoft
-                    Icon { anchors.centerIn: parent; name: "plug"; size: 28; color: Theme.ai }
-                }
-                Text { Layout.alignment: Qt.AlignHCenter; text: "Assistant connections"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 20; font.weight: Font.DemiBold }
-                Text {
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                    text: "GitHub, Gmail, Google Calendar and other services the assistant can use for you, each with what it may do (Just looks, Asks the first time, Always asks), and adding your own by URL. These arrive with the assistant."
-                    color: Theme.fg2
-                    font.family: Theme.ui
-                    font.pixelSize: 14
-                    lineHeight: 1.2
-                }
+                onToast: (text, bad) => toast.show(text, false, bad)
             }
 
             Detail {

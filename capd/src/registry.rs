@@ -168,9 +168,11 @@ impl Cache {
             let n = words.iter().filter(|w| hay.contains(w.as_str())).count();
             // the maker's own server first: its registry-checked publisher (a domain or GitHub
             // account the registry verified) carries the name searched for (notion.com, github.com/github)
+            // a verified domain of that name first; a GitHub account of that name next
             let owner = owner_of(&s.publisher);
-            let official = words.iter().any(|w| *w == owner);
-            (n == words.len()).then(|| (n * 10 + usize::from(official) * 100 + usize::from(title.starts_with(&words[0])) * 5, s))
+            let named = words.iter().any(|w| *w == owner);
+            let boost = if named && !s.publisher.starts_with("github.com/") { 100 } else if named { 40 } else { 0 };
+            (n == words.len()).then(|| (n * 10 + boost + usize::from(title.starts_with(&words[0])) * 5, s))
         }).collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.title.cmp(&b.1.title)));
         let total = hits.len();
@@ -180,11 +182,17 @@ impl Cache {
             "remotes": s.remotes, "packages": s.packages, "icon": s.icon,
             "installable": !s.remotes.is_empty(),
             "maker": is_maker(s),
+            // the publisher's own name, when it's a domain the registry verified: its logo is
+            // that brand's (stripe.com's server shows Stripe's logo, whatever its title)
+            "owner": if s.publisher.starts_with("github.com/") { String::new() } else { owner_of(&s.publisher) },
             "talks_to": s.remotes.first().and_then(|r| r.strip_prefix("https://")).and_then(|r| r.split(['/', '?']).next()).unwrap_or(""),
         })).collect();
         json!({ "servers": page, "total": total, "all": self.servers.len(), "fetched_at": self.fetched_at })
     }
 }
+
+/// Two-part endings a domain's own name sits before (a fixed list, not a guess).
+const TWO_PART: [&str; 10] = ["co.uk", "org.uk", "ac.uk", "com.au", "co.jp", "com.br", "co.nz", "co.in", "com.cn", "co.kr"];
 
 /// The name a publisher really is: its GitHub account, or the main label of its domain
 /// (mcp.notion.com -> notion; notion.evil.com -> evil; example.co.uk -> example).
@@ -195,18 +203,17 @@ pub fn owner_of(publisher: &str) -> String {
     }
     let labels: Vec<&str> = p.split('.').filter(|l| !l.is_empty()).collect();
     let n = labels.len();
-    // two-part endings like co.uk, com.au: the label before them
-    let two = n >= 3 && labels[n - 2].len() <= 3 && labels[n - 1].len() == 2;
+    let two = n >= 3 && TWO_PART.contains(&format!("{}.{}", labels[n - 2], labels[n - 1]).as_str());
     let i = if two { n.saturating_sub(3) } else { n.saturating_sub(2) };
     labels.get(i).map(|l| l.to_string()).unwrap_or_default()
 }
 
-/// Is the publisher (a domain or GitHub account the registry verified) the brand its
-/// title names? "Notion" by notion.com, "GitHub" by github.com/github; never a
-/// look-alike like notion.evil.com (security review).
+/// Is it from the maker its title names? Only a publisher domain the registry verified
+/// counts ("Notion" by notion.com), never a GitHub account anyone could name after a
+/// brand, nor a look-alike like notion.evil.com (security review).
 fn is_maker(s: &Server) -> bool {
     let first = s.title.to_lowercase().split_whitespace().next().unwrap_or("").to_string();
-    !first.is_empty() && owner_of(&s.publisher) == first
+    !first.is_empty() && !s.publisher.starts_with("github.com/") && owner_of(&s.publisher) == first
 }
 
 /// Fetch one icon into the cache: https only, PNG or WebP by its bytes, at most 256 KB.
@@ -265,9 +272,12 @@ mod tests {
         assert_eq!(owner_of("mcp.notion.com"), "notion");
         assert_eq!(owner_of("notion.evil.com"), "evil");
         assert_eq!(owner_of("example.co.uk"), "example");
+        assert_eq!(owner_of("notion.so.ai"), "so", "only known two-part endings");
         assert_eq!(owner_of("github.com/github"), "github");
         let fake = Server { title: "Notion".into(), publisher: "notion.evil.com".into(), ..Default::default() };
         assert!(!is_maker(&fake));
+        assert!(!is_maker(&Server { title: "Notion".into(), publisher: "github.com/notion".into(), ..Default::default() }), "a GitHub account isn't a verified maker");
+        assert!(is_maker(&Server { title: "Notion".into(), publisher: "notion.com".into(), ..Default::default() }));
         assert!(parse(&json!({ "server": { "name": "" } })).is_none());
         let c = Cache { fetched_at: 1, servers: vec![s, parse(&json!({ "server": { "name": "com.linear/mcp", "title": "Linear", "description": "Issues", "remotes": [{ "type": "streamable-http", "url": "https://mcp.linear.app/mcp" }] } })).unwrap()] };
         let v = c.view("linear", 0, 20);

@@ -25,6 +25,9 @@ QtObject {
     readonly property color warn: dark ? "#e8957a" : "#b0532f"
     readonly property color danger: dark ? "#dc9696" : "#9a4b4b"
     readonly property color ok: dark ? "#94c29a" : "#4d7a52"
+    readonly property color okSoft: dark ? "#22301f" : "#e9f3eb"
+    readonly property color dangerSoft: dark ? "#3a2622" : "#fbe9e4"
+    readonly property color warnSoft: dark ? "#3a2a22" : "#fbf1eb"
 
     readonly property string ui: "Instrument Sans"
     readonly property string display: "Jost"
