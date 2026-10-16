@@ -223,6 +223,16 @@ Window {
                     }
                 }
                 Text { visible: assistant.running; text: "Working…"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
+                // the dead end becomes a way forward: no AI yet, or it needs a key or a model
+                Rectangle {
+                    visible: !assistant.running && assistant.events.some(e => e.t === "error" && String(e.message || "").indexOf("Settings > Brain") >= 0)
+                    implicitWidth: cl.implicitWidth + 32; implicitHeight: 36; radius: 18
+                    color: cm.containsMouse ? Qt.darker(Theme.accent, 1.12) : Theme.accent
+                    Text { id: cl; anchors.centerIn: parent; text: "Connect an AI"; color: "white"; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                    MouseArea { id: cm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: assistant.openSettings("brain") }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Connect an AI"
+                }
             }
 
             // ---- suggestions or results

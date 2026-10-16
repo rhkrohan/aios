@@ -241,8 +241,19 @@ QQC2.ApplicationWindow {
                                     wrapMode: Text.WordWrap
                                     color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13
                                     textFormat: Text.PlainText
-                                    text: (brainPage.active ? "Model " + brainPage.active.model + ". " : "Add a key below, allow it, and choose it. ")
+                                    text: (brainPage.active ? "Model " + brainPage.active.model + (brainPage.active.small_model ? ", small jobs on " + brainPage.active.small_model : "") + ". " : "Add a key below, allow it, and choose it. ")
                                           + (brainPage.ai.calls_today || 0) + " of " + (brainPage.ai.max_calls_per_day || 0) + " requests used today. Each change asks for your password."
+                                }
+                                // what today cost: tokens from the providers' own counts; money only where you gave prices
+                                Text {
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    textFormat: Text.PlainText
+                                    readonly property var tk: brainPage.ai.tokens_today || [0, 0]
+                                    readonly property real cost: brainPage.ai.cost_today || 0
+                                    function n(x) { return x >= 1e6 ? (Math.round(x / 1e5) / 10) + "M" : x >= 1e3 ? Math.round(x / 1e3) + "k" : String(x); }
+                                    text: "Today: " + n(tk[0]) + " tokens sent, " + n(tk[1]) + " received" + (cost > 0 ? ", about $" + cost.toFixed(cost < 1 ? 3 : 2) : ". Add prices below to see the cost.")
+                                    color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12
                                 }
                             }
                         }
@@ -283,6 +294,36 @@ QQC2.ApplicationWindow {
                                         const p = { id: pc.modelData.id, model: modelField.text };
                                         if (pc.compat) p.base_url = urlField.text;
                                         brainPage.ask("model.configure", p, "configure");
+                                    }
+                                }
+                            }
+                            // small jobs (writing a text, spotting a habit) on a cheaper model; planning stays on the main one
+                            Advanced {
+                                RowLayout {
+                                    spacing: 8
+                                    Text { text: "Small jobs"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 64; wrapMode: Text.WordWrap }
+                                    Field { id: smallField; text: pc.modelData.small_model || ""; placeholder: "A cheaper model for small jobs (empty: the same model)" }
+                                }
+                                RowLayout {
+                                    spacing: 8
+                                    Text { text: "Prices"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13; Layout.preferredWidth: 64 }
+                                    Field { id: priceIn; text: (pc.modelData.price || [0, 0])[0] || ""; placeholder: "$ per million tokens in" }
+                                    Field { id: priceOut; text: (pc.modelData.price || [0, 0])[1] || ""; placeholder: "$ per million out" }
+                                }
+                                RowLayout {
+                                    spacing: 8
+                                    Text { text: ""; Layout.preferredWidth: 64 }
+                                    Field { id: smallIn; text: (pc.modelData.small_price || [0, 0])[0] || ""; placeholder: "small model: $ per million in" }
+                                    Field { id: smallOut; text: (pc.modelData.small_price || [0, 0])[1] || ""; placeholder: "small model: $ per million out" }
+                                }
+                                RowLayout {
+                                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "From your provider's price page. SIOS never guesses prices; without them it shows tokens only."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                    Button {
+                                        text: "Save"; kind: "plain"
+                                        onClicked: {
+                                            const num = f => { const v = parseFloat(f.text); return isNaN(v) ? 0 : v; };
+                                            brainPage.ask("model.configure", { id: pc.modelData.id, small_model: smallField.text, price: [num(priceIn), num(priceOut)], small_price: [num(smallIn), num(smallOut)] }, "configure");
+                                        }
                                     }
                                 }
                             }

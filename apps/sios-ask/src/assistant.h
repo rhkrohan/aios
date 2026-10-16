@@ -27,6 +27,8 @@ public:
     Q_INVOKABLE void ask(const QString &text);
     // a new conversation (the next request doesn't follow on from this one)
     Q_INVOKABLE void reset();
+    // open a page of SIOS Settings (the broker starts the window, S1)
+    Q_INVOKABLE void openSettings(const QString &page);
     // "Do it" on a card: its fixed request runs as a normal goal
     Q_INVOKABLE void act(const QString &card);
     Q_INVOKABLE void dismiss(const QString &card);

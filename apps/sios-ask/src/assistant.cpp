@@ -152,3 +152,21 @@ void Assistant::dismiss(const QString &card)
 {
     send(QStringLiteral("suggest.dismiss"), {{QStringLiteral("id"), card}}, [this](const QVariant &, const QString &) { refreshCards(); });
 }
+
+void Assistant::openSettings(const QString &page)
+{
+    // the broker starts SIOS's own windows (S1): ask it, as the dock and menus do
+    QString dir = qEnvironmentVariable("SIOS_RUNTIME");
+    if (dir.isEmpty())
+        dir = qEnvironmentVariable("XDG_RUNTIME_DIR") + QStringLiteral("/sios");
+    auto *s = new QLocalSocket(this);
+    connect(s, &QLocalSocket::connected, s, [s, page] {
+        const QJsonObject req{{QStringLiteral("method"), QStringLiteral("windows.open")},
+                              {QStringLiteral("params"), QJsonObject{{QStringLiteral("app"), QStringLiteral("settings")}, {QStringLiteral("page"), page}}}};
+        s->write(QJsonDocument(req).toJson(QJsonDocument::Compact) + '\n');
+        s->flush();
+    });
+    connect(s, &QLocalSocket::readyRead, s, [s] { s->deleteLater(); });
+    connect(s, &QLocalSocket::errorOccurred, s, [s](QLocalSocket::LocalSocketError) { s->deleteLater(); });
+    s->connectToServer(dir + QStringLiteral("/capd.sock"));
+}
