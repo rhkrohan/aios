@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-16: Doc 21: agent pets and workflow (review and merge, replies, pause freezes, schedules, hand-off), Codex, Cursor and Gemini as agent brains, the agent Workspace layout and Places (owner's folders mapped into an agent's workspace), four waves of system tools, and the MCP store (Store page, OAuth, local servers). D100 to D106 proposed; owner approved.
 - 2026-10-16: Doc 20, practical daily use: gap audit plus research, 10 gaps ranked, milestones P-A (fast and honest on day one) to P-D; D95 Reflex, D96 first-run setup, D97 terminal snapshots, D98 Activity timeline, D99 cloud routing asks until the owner chooses. Owner approved.
 - 2026-10-16: Doc 19, the machine and the model: one typed catalog of every abstraction including every terminal command (generated catalog plus sandboxed terminal.run), plan v2 as a typed graph with a parallel executor, taint rules in capd, recipes and Reflex, and one ~3-4B local model (Qwen3.5-4B) with its data, training, eval and serving pipeline. D88 to D94 proposed; owner approved the plan.
 - 2026-10-15: D85 Daylight design language for all SIOS apps and KDE windows (light default, logos, error windows), D86 agent token and time limits enforced by the broker and a systemd timer, D87 leftover KDE tools hidden and Konsole restyled as Terminal. Accepted by the owner.

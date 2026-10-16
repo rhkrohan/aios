@@ -69,7 +69,17 @@ Agents and connectors track (2026-10-15 plan, D58 to D84, `docs/plan/18-agents-a
 - [ ] P-A Fast, honest, usable on day one (doc 20): Reflex, first-run setup, conversations kept, usage meter and cheaper small calls, honest mail
 - [ ] P-B Daily driver: real mail and calendar, Activity timeline with undo receipts, clipboard, screenshots, media, git tools, terminal snapshots
 - [ ] C2 Mail and calendar as connectors (Google Workspace MCP), native IMAP/CalDAV fallback
-- [ ] C3 Connectors tab in the Store; developer mode
+- [ ] A9a Agent workflow (doc 21): instructions sent, Pause freezes, Remove stops, review and merge (D102), reply to questions, scheduled runs, hand-off
+- [ ] A9b Pets with moods in the Agents app and on the desktop buddy (D103)
+- [ ] A10b Codex, Cursor and Gemini agent brains (D100), Node.js in the image, install through the broker
+- [ ] A11 Agent Workspace window (D101) and Places (D106)
+- [ ] W1 System tools wave 1: devices and settings (D104)
+- [ ] W2 System tools wave 2: media, clipboard, screenshots, web, open files, apps, reminders, trash, disk
+- [ ] W3 System tools wave 3: git, processes, containers
+- [ ] W4 System tools wave 4: sleep, restart, shut down
+- [ ] C3 Connectors tab in the Store; developer mode (doc 21: page, who can use it, reach)
+- [ ] C4 OAuth sign-in for hosted MCP servers (D105)
+- [ ] C5 Local MCP servers as podman units over stdio (D105)
 - [ ] A10 Integration, image, full gate
 
 ## Gate
