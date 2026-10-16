@@ -239,6 +239,17 @@ impl Registry {
         let id = p["id"].as_str().unwrap_or("");
         let i = self.agents.iter().position(|a| a.id == id).ok_or("no such agent")?;
         let a = Self::apply(self.agents[i].clone(), p)?;
+        // a hand-off never comes back round to this agent (no ping-pong)
+        let mut next = a.then.clone();
+        for _ in 0..self.agents.len() {
+            if next.is_empty() {
+                break;
+            }
+            if next == a.id {
+                return Err("that hand-off would come back to this agent".into());
+            }
+            next = self.get(&next).map(|x| x.then.clone()).unwrap_or_default();
+        }
         self.agents[i] = a.clone();
         self.save();
         Ok(a)
@@ -466,6 +477,10 @@ mod tests {
         assert!(r.update(&json!({ "id": "agent:tidy", "then": "agent:tidy" })).is_err(), "not to itself");
         assert!(r.update(&json!({ "id": "agent:tidy", "then": "helper:x" })).is_err());
         assert_eq!(r.update(&json!({ "id": "agent:tidy", "then": "agent:docs" })).unwrap().then, "agent:docs");
+        r.add(&json!({ "name": "Docs", "brain": "claude-code", "instructions": "docs", "folder": "Projects/site", "then": "agent:tidy" }), 1).unwrap();
+        r.update(&json!({ "id": "agent:tidy", "then": "" })).unwrap();
+        r.update(&json!({ "id": "agent:docs", "then": "agent:tidy" })).unwrap();
+        assert!(r.update(&json!({ "id": "agent:tidy", "then": "agent:docs" })).is_err(), "no cycles");
     }
 
     #[test]

@@ -8,8 +8,10 @@
     It lives in a small floating window of its own (a Plasma dialog), so it
     stays above apps. This widget itself takes no space in the top bar.
 
-    Not yet (needs brain-d, Stage B): flying to where the AI is working,
-    carrying files, the chat, and the helper pets.
+    Beside it sit the agents' pets (D103), one per agent, each with its mood
+    from the broker; a dot shows new reports, and a click opens that agent.
+
+    Not yet: flying to where the AI is working, carrying files, the chat.
 
     The eyes follow the pointer only while it's over the buddy: on Wayland no
     app can see the cursor elsewhere, which is the point (core rule 7).
@@ -398,11 +400,21 @@ PlasmoidItem {
 
     // something is waiting for the owner's OK: look up, wide-eyed, until it's answered
     property int waiting: 0
+    // the agents' pets and their unread reports (-1 until the first answer, so old news isn't announced)
+    property var pets: []
+    property int unread: -1
     P5Support.DataSource {
         id: status
         engine: "executable"
         onNewData: (source, data) => {
-            try { root.waiting = JSON.parse(String(data.stdout)).ok.pending || 0; } catch (e) { root.waiting = 0; }
+            try {
+                const ok = JSON.parse(String(data.stdout)).ok;
+                root.waiting = ok.pending || 0;
+                root.pets = (ok.pets || []).filter(p => /^agent:[a-z0-9-]{1,40}$/.test(String(p.id))).slice(0, 6);
+                const unread = ok.reports_unread || 0;
+                if (unread > root.unread && root.unread >= 0) root.say(unread === 1 ? "An agent has news for you." : "Your agents have " + unread + " new reports.", 4000);
+                root.unread = unread;
+            } catch (e) { root.waiting = 0; }
             disconnectSource(source);
         }
     }
@@ -410,6 +422,44 @@ PlasmoidItem {
     onWaitingChanged: {
         if (waiting > 0 && (mood === "idle" || mood === "sleeping")) { mood = "ask"; lastActivity = Date.now(); }
         else if (waiting === 0 && mood === "ask") mood = "idle";
+    }
+
+    // ---- the agents' pets, in a small window to the buddy's left (D103)
+    PlasmaCore.Dialog {
+        id: petsWin
+        visible: pet.visible && root.pets.length > 0
+        type: PlasmaCore.Dialog.Notification
+        flags: Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus | Qt.FramelessWindowHint
+        location: PlasmaCore.Types.Floating
+        backgroundHints: PlasmaCore.Dialog.NoBackground
+        hideOnWindowDeactivate: false
+        x: root.spot.x - width + 10
+        y: root.spot.y + root.box - height - 14
+        mainItem: Row {
+            spacing: 6
+            Repeater {
+                model: root.pets
+                Item {
+                    required property var modelData
+                    width: 40; height: 46
+                    Pet { anchors.bottom: parent.bottom; size: 34; tint: modelData.color; mood: modelData.mood; x: 3 }
+                    // new reports: a small dot
+                    Rectangle {
+                        visible: modelData.unread > 0
+                        x: 28; y: 6; width: 10; height: 10; radius: 5
+                        color: "#e5484d"; border.width: 1.5; border.color: "white"
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        // the id is checked above: lowercase letters, digits and dashes only
+                        onClicked: run.connectSource("sios-agents --page " + modelData.id)
+                    }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Open agent " + String(modelData.id).replace("agent:", "") + ", " + modelData.mood
+                }
+            }
+        }
     }
 
     // ---- speech bubble, in its own small window above the buddy

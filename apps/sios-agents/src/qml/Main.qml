@@ -101,6 +101,7 @@ QQC2.ApplicationWindow {
     // a coding agent: works in its own sandboxed copy of a project (any brain but SIOS's)
     function isCoder(a) { return !!a && !!a.brain && a.brain !== "builtin"; }
     function confirm(heading, body, action, go) { alert.open({ kind: "confirm", heading: heading, body: body, retryText: action, retry: go }); }
+    function moodOf(a) { return a && broker.team.moods ? (broker.team.moods[a.id] || "idle") : "idle"; }
     function runOf(a) { return runs.find(r => r.agent === a.id); }
     function dayTokens(a) { return runs.filter(r => r.agent === a.id && (!r.ended || r.ended + 86400 > now)).reduce((s, r) => s + (r.tokens || 0), 0); }
     function leftOf(a) { return Math.max(0, (a.lease_until || 0) - now); }
@@ -151,22 +152,6 @@ QQC2.ApplicationWindow {
             spacing: 6
             Rectangle { visible: parent.parent.dot; anchors.verticalCenter: parent.verticalCenter; width: 7; height: 7; radius: 3.5; color: parent.parent.ink }
             Text { textFormat: Text.PlainText; text: parent.parent.text; color: parent.parent.ink; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
-        }
-    }
-    component Pet: Rectangle {
-        property string tint: "mint"
-        property bool sleepy: false
-        property int size: 44
-        implicitWidth: size; implicitHeight: size; radius: size / 2
-        Layout.preferredWidth: size; Layout.preferredHeight: size
-        color: win.pets[tint] || "#9ee2c6"
-        Row {
-            anchors.centerIn: parent
-            spacing: parent.size * 0.16
-            Repeater {
-                model: 2
-                Rectangle { width: parent.parent.sleepy ? parent.parent.size * 0.17 : parent.parent.size * 0.11; height: parent.parent.sleepy ? 2 : parent.parent.size * 0.11; radius: height / 2; color: "#1d1d1f" }
-            }
         }
     }
     component BrainBadge: Rectangle {
@@ -377,7 +362,7 @@ QQC2.ApplicationWindow {
                                     spacing: 14
                                     RowLayout {
                                         spacing: 12
-                                        Pet { tint: card.a.color; sleepy: !card.a.active }
+                                        Pet { tint: card.a.color; mood: win.moodOf(card.a) }
                                         ColumnLayout {
                                             Layout.fillWidth: true
                                             spacing: 3
@@ -489,7 +474,7 @@ QQC2.ApplicationWindow {
                             spacing: 16
                             RowLayout {
                                 spacing: 14
-                                Pet { tint: agentPage.a.color || "mint"; size: 56; sleepy: !agentPage.a.active }
+                                Pet { tint: agentPage.a.color || "mint"; size: 56; mood: win.moodOf(agentPage.a) }
                                 ColumnLayout {
                                     spacing: 4
                                     Text { textFormat: Text.PlainText; text: agentPage.a.name || ""; color: Theme.fg; font.family: Theme.display; font.pixelSize: 26; font.weight: Font.DemiBold }
@@ -728,6 +713,7 @@ QQC2.ApplicationWindow {
                             onClicked: win.ask("agents.merge", { id: agentPage.a.id }, "Merged", "Couldn't merge", "Its work is in your project now. The step is in Activity if you need to go back.")
                         }
                     }
+                    Note { visible: (changes.data_.links || []).length > 0; Layout.leftMargin: 24; Layout.rightMargin: 24; Layout.bottomMargin: 8; icon: "triangle-alert"; tint: Theme.warn; text: "It adds links that point elsewhere: " + (changes.data_.links || []).join(", ") + ". Check where they lead before you merge." }
                     Note { visible: !!agentPage.a.run; Layout.leftMargin: 24; Layout.rightMargin: 24; icon: "clock"; text: agentPage.a.name + " is still working. You can look now; merging waits until it's done." }
                     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface3 }
                     RowLayout {

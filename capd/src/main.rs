@@ -21,6 +21,7 @@ mod meta;
 mod owner;
 mod peer;
 mod policy;
+mod review;
 mod runner;
 mod search;
 mod security;
@@ -501,6 +502,24 @@ fn serve() {
                             } else {
                                 json!({ "ok": {} })
                             };
+                            if writeln!(writer, "{resp}").is_err() {
+                                break;
+                            }
+                            continue;
+                        }
+                        // reviewing or merging an agent's work (D102): git runs without the lock,
+                        // so Stop and everything else stay quick however big its work is
+                        if method == "agents.changes" || method == "agents.merge" {
+                            let job = st.lock().unwrap_or_else(|p| p.into_inner()).review_prepare(&req, who);
+                            let out = match job {
+                                Err(e) => Err(e),
+                                Ok(j) => {
+                                    let out = review::run(&j);
+                                    st.lock().unwrap_or_else(|p| p.into_inner()).review_done(&j, out)
+                                }
+                            };
+                            let resp = match out { Ok(v) => json!({ "ok": v }), Err(e) => json!({ "error": e }) };
+                            log_line(&req, &resp);
                             if writeln!(writer, "{resp}").is_err() {
                                 break;
                             }

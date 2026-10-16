@@ -57,23 +57,8 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// git as the broker, in repositories whose config is the owner's or the broker's:
-/// no hooks, no fsmonitor, no pager. Fails with git's own (short) words.
-fn git_out(args: &[&str]) -> Result<String, String> {
-    let mut all = vec!["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "--no-pager"];
-    all.extend_from_slice(args);
-    let o = crate::exec::run("/usr/bin/git", &all, None, std::time::Duration::from_secs(120))?;
-    if o.code == Some(0) { Ok(String::from_utf8_lossy(&o.stdout).into_owned()) } else { Err(o.stderr.trim().chars().take(200).collect()) }
-}
-
-fn git_plain(args: &[&str]) -> Result<(), String> {
-    git_out(args).map(|_| ())
-}
-
-/// Text an agent wrote, for a window: no control characters except new lines and tabs.
-fn clean_text(t: &str, n: usize) -> String {
-    t.chars().filter(|c| !c.is_control() || *c == '\n' || *c == '\t').take(n).collect()
-}
+#[cfg(test)]
+use crate::review::git_out;
 
 /// An agent's copy of a project goes: only a real folder under ~/Agents/<slug>/, never
 /// through a link (remove_dir_all doesn't follow links inside), then its empty parent.
@@ -170,6 +155,8 @@ pub struct State {
     /// Each agent's latest live log, read by its watcher outside the lock: agent id ->
     /// (run id, entries). The Agents app reads it from here, cheaply.
     pub live: HashMap<String, (String, Vec<Value>)>,
+    /// Agents whose work is being read or merged now (one at a time each).
+    pub reviewing: std::collections::HashSet<String>,
     /// Terminal commands running for an AI (D89): job id -> (the pass that started it, its folder).
     terminal_jobs: HashMap<String, (String, PathBuf)>,
 }
@@ -236,6 +223,7 @@ impl State {
             sec: crate::security::SecState::load(dir),
             agents: crate::agents::Registry::open(dir),
             live: HashMap::new(),
+            reviewing: Default::default(),
             terminal_jobs: HashMap::new(),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
@@ -508,7 +496,7 @@ impl State {
             }
             "model.complete" | "model.test" => self.model_call(req, owner, service),
             // what anyone may know: how many things wait (never what), and which AI SIOS uses
-            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "reports_unread": self.agents.reports.iter().filter(|r| !r.read).count(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
+            "status" => Ok(json!({ "root": self.root, "pending": self.pending.values().filter(|x| x.answer.is_none()).count() + self.waiting.keys().filter(|id| self.ungranted.contains(*id)).count(), "stopped": self.sec.stopped.is_some(), "approvals_open": crate::security::session_is_open(), "reports_unread": self.agents.reports.iter().filter(|r| !r.read).count(), "pets": self.pets(), "ai": self.gateway.cfg.active.as_ref().and_then(|a| self.gateway.cfg.providers.iter().find(|p| &p.id == a)).map(|p| p.label.clone()), "paused": self.iam.paused, "tools": tools::TOOLS.iter().map(|t| json!({"name": t.name, "level": t.level, "egress": t.egress, "about": t.about})).collect::<Vec<_>>() })),
             "mint" => self.mint(p),
             // anyone may press Stop: stopping is always safe (D41)
             "ai.stop" => {
@@ -635,9 +623,11 @@ impl State {
             })(),
             "agents.git_init" => self.agent_git_init(p["id"].as_str().unwrap_or("")),
             // review and merge (D102): what it changed, bring it in (password), or throw it away (password)
-            "agents.changes" if !viewer => Err("only SIOS's own windows can see agents".into()),
-            "agents.changes" => self.agent_changes(p["id"].as_str().unwrap_or("")),
-            "agents.merge" => self.agent_merge(p["id"].as_str().unwrap_or("")),
+            // (the broker runs these without its lock, main.rs; here for the Mac and tests)
+            "agents.changes" | "agents.merge" => self.review_prepare(req, who).and_then(|j| {
+                let out = crate::review::run(&j);
+                self.review_done(&j, out)
+            }),
             "agents.discard" => self.agent_discard(p["id"].as_str().unwrap_or("")),
             "agents.signin" => self.agent_signin(p["id"].as_str().unwrap_or("")),
             // a task for a coding agent: from SIOS's windows or SIOS's brain, inside a lease
@@ -650,7 +640,11 @@ impl State {
                 None => Err("no such agent".into()),
             },
             "agents.view" | "reports.read" if !viewer => Err("only SIOS's own windows can see agents".into()),
-            "agents.view" => Ok(self.agents.view()),
+            "agents.view" => {
+                let mut v = self.agents.view();
+                v["moods"] = json!(self.pets().into_iter().map(|p| (p["id"].as_str().unwrap_or("").to_string(), p["mood"].clone())).collect::<serde_json::Map<_, _>>());
+                Ok(v)
+            }
             // the live log beside an agent (what it reads, changes and runs) and its counts
             "agents.log" if !viewer => Err("only SIOS's own windows can see agents".into()),
             "agents.log" => self.agent_log(p["id"].as_str().unwrap_or("")),
@@ -1726,6 +1720,40 @@ impl State {
         why.map(String::from)
     }
 
+    /// The pets on the desktop (D103): each agent's colour and mood, no names, tasks or
+    /// reports (status is open to any program on this computer). Mood comes from what
+    /// the broker knows: paused, its live run, its last report.
+    fn pets(&self) -> Vec<Value> {
+        let t = now();
+        self.agents.agents.iter().map(|a| {
+            let last = self.agents.reports.iter().find(|r| r.agent == a.id);
+            let fresh = |at: u64| at + 600 > t;
+            let mood = if !a.active {
+                "sleepy"
+            } else if last.is_some_and(|r| r.kind == "question" && !r.read) {
+                "asking"
+            } else if !a.run.is_empty() {
+                // what its live log did last: talking to itself is thinking
+                match self.live.get(&a.id).and_then(|(rid, l)| (rid == &a.run).then(|| l.last()).flatten()).and_then(|e| e["kind"].as_str()) {
+                    Some("say") | Some("start") | None => "thinking",
+                    Some(_) => "working",
+                }
+            } else if last.is_some_and(|r| r.kind == "run" && fresh(r.at)) && !crate::agents::is_coder(&a.brain) {
+                "working"
+            } else if last.is_some_and(|r| r.kind == "done" && r.failed && fresh(r.at)) {
+                "worried"
+            } else if last.is_some_and(|r| r.kind == "done" && fresh(r.at)) {
+                "happy"
+            } else if crate::agents::is_coder(&a.brain) && !a.leased(t) {
+                "sleepy"
+            } else {
+                "idle"
+            };
+            let unread = self.agents.reports.iter().filter(|r| r.agent == a.id && !r.read).count();
+            json!({ "id": a.id, "color": a.color, "mood": mood, "unread": unread })
+        }).collect()
+    }
+
     /// The Agents app's live view of one agent: its current (or last) task, what it
     /// did step by step, and its counts. Agent text is plain, capped data.
     fn agent_log(&mut self, id: &str) -> Result<Value, String> {
@@ -1820,98 +1848,48 @@ impl State {
         }).collect()
     }
 
-    /// The broker's own copy for reviewing an agent's work (D102): a bare repository in
-    /// its state folder that the agent can't reach. Its branch and the project's HEAD are
-    /// fetched in; git never runs inside the agent's clone (its config is the agent's).
-    fn agent_review(&self, a: &crate::agents::Agent) -> Result<(PathBuf, PathBuf), String> {
-        let (project, worktree, _, _, mine) = self.agent_paths(a)?;
-        let dotgit = worktree.join(".git");
-        if !dotgit.symlink_metadata().is_ok_and(|m| m.is_dir()) || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
-            return Err(format!("{} hasn't made a workspace yet", a.name));
-        }
-        let review = mine.join("review.git");
-        let r = review.to_string_lossy().to_string();
-        if !review.exists() {
-            git_plain(&["init", "-q", "--bare", &r])?;
-        }
-        let branch = format!("+refs/heads/sios/{}:refs/heads/agent", a.slug());
-        git_plain(&["--git-dir", &r, "-c", "protocol.file.allow=always", "fetch", "-q", "--no-tags", "--upload-pack=/usr/bin/git-upload-pack", &dotgit.to_string_lossy(), &branch])?;
-        git_plain(&["--git-dir", &r, "-c", "protocol.file.allow=always", "fetch", "-q", "--no-tags", &project.to_string_lossy(), "+HEAD:refs/heads/base"])?;
-        Ok((review, project))
-    }
-
-    /// What an agent changed since it branched: commits, files and the diff (capped).
-    /// Everything here was written by the agent: plain, untrusted text.
-    fn agent_changes(&mut self, id: &str) -> Result<Value, String> {
-        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
-        let (review, _) = self.agent_review(&a)?;
-        let r = review.to_string_lossy().to_string();
-        let g = |args: &[&str]| -> Result<String, String> {
-            let mut all = vec!["--git-dir", r.as_str()];
-            all.extend_from_slice(args);
-            git_out(&all)
+    /// Review or merge (D102), part one under the lock: who may, and what the job needs.
+    /// The git work runs without the lock (review::run); review_done records it.
+    pub fn review_prepare(&mut self, req: &Value, who: Option<crate::peer::Who>) -> Result<crate::review::Job, String> {
+        let merge = req["method"] == "agents.merge";
+        let viewer = match who {
+            Some(w) => w == crate::peer::Who::Owner || w == crate::peer::Who::OwnerApp,
+            None => self.is_owner_secret(req),
         };
-        let base = g(&["merge-base", "base", "agent"]).map(|s| s.trim().to_string()).unwrap_or_default();
-        if base.is_empty() {
-            return Err("its branch and your project have nothing in common".into());
+        let owner = match who {
+            Some(w) => w == crate::peer::Who::Owner,
+            None => self.is_owner_secret(req),
+        };
+        if (merge && !owner) || !viewer {
+            return Err(if merge { "only the owner can do that" } else { "only SIOS's own windows can see agents" }.into());
         }
-        let range = format!("{base}..agent");
-        let commits: Vec<Value> = g(&["log", "--no-color", "--format=%h%x09%at%x09%s", "-n", "100", &range])?.lines().filter_map(|l| {
-            let mut it = l.splitn(3, '\t');
-            Some(json!({ "id": it.next()?, "at": it.next()?.parse::<u64>().unwrap_or(0), "title": clean_text(it.next().unwrap_or(""), 200) }))
-        }).collect();
-        let files: Vec<Value> = g(&["diff", "--no-ext-diff", "--no-textconv", "--numstat", &base, "agent"])?.lines().take(500).filter_map(|l| {
-            let mut it = l.splitn(3, '\t');
-            let (add, del, path) = (it.next()?, it.next()?, it.next()?);
-            Some(json!({ "path": clean_text(path, 300), "added": add.parse::<u64>().ok(), "removed": del.parse::<u64>().ok() }))
-        }).collect();
-        let diff = g(&["diff", "--no-color", "--no-ext-diff", "--no-textconv", &base, "agent"])?;
-        let cut = diff.len() > 300_000;
-        let mut end = diff.len().min(300_000);
-        while !diff.is_char_boundary(end) {
-            end -= 1;
-        }
-        let ahead = g(&["rev-list", "--count", "agent..base"]).ok().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0);
-        Ok(json!({ "agent": id, "branch": format!("sios/{}", a.slug()), "commits": commits, "files": files, "diff": clean_text(&diff[..end], 300_000), "cut": cut, "project_moved_on": ahead, "working": !a.run.is_empty() }))
-    }
-
-    /// Bring an agent's work into the owner's project (password, D102): its branch is
-    /// fetched from the broker's review copy and merged into the project's current
-    /// branch. Anything unclear (changes not saved in the project, a conflict) changes nothing.
-    fn agent_merge(&mut self, id: &str) -> Result<Value, String> {
+        let id = req["params"]["id"].as_str().unwrap_or("");
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
-        if !a.run.is_empty() {
+        if merge && !a.run.is_empty() {
             return Err(format!("{} is still working: merge when it's done", a.name));
         }
-        let (review, project) = self.agent_review(&a)?;
-        let p = project.to_string_lossy().to_string();
-        let pg = |args: &[&str]| -> Result<String, String> {
-            let mut all = vec!["-C", p.as_str()];
-            all.extend_from_slice(args);
-            git_out(&all)
+        if !self.reviewing.insert(a.id.clone()) {
+            return Err(format!("SIOS is already reading {}'s work; try again in a moment", a.name));
+        }
+        let (project, worktree, _, _, mine) = match self.agent_paths(&a) {
+            Ok(x) => x,
+            Err(e) => {
+                self.reviewing.remove(&a.id);
+                return Err(e);
+            }
         };
-        if !pg(&["status", "--porcelain", "--untracked-files=no"])?.trim().is_empty() {
-            return Err("your project has changes that aren't committed: commit or put them aside first".into());
+        Ok(crate::review::Job { merge, agent: a.id.clone(), name: a.name.clone(), slug: a.slug().to_string(), folder: a.folder.clone(), project, worktree, review: mine.join("review.git") })
+    }
+
+    /// Part two, under the lock again: the merge goes in the audit log.
+    pub fn review_done(&mut self, j: &crate::review::Job, out: Result<Value, String>) -> Result<Value, String> {
+        self.reviewing.remove(&j.agent);
+        let v = out?;
+        if v["merged"] == true {
+            let before = v["before"].as_str().unwrap_or("");
+            self.record(&Self::owner_cap(), "agents.merge", &j.agent, "you", &format!("you merged {}'s work into {} (it was at {} before)", j.name, j.folder, &before[..before.len().min(12)]), &json!([]));
         }
-        let before = pg(&["rev-parse", "HEAD"])?.trim().to_string();
-        let local = format!("refs/sios/{}", a.slug());
-        pg(&["-c", "protocol.file.allow=always", "fetch", "-q", "--no-tags", &review.to_string_lossy(), &format!("+refs/heads/agent:{local}")])?;
-        if pg(&["merge-base", "--is-ancestor", &local, "HEAD"]).is_ok() {
-            return Ok(json!({ "merged": false, "why": "nothing new: your project already has all of its work" }));
-        }
-        let who: Vec<&str> = if pg(&["config", "user.email"]).is_ok_and(|e| !e.trim().is_empty()) { vec![] } else { vec!["-c", "user.name=SIOS", "-c", "user.email=sios@localhost"] };
-        let msg = format!("Merge the work of agent {} (sios/{})", a.name, a.slug());
-        let mut m: Vec<&str> = who.clone();
-        m.extend_from_slice(&["merge", "--no-edit", "-m", &msg, &local]);
-        if let Err(e) = pg(&m) {
-            let conflicts = pg(&["diff", "--name-only", "--diff-filter=U"]).unwrap_or_default();
-            let _ = pg(&["merge", "--abort"]);
-            let list: Vec<String> = conflicts.lines().take(10).map(|l| clean_text(l, 200)).collect();
-            return Err(if list.is_empty() { format!("the merge didn't go through, nothing changed: {e}") } else { format!("its work clashes with yours in {}; nothing changed. Ask it to rebase on your latest work, or merge by hand.", list.join(", ")) });
-        }
-        let after = pg(&["rev-parse", "HEAD"])?.trim().to_string();
-        self.record(&Self::owner_cap(), "agents.merge", id, "you", &format!("you merged {}'s work into {} (it was at {} before)", a.name, a.folder, &before[..before.len().min(12)]), &json!([]));
-        Ok(json!({ "merged": true, "before": before, "after": after }))
+        Ok(v)
     }
 
     /// Throw an agent's work away (password): its copy of the project goes, and its next
@@ -3759,5 +3737,23 @@ mod tests {
         // discard: its copy goes; the owner's project stays
         assert!(r.owner("agents.discard", json!({ "id": "agent:coder" }))["ok"].is_object());
         assert!(!w.exists() && proj.join("form.html").exists());
+    }
+
+    #[test]
+    fn pets_show_a_mood_and_nothing_an_agent_wrote() {
+        let mut r = rig();
+        r.owner("agents.add", json!({ "name": "Pip", "instructions": "Sort new files" }));
+        let mood = |r: &mut Rig| r.agent("status", json!({}))["ok"]["pets"][0].clone();
+        assert_eq!(mood(&mut r)["mood"], "idle");
+        let svc = r.st.service_secret.clone();
+        r.st.handle(&json!({ "method": "agents.report", "params": { "agent": "agent:pip", "kind": "done", "text": "secret plans", "failed": true }, "service": svc }));
+        let m = mood(&mut r);
+        assert_eq!((m["mood"].as_str(), m["unread"].as_u64()), (Some("worried"), Some(1)));
+        assert!(!m.to_string().contains("secret") && !m.to_string().contains("Pip"), "no names or report text for any program");
+        r.st.handle(&json!({ "method": "agents.report", "params": { "agent": "agent:pip", "kind": "question", "text": "which folder?" }, "service": svc }));
+        assert_eq!(mood(&mut r)["mood"], "asking");
+        r.owner("agents.update", json!({ "id": "agent:pip", "active": false }));
+        assert_eq!(mood(&mut r)["mood"], "sleepy");
+        assert_eq!(r.st.handle_as(&json!({ "method": "agents.view", "params": {} }), Some(crate::peer::Who::OwnerApp))["ok"]["moods"]["agent:pip"], "sleepy");
     }
 }
