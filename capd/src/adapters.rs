@@ -381,8 +381,17 @@ fn open_detached(target: &str) -> Result<(), String> {
     sh("/usr/bin/systemd-run", &["--user", "--quiet", "--collect", "--", "/usr/bin/xdg-open", &t]).map(|_| ())
 }
 
-/// Files that would run something when opened: refused by files.open.
-const RUNS_THINGS: [&str; 26] = ["desktop", "sh", "bash", "zsh", "fish", "csh", "py", "pl", "rb", "js", "mjs", "jar", "exe", "msi", "bat", "cmd", "appimage", "run", "bin", "deb", "rpm", "flatpakref", "flatpakrepo", "kwinscript", "plasmoid", "service"];
+/// What files.open may open: documents, pictures, sound and video only. Anything else
+/// (launchers, scripts, programs, packages, web pages that run code) is refused: an
+/// allow-list, so a new kind of runnable file isn't let through by default (security review).
+const OPENS: [&str; 44] = [
+    "pdf", "txt", "md", "rtf", "csv", "tsv", "log", "epub",
+    "odt", "ods", "odp", "odg", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "avif",
+    "mp3", "m4a", "ogg", "oga", "opus", "flac", "wav",
+    "mp4", "m4v", "mkv", "webm", "mov", "avi",
+    "zip", "tar", "7z",
+];
 
 /// Installed apps from their .desktop files: (id, name, about), hidden ones left out.
 fn installed_apps() -> Vec<(String, String, String)> {
@@ -677,6 +686,14 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             if host.is_empty() || !plain || host.contains('@') || !host.chars().all(|c| c.is_ascii_alphanumeric() || ".-:".contains(c)) {
                 return Err("only a plain https:// address can be opened".to_string());
             }
+            // a site on the internet, by name: never this computer or the local network (a
+            // printer's or router's admin page), and never a bare IP address
+            let name = host.split(':').next().unwrap_or("").trim_end_matches('.').to_lowercase();
+            let local = name == "localhost" || name.ends_with(".localhost") || name.ends_with(".local") || name.ends_with(".lan") || name.ends_with(".internal") || name.ends_with(".home.arpa") || !name.contains('.');
+            let ip = name.split('.').all(|p| p.chars().all(|c| c.is_ascii_digit())) || host.starts_with('[');
+            if local || ip {
+                return Err("only a site on the internet can be opened by name, not this computer, the local network or an IP address".to_string());
+            }
             open_detached(url)?;
             ok(json!({ "opened": url }))
         })(),
@@ -690,8 +707,8 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             }
             use std::os::unix::fs::PermissionsExt;
             let ext = r.real.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-            if meta.permissions().mode() & 0o111 != 0 || RUNS_THINGS.contains(&ext.as_str()) {
-                return Err(format!("{} would run something when opened, so SIOS won't open it; open it yourself if you trust it", r.rel));
+            if meta.permissions().mode() & 0o111 != 0 || !OPENS.contains(&ext.as_str()) {
+                return Err(format!("{} isn't a document, picture, sound or video SIOS opens (it could run something), so open it yourself if you trust it", r.rel));
             }
             open_detached(&file_url(&r.real))?;
             ok(json!({ "opened": r.rel }))
@@ -845,6 +862,13 @@ mod tests {
         std::fs::write(d.path().join("app.desktop"), "x").unwrap();
         assert!(run("files.open", &json!({ "path": "run.sh" }), d.path()).unwrap().unwrap_err().contains("run something"));
         assert!(run("files.open", &json!({ "path": "app.desktop" }), d.path()).unwrap().unwrap_err().contains("run something"));
+        for f in ["page.html", "logo.svg", "x.ps1", "y.vbs", "z.command", "w.url", "noext"] {
+            std::fs::write(d.path().join(f), "x").unwrap();
+            assert!(run("files.open", &json!({ "path": f }), d.path()).unwrap().unwrap_err().contains("run something"), "{f}: only documents, pictures, sound and video");
+        }
+        for bad in ["https://localhost/", "https://127.0.0.1/", "https://192.168.1.1/admin", "https://printer.local/", "https://router/", "https://[::1]/", "https://10.0.0.1:631/"] {
+            assert!(run("web.open", &json!({ "url": bad }), d.path()).unwrap().is_err(), "{bad}");
+        }
         std::fs::write(d.path().join("notes.bin2"), "x").unwrap();
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(d.path().join("notes.bin2"), std::fs::Permissions::from_mode(0o755)).unwrap();

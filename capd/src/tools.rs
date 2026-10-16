@@ -701,10 +701,15 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             let mut items: Vec<Value> = std::fs::read_dir(&dir).into_iter().flatten().flatten().filter_map(|e| {
                 let name = e.file_name().to_string_lossy().into_owned();
                 let rel = format!("{TRASH}/{name}");
+                // what came from an off-limits place or is labelled Sensitive isn't named to an AI
+                let from = meta.files.get(&rel).and_then(|x| x.trashed_from.clone());
+                if meta.labels_at(&rel).iter().any(|l| l == "Sensitive") || from.as_deref().is_some_and(|f| meta.is_blocked(f).is_some() || meta.labels_at(f).iter().any(|l| l == "Sensitive")) {
+                    return None;
+                }
                 let m = e.path().symlink_metadata().ok()?;
                 let size = if m.is_dir() { dir_bytes(&e.path(), 50_000) } else { m.len() };
                 let when = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
-                Some(json!({ "path": rel, "from": meta.files.get(&rel).and_then(|x| x.trashed_from.clone()), "folder": m.is_dir(), "bytes": size, "at": when }))
+                Some(json!({ "path": rel, "from": from, "folder": m.is_dir(), "bytes": size, "at": when }))
             }).collect();
             items.sort_by(|a, b| b["at"].as_u64().cmp(&a["at"].as_u64()));
             let total: u64 = items.iter().filter_map(|x| x["bytes"].as_u64()).sum();
@@ -737,7 +742,7 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             let mut big: Vec<(u64, String)> = std::fs::read_dir(&r.real).into_iter().flatten().flatten().filter_map(|e| {
                 let name = e.file_name().to_string_lossy().into_owned();
                 let rel = if r.rel.is_empty() { name.clone() } else { format!("{}/{name}", r.rel) };
-                if name.starts_with('.') || meta.is_blocked(&rel).is_some() {
+                if name.starts_with('.') || meta.is_blocked(&rel).is_some() || meta.contains_blocked(&rel).is_some() || meta.labels_at(&rel).iter().any(|l| l == "Sensitive") {
                     return None;
                 }
                 let m = e.path().symlink_metadata().ok()?;
