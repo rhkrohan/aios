@@ -171,7 +171,7 @@ impl Cache {
             // a verified domain of that name first; a GitHub account of that name next
             let owner = owner_of(&s.publisher);
             let named = words.iter().any(|w| *w == owner);
-            let boost = if named && !s.publisher.starts_with("github.com/") { 100 } else if named { 40 } else { 0 };
+            let boost = if brand_of(&s.publisher).is_some_and(|b| words.iter().any(|w| w == b)) { 100 } else if named { 20 } else { 0 };
             (n == words.len()).then(|| (n * 10 + boost + usize::from(title.starts_with(&words[0])) * 5, s))
         }).collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.title.cmp(&b.1.title)));
@@ -182,13 +182,113 @@ impl Cache {
             "remotes": s.remotes, "packages": s.packages, "icon": s.icon,
             "installable": !s.remotes.is_empty(),
             "maker": is_maker(s),
-            // the publisher's own name, when it's a domain the registry verified: its logo is
-            // that brand's (stripe.com's server shows Stripe's logo, whatever its title)
-            "owner": if s.publisher.starts_with("github.com/") { String::new() } else { owner_of(&s.publisher) },
+            // the brand whose own domain published it: its logo (stripe.com's server shows
+            // Stripe's logo; stripe.xyz's doesn't)
+            "owner": brand_for(&s.publisher, &s.title).unwrap_or(""),
             "talks_to": s.remotes.first().and_then(|r| r.strip_prefix("https://")).and_then(|r| r.split(['/', '?']).next()).unwrap_or(""),
         })).collect();
         json!({ "servers": page, "total": total, "all": self.servers.len(), "fetched_at": self.fetched_at })
     }
+}
+
+/// Brands the Store has a logo for, and the domains that are really theirs. A server
+/// gets a brand's logo and "from its maker" only when its publisher (a domain the
+/// registry verified) is one of these or under one, never by a look-alike name such
+/// as stripe.xyz or notion.evil.com (security review).
+const BRAND_DOMAINS: &[(&str, &[&str])] = &[
+    ("airtable", &["airtable.com"]),
+    ("anthropic", &["anthropic.com"]),
+    ("asana", &["asana.com"]),
+    ("atlassian", &["atlassian.com"]),
+    ("box", &["box.com"]),
+    ("brave", &["brave.com"]),
+    ("canva", &["canva.com"]),
+    ("claude", &["anthropic.com"]),
+    ("clickup", &["clickup.com"]),
+    ("cloudflare", &["cloudflare.com"]),
+    ("confluence", &["atlassian.com"]),
+    ("databricks", &["databricks.com"]),
+    ("datadog", &["datadoghq.com"]),
+    ("digitalocean", &["digitalocean.com"]),
+    ("discord", &["discord.com"]),
+    ("docker", &["docker.com"]),
+    ("dropbox", &["dropbox.com"]),
+    ("duckduckgo", &["duckduckgo.com"]),
+    ("elastic", &["elastic.co"]),
+    ("figma", &["figma.com"]),
+    ("firebase", &["firebase.google.com", "google.com"]),
+    ("github", &["github.com"]),
+    ("gitlab", &["gitlab.com"]),
+    ("gmail", &["google.com"]),
+    ("googlecalendar", &["google.com"]),
+    ("googledocs", &["google.com"]),
+    ("googledrive", &["google.com"]),
+    ("googlegemini", &["google.com"]),
+    ("googlesheets", &["google.com"]),
+    ("grafana", &["grafana.com"]),
+    ("heroku", &["heroku.com"]),
+    ("hubspot", &["hubspot.com"]),
+    ("huggingface", &["huggingface.co"]),
+    ("intercom", &["intercom.com"]),
+    ("jira", &["atlassian.com"]),
+    ("kubernetes", &["kubernetes.io"]),
+    ("linear", &["linear.app"]),
+    ("miro", &["miro.com"]),
+    ("mongodb", &["mongodb.com"]),
+    ("mysql", &["mysql.com"]),
+    ("neo4j", &["neo4j.com"]),
+    ("netlify", &["netlify.com"]),
+    ("notion", &["notion.so", "notion.com"]),
+    ("npm", &["npmjs.com"]),
+    ("obsidian", &["obsidian.md"]),
+    ("openai", &["openai.com"]),
+    ("pagerduty", &["pagerduty.com"]),
+    ("paypal", &["paypal.com"]),
+    ("perplexity", &["perplexity.ai"]),
+    ("postgresql", &["postgresql.org"]),
+    ("postman", &["postman.com"]),
+    ("puppeteer", &["pptr.dev"]),
+    ("pypi", &["pypi.org"]),
+    ("reddit", &["reddit.com"]),
+    ("redis", &["redis.io"]),
+    ("sentry", &["sentry.io", "sentry.dev"]),
+    ("shopify", &["shopify.com"]),
+    ("slack", &["slack.com"]),
+    ("snowflake", &["snowflake.com"]),
+    ("spotify", &["spotify.com"]),
+    ("stripe", &["stripe.com"]),
+    ("supabase", &["supabase.com"]),
+    ("todoist", &["todoist.com"]),
+    ("trello", &["trello.com", "atlassian.com"]),
+    ("twilio", &["twilio.com"]),
+    ("vercel", &["vercel.com"]),
+    ("webflow", &["webflow.com"]),
+    ("wikipedia", &["wikipedia.org", "wikimedia.org"]),
+    ("wordpress", &["wordpress.com", "wordpress.org"]),
+    ("x", &["x.com"]),
+    ("youtube", &["youtube.com", "google.com"]),
+    ("zapier", &["zapier.com"]),
+    ("zendesk", &["zendesk.com"]),
+    ("zoom", &["zoom.us"]),
+];
+
+/// The brand whose own domain published this server, if any.
+pub fn brand_of(publisher: &str) -> Option<&'static str> {
+    if publisher.starts_with("github.com/") {
+        return None;
+    }
+    brand_for(publisher, "")
+}
+
+/// The same, choosing among brands that share a domain (google.com) by the title.
+pub fn brand_for(publisher: &str, title: &str) -> Option<&'static str> {
+    if publisher.starts_with("github.com/") {
+        return None;
+    }
+    let p = publisher.to_lowercase();
+    let t: String = title.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+    let mine: Vec<&'static str> = BRAND_DOMAINS.iter().filter(|(_, ds)| ds.iter().any(|d| p == *d || p.ends_with(&format!(".{d}")))).map(|(b, _)| *b).collect();
+    mine.iter().find(|b| !t.is_empty() && t.contains(*b)).or(if mine.len() == 1 { mine.first() } else { None }).copied()
 }
 
 /// Two-part endings a domain's own name sits before (a fixed list, not a guess).
@@ -208,12 +308,9 @@ pub fn owner_of(publisher: &str) -> String {
     labels.get(i).map(|l| l.to_string()).unwrap_or_default()
 }
 
-/// Is it from the maker its title names? Only a publisher domain the registry verified
-/// counts ("Notion" by notion.com), never a GitHub account anyone could name after a
-/// brand, nor a look-alike like notion.evil.com (security review).
+/// Is it from a brand's own domain (Linear by linear.app)? Only the fixed list counts.
 fn is_maker(s: &Server) -> bool {
-    let first = s.title.to_lowercase().split_whitespace().next().unwrap_or("").to_string();
-    !first.is_empty() && !s.publisher.starts_with("github.com/") && owner_of(&s.publisher) == first
+    brand_of(&s.publisher).is_some()
 }
 
 /// Fetch one icon into the cache: https only, PNG or WebP by its bytes, at most 256 KB.
@@ -278,6 +375,11 @@ mod tests {
         assert!(!is_maker(&fake));
         assert!(!is_maker(&Server { title: "Notion".into(), publisher: "github.com/notion".into(), ..Default::default() }), "a GitHub account isn't a verified maker");
         assert!(is_maker(&Server { title: "Notion".into(), publisher: "notion.com".into(), ..Default::default() }));
+        assert!(!is_maker(&Server { title: "Stripe".into(), publisher: "stripe.xyz".into(), ..Default::default() }), "a look-alike domain isn't the brand");
+        assert_eq!(brand_of("mcp.stripe.com"), Some("stripe"));
+        assert_eq!(brand_of("evilstripe.com"), None);
+        assert_eq!(brand_for("google.com", "Google Calendar"), Some("googlecalendar"));
+        assert_eq!(brand_for("google.com", "Something"), None, "shared domain, no matching title: no logo guess");
         assert!(parse(&json!({ "server": { "name": "" } })).is_none());
         let c = Cache { fetched_at: 1, servers: vec![s, parse(&json!({ "server": { "name": "com.linear/mcp", "title": "Linear", "description": "Issues", "remotes": [{ "type": "streamable-http", "url": "https://mcp.linear.app/mcp" }] } })).unwrap()] };
         let v = c.view("linear", 0, 20);
