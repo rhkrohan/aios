@@ -2,6 +2,7 @@
 
 Newest first. One line per change.
 
+- 2026-10-16: Doc 19, the machine and the model: one typed catalog of every abstraction including every terminal command (generated catalog plus sandboxed terminal.run), plan v2 as a typed graph with a parallel executor, taint rules in capd, recipes and Reflex, and one ~3-4B local model (Qwen3.5-4B) with its data, training, eval and serving pipeline. D88 to D94 proposed; owner approved the plan.
 - 2026-10-15: D85 Daylight design language for all SIOS apps and KDE windows (light default, logos, error windows), D86 agent token and time limits enforced by the broker and a systemd timer, D87 leftover KDE tools hidden and Konsole restyled as Terminal. Accepted by the owner.
 - 2026-10-15: Agents, workspaces, proactive SIOS, Memory app and MCP store planned (18-agents-and-connectors.md, D58 to D84, A0 to A10 and C1 to C3). S2 to S9 continue after.
 - 2026-10-14: D57: SIOS reads, finds and changes settings without asking; file changes and anything risky still ask. Next: smarter local search (find by what a file is, not only its name), then S2.
