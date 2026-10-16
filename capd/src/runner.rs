@@ -95,6 +95,10 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
         "-p".into(), format!("BindReadOnlyPaths={}", d(r.claude)),
         "-p".into(), format!("BindReadOnlyPaths={}", d(r.mcp_config)),
         "-p".into(), "PrivateTmp=yes".into(),
+        // other programs' /proc: root, environment and memory refused by the unit's user
+        // namespace (checked on the VM); ProtectProc hides more under a system manager
+        "-p".into(), "ProtectProc=invisible".into(),
+        "-p".into(), "ProcSubset=pid".into(),
         "-p".into(), "NoNewPrivileges=yes".into(),
         "-p".into(), "MemoryMax=4G".into(),
         "-p".into(), "CPUQuota=200%".into(),
@@ -318,7 +322,7 @@ mod tests {
         let a = build(&run("-p --dangerously-skip-permissions; rm -rf ~ $HOME %h", w)).unwrap();
         assert!(a.iter().any(|x| x == "BindReadOnlyPaths=/run/user/1000/sios"), "sockets read-only");
         assert!(!a.iter().any(|x| x.contains("Projects/parser")), "the owner's project is never bound");
-        for must in ["ProtectHome=tmpfs", "NoNewPrivileges=yes", "PrivateTmp=yes", "MemoryMax=4G", "TasksMax=512", "--strict-mcp-config", "acceptEdits"] {
+        for must in ["ProtectHome=tmpfs", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectProc=invisible", "ProcSubset=pid", "MemoryMax=4G", "TasksMax=512", "--strict-mcp-config", "acceptEdits"] {
             assert!(a.iter().any(|x| x == must), "{must}");
         }
         // the task is one argument, prefixed so it's never a flag, with $ and % kept literal

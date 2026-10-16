@@ -169,7 +169,7 @@ pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
 pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     // looking up
     "files.list", "files.find", "files.show", "files.preview", "apps.list", "apps.open", "apps.focus", "apps.arrange",
-    "system.state", "system.notify", "network.list", "memory.search", "people.resolve", "terminal.read",
+    "system.state", "system.notify", "network.list", "memory.search", "people.resolve",
     // settings
     "settings.set_theme", "settings.set_volume", "settings.set_brightness", "settings.set_wallpaper", "settings.dnd",
     "network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind",

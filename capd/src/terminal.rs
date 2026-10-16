@@ -236,6 +236,14 @@ pub fn unit_args(j: &Job) -> Result<Vec<String>, String> {
         "-p".into(), "ProtectHome=tmpfs".into(),
         "-p".into(), "PrivateTmp=yes".into(),
         "-p".into(), "NoNewPrivileges=yes".into(),
+        // other programs' /proc: their root, cwd, environment and memory are refused (the unit's
+        // own user namespace; checked on the VM: "Permission denied"), so /proc/<pid>/root is no
+        // way into the real home. The process list and command lines stay visible, as on any
+        // Linux; ProtectProc only hides them under a system manager, so it's set for when it can
+        "-p".into(), "ProtectProc=invisible".into(),
+        "-p".into(), "ProcSubset=pid".into(),
+        // no system bus: a "read" like nmcli could otherwise ask services to change things
+        "-p".into(), "InaccessiblePaths=-/run/dbus".into(),
         "-p".into(), "MemoryMax=2G".into(),
         "-p".into(), "CPUQuota=200%".into(),
         "-p".into(), "TasksMax=256".into(),
@@ -250,7 +258,11 @@ pub fn unit_args(j: &Job) -> Result<Vec<String>, String> {
         "-E".into(), format!("HOME={}", plain(&j.home)?),
         "-E".into(), "LANG=C.UTF-8".into(),
     ];
-    if !j.network {
+    if j.network {
+        // the internet only: no local sockets (an abstract X11 or other desktop socket)
+        a.push("-p".into());
+        a.push("RestrictAddressFamilies=AF_INET AF_INET6".into());
+    } else {
         a.push("-p".into());
         a.push("PrivateNetwork=yes".into());
     }
@@ -486,10 +498,12 @@ mod tests {
     #[test]
     fn the_sandbox_is_fixed_and_network_only_for_sending() {
         let a = unit_args(&job(false)).unwrap();
-        for must in ["ProtectHome=tmpfs", "PrivateTmp=yes", "NoNewPrivileges=yes", "PrivateNetwork=yes", "RuntimeMaxSec=120", "BindReadOnlyPaths=/home/r/Documents", "BindPaths=/home/r/Projects", "InaccessiblePaths=-/home/r/Documents/Taxes", "--slice=sios-terminal.slice"] {
+        for must in ["ProtectHome=tmpfs", "PrivateTmp=yes", "NoNewPrivileges=yes", "PrivateNetwork=yes", "ProtectProc=invisible", "ProcSubset=pid", "InaccessiblePaths=-/run/dbus", "RuntimeMaxSec=120", "BindReadOnlyPaths=/home/r/Documents", "BindPaths=/home/r/Projects", "InaccessiblePaths=-/home/r/Documents/Taxes", "--slice=sios-terminal.slice"] {
             assert!(a.iter().any(|x| x == must), "{must}");
         }
-        assert!(!unit_args(&job(true)).unwrap().iter().any(|x| x == "PrivateNetwork=yes"));
+        let net = unit_args(&job(true)).unwrap();
+        assert!(!net.iter().any(|x| x == "PrivateNetwork=yes"));
+        assert!(net.iter().any(|x| x == "RestrictAddressFamilies=AF_INET AF_INET6"), "internet only, no local sockets");
         // the command itself is only ever base64 data for pipeline-run, never unit properties
         let i = a.iter().position(|x| x == "pipeline-run").unwrap();
         assert_eq!(a.len(), i + 3);

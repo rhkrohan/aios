@@ -6,7 +6,8 @@
 #          X can't be undone (always asks)
 #          S sends something out of the computer (always asks; network only then)
 #          ask: not reviewed yet (asks), block: never for an AI
-# A program, subcommand or flag with no rule is "ask". The highest class in a
+# A program, subcommand or flag with no rule is "ask". Commands never reach the system bus,
+# the session bus, other programs' /proc or (unless S) the network, whatever their class. The highest class in a
 # command (its default, its subcommand, any flag) wins, and in a pipeline the
 # highest stage wins. Arguments are never run through a shell.
 
@@ -292,10 +293,8 @@ class = "R"
 sub_default = "block"
 why = "renaming the computer is yours to do"
 [commands.hostnamectl]
-class = "R"
-needs_sub = true
-sub = { status = "R" }
-sub_default = "block"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.uptime]
 class = "R"
 [commands.free]
@@ -342,22 +341,17 @@ class = "R"
 [commands.locale]
 class = "R"
 [commands.timedatectl]
-class = "R"
-needs_sub = true
-sub = { status = "R", show = "R", "list-timezones" = "R" }
-sub_default = "block"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.journalctl]
 class = "R"
 flags = { "-f" = "block", "--follow" = "block", "--vacuum-size" = "block", "--vacuum-time" = "block", "--rotate" = "block", "--flush" = "block" }
 [commands.systemctl]
-class = "ask"
-needs_sub = true
-sub = { status = "R", "list-units" = "R", "list-unit-files" = "R", "list-timers" = "R", "is-active" = "R", "is-enabled" = "R", "is-failed" = "R", show = "R", cat = "R", "list-dependencies" = "R" }
-sub_default = "block"
-flags = { "--user" = "R" }
-why = "system services are yours; the AI may read their state"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.loginctl]
-class = "R"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.free-space]
 class = "R"
 [commands.findmnt]
@@ -370,12 +364,11 @@ flags = { "-C" = "block", "--clear" = "block", "-w" = "block", "--follow" = "blo
 [commands.sensors]
 class = "R"
 [commands.upower]
-class = "R"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.powerprofilesctl]
-class = "R"
-sub = { list = "R", get = "R", set = "C" }
-
-# ---- network
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.ip]
 class = "R"
 needs_sub = true
@@ -387,12 +380,11 @@ class = "R"
 [commands.netstat]
 class = "R"
 [commands.nmcli]
-class = "R"
-needs_sub = true
-sub = { general = "R", g = "R", device = "R", d = "R", connection = "R", c = "R", radio = "R", r = "R", monitor = "block" }
-flags = { up = "C", down = "C", connect = "C", disconnect = "C", delete = "X", modify = "C", add = "C", on = "C", off = "C" }
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.resolvectl]
-class = "R"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.ping]
 class = "S"
 why = "sends packets out"
@@ -454,10 +446,8 @@ sub_default = "ask"
 [commands.pw-dump]
 class = "R"
 [commands.busctl]
-class = "R"
-needs_sub = true
-sub = { list = "R", tree = "R", introspect = "R", status = "R", "get-property" = "R", call = "block", "set-property" = "block", monitor = "block", capture = "block" }
-why = "D-Bus calls can do anything; the AI uses SIOS's typed tools instead"
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.gdbus]
 class = "block"
 [commands.qdbus]
@@ -492,12 +482,8 @@ class = "C"
 [commands.lpadmin]
 class = "block"
 [commands.bluetoothctl]
-class = "R"
-needs_sub = true
-sub = { show = "R", list = "R", devices = "R", info = "R", power = "C", connect = "C", disconnect = "C", pair = "C", trust = "C", remove = "X", scan = "C" }
-sub_default = "block"
-
-# ---- developer
+class = "block"
+why = "it talks to system services over the bus, which commands can't reach; SIOS's typed tools (network.list, system.state, settings...) do this safely"
 [commands.git]
 class = "ask"
 needs_sub = true

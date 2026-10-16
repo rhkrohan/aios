@@ -2278,7 +2278,11 @@ impl State {
         if !binds.iter().any(|(b, _)| cwd.real.starts_with(b)) {
             binds.push((cwd.real.clone(), writable));
         }
-        let hide: Vec<PathBuf> = self.meta.blocked.iter().filter_map(|b| crate::fsguard::resolve(&self.root, b).ok()).map(|r| r.real).filter(|p| p.exists()).collect();
+        // hidden inside the granted folders: the owner's off-limits places and every file or
+        // folder labelled Sensitive (what a command prints goes to the AI; Sensitive never does)
+        let hide: Vec<PathBuf> = self.meta.blocked.iter().cloned()
+            .chain(self.meta.files.iter().filter(|(_, m)| m.labels.iter().any(|l| l == "Sensitive")).map(|(p, _)| p.clone()))
+            .filter_map(|b| crate::fsguard::resolve(&self.root, &b).ok()).map(|r| r.real).filter(|p| p.exists()).collect();
         let id = random_hex(8);
         let out_dir = self.dir.join("terminal").join(&id);
         {
