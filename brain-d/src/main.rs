@@ -16,6 +16,7 @@ mod memory;
 mod model;
 mod peer;
 mod plan;
+mod reflex;
 mod routines;
 
 use serde_json::{json, Value};

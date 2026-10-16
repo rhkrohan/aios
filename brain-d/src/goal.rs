@@ -116,7 +116,15 @@ impl Run<'_> {
     fn plan(&mut self, extra: &str) -> Result<Plan, String> {
         // the computer right now (volume, brightness, look, network), so "a bit louder" has a
         // starting point; what the shell reported (privacy...) stays on top
-        let mut system = self.ctx.capd.call("system.now", json!({})).unwrap_or(json!({}));
+        // only what plans need: no network or connection names (they can say where the owner
+        // is, and this goes to the AI; security review)
+        let now = self.ctx.capd.call("system.now", json!({})).unwrap_or(json!({}));
+        let mut system = json!({});
+        for k in ["volume", "brightness", "theme", "wallpaper", "wifi"] {
+            if !now[k].is_null() {
+                system[k] = now[k].clone();
+            }
+        }
         if let (Some(s), Some(shell)) = (system.as_object_mut(), self.ctx.system.lock().unwrap().as_object()) {
             for (k, v) in shell {
                 s.insert(k.clone(), v.clone());
@@ -184,17 +192,32 @@ pub fn run(ctx: &Ctx, g: &Shared, request: &str, principal: &str, own: bool, his
 }
 
 fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<(), String> {
-    // 1. briefing (timed separately so the shell can show it)
+    // 0. Reflex (D95): an everyday command is understood by code, no model and no briefing;
+    // it still becomes a normal plan that the broker checks like any other
     let t = Instant::now();
-    let files = briefing::build(&r.ctx.root, &r.ctx.state, &r.request).files;
-    emit(r.g, json!({ "t": "brief", "files": files, "ms": ms(t), "conversation": !r.history.is_empty() }));
+    let reflex = crate::reflex::understand(&r.request, &json!({})).or_else(|| {
+        // "louder", "dimmer": only then is the computer's current state needed
+        let w = r.request.to_lowercase();
+        ["louder", "quieter", "brighter", "dimmer", "dim", " up", " down"].iter().any(|x| w.contains(x))
+            .then(|| crate::reflex::understand(&r.request, &r.ctx.capd.call("system.now", json!({})).unwrap_or(json!({}))))
+            .flatten()
+    });
+    let reflex: Option<Plan> = reflex.and_then(|(tool, args, reply)| serde_json::from_value(crate::reflex::plan(&tool, &args, &reply)).ok());
 
-    // 2. plan: a routine first (only for a fresh conversation, so "it" means nothing stale)
+    // 1. briefing (timed separately so the shell can show it)
+    if reflex.is_none() {
+        let files = briefing::build(&r.ctx.root, &r.ctx.state, &r.request).files;
+        emit(r.g, json!({ "t": "brief", "files": files, "ms": ms(t), "conversation": !r.history.is_empty() }));
+    }
+
+    // 2. plan: Reflex, then a routine (only for a fresh conversation, so "it" means nothing
+    // stale), then the model
     let t = Instant::now();
-    let routine = if r.history.is_empty() { r.ctx.routines.lock().unwrap().get(&r.request) } else { None };
-    let (mut plan, source) = match routine {
-        Some(p) => (p, "routine"),
-        None => (r.plan("")?, "model"),
+    let routine = if reflex.is_none() && r.history.is_empty() { r.ctx.routines.lock().unwrap().get(&r.request) } else { None };
+    let (mut plan, source) = match (reflex, routine) {
+        (Some(p), _) => (p, "reflex"),
+        (None, Some(p)) => (p, "routine"),
+        (None, None) => (r.plan("")?, "model"),
     };
     // once text from this computer (found names, error messages) has reached the planner,
     // no later plan in this goal may send anything out (D72, security review)
