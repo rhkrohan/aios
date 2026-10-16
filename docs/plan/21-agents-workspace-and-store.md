@@ -68,3 +68,26 @@ The owner approved the Store design and asked for the right logos and every avai
 
 Order: Workspace window (Live, Review), then the registry fetcher, the Connectors page, remote installs, browser sign-in (C4), the local runner (C5), then the Desktop tab after its VM spike.
 
+
+## Addendum (2026-10-16): the agent's own desktop (D109, proposed)
+
+The owner's ask: no new system, just an isolated desktop that the agent and the owner can both use, easy to run, with every loophole closed. A spike on the VM (2026-10-16) proved each piece with what the image already has.
+
+**Shape.** Each agent's sandbox can hold a hidden desktop: a second KWin (`kwin_wayland --virtual`) with its own runtime folder, its own session bus (`dbus-run-session`) and its own PipeWire. Apps the agent opens (browser, Dolphin, Konsole, its dev server's page) draw there, never on the owner's screen. The owner's screen is never captured (core rule 7).
+
+**Network.** The agent's CLI and its desktop share one private network made by `pasta` (as rootless Podman does): internet as today, but its loopback is its own. Its dev server, the desktop's screen port and anything else it listens on are unreachable from the owner's session and from other agents. Egress limits plug in here later.
+
+**Seeing it.** Inside the sandbox, `krfb-virtualmonitor` serves the desktop's single screen over VNC on its private loopback (the first virtual screen is switched off, so every window lands on the shared one). A small bridge in the sandbox exposes it only as a Unix socket in a broker-owned folder (`/run/user/<uid>/sios/desks/<slug>/`, mode 0700). The VNC password is new on every start, reaches the sandbox as a systemd credential (never in argv) and goes only to the Agents window through a broker method that checks it is SIOS's own window.
+
+**Using it.** The Workspace's Desktop tab shows it live (libvncclient, already on the image) with "Take control": the owner's mouse and keys go in, and the agent's input is held until the owner hands back. The agent works its desktop through SIOS door tools served by the broker: `desk.look` (a screenshot of its own desktop only), `desk.click`, `desk.type`, `desk.key`, `desk.scroll`, `desk.open` (an app from an allow-list). Its CLI can also start apps there directly (its `WAYLAND_DISPLAY` points at its own desktop).
+
+**Loopholes to close (each one tested).**
+- systemd silently skips `PrivateNetwork` in a user unit without user namespaces ("not permitted, proceeding without"): the broker checks the desktop's network namespace differs from the owner's after start and refuses to show it otherwise.
+- Dolphin in the spike listed the owner's disks (udisks over the system bus): no system bus (`InaccessiblePaths=/run/dbus`), `PrivateDevices=yes` (software rendering), no `/run/udev`, no owner session bus, no owner PipeWire.
+- Other processes of the same user: `ProtectProc=invisible`, the socket folder bound only into the broker's view, password per start.
+- The owner's files: `ProtectHome=tmpfs`; the desktop sees exactly the agent's workspace and its Places, the same binds as its CLI.
+- Clipboard: the desktop has its own; copying out is an explicit owner button.
+- Stop, Pause and lease end freeze or stop the desktop with the rest of the agent's slice.
+- Size and time: one desktop per agent, started on first use, stopped when idle for 15 minutes; a fixed 1280x800 screen.
+
+**Tests.** Unit tests for the unit's argv and binds; on the VM, an attack list run as the agent: reach the owner's session bus, system bus, disks, other agents' desktops or ports, the owner's screen or clipboard, the VNC socket from outside, input while the owner holds control, and survive Stop. Every item must fail before this ships.
