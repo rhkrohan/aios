@@ -682,6 +682,10 @@ impl State {
                     let verb = if a.active { "thaw" } else { "freeze" };
                     let _ = crate::exec::run("/usr/bin/systemctl", &["--user", verb, &unit], None, std::time::Duration::from_secs(10));
                 }
+                // paused: its desktop closes too (it was opened under the agent's own say-so)
+                if crate::agents::is_coder(&a.brain) && !a.active {
+                    self.desk_close(a.slug());
+                }
                 self.record(&Self::owner_cap(), "agents.update", &a.id, "you", &format!("you changed {} ({}, {}, {})", a.name, a.job, a.brain, if a.active { "on" } else { "paused" }), &json!([]));
                 json!(a)
             }),
@@ -1843,6 +1847,9 @@ impl State {
         if crate::security::unit_active(&format!("{}-signin", crate::runner::unit(a.slug()))) {
             return Err(format!("close {}'s terminal first", a.name));
         }
+        if crate::security::unit_active(&crate::desk::unit(a.slug())) {
+            return Err(format!("close {}'s desktop first", a.name));
+        }
         let pl = a.places.iter().find(|p| p.name == name).cloned().ok_or("no such place")?;
         let real = self.place_folder(&pl.from)?;
         let (.., mine) = self.agent_paths(&a)?;
@@ -2005,7 +2012,7 @@ impl State {
         let token_file = mine.join("desk-token");
         let status = |on: bool| json!({ "agent": id, "on": on, "unit": unit, "width": crate::desk::WIDTH, "height": crate::desk::HEIGHT });
         match what {
-            "status" => Ok(status(crate::security::unit_active(&unit))),
+            "status" => Ok(status(crate::security::unit_active(&crate::desk::unit(a.slug())))),
             "stop" => {
                 let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &unit], None, std::time::Duration::from_secs(20));
                 let _ = std::fs::remove_file(&token_file);
@@ -2023,8 +2030,11 @@ impl State {
                 if !a.leased(now()) {
                     return Err(format!("{} has no work lease right now: let it work on its project first", a.name));
                 }
-                if crate::security::unit_active(&unit) {
+                if crate::security::unit_active(&crate::desk::unit(a.slug())) {
                     return Ok(status(true));
+                }
+                if self.reviewing.contains(id) {
+                    return Err(format!("SIOS is reading {}'s work right now; try again in a moment", a.name));
                 }
                 let (_, worktree, _, home, _) = self.agent_paths(&a)?;
                 if !worktree.is_dir() || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
@@ -2085,6 +2095,28 @@ impl State {
                 Ok(status(true))
             }
             _ => Err("start, stop or status".into()),
+        }
+    }
+
+    /// Close an agent's desktop and make its token useless.
+    fn desk_close(&self, slug: &str) {
+        let unit = format!("{}.service", crate::desk::unit(slug));
+        if crate::security::unit_active(&crate::desk::unit(slug)) {
+            let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", "--no-block", &unit], None, std::time::Duration::from_secs(5));
+        }
+        let _ = std::fs::remove_file(self.dir.join("agents").join(slug).join("desk-token"));
+    }
+
+    /// Every tick: a desktop lives only while what allowed it still holds (its agent active,
+    /// leased, SIOS not stopped). Closed otherwise, whatever closed the rest of its work.
+    pub fn desks_sweep(&mut self) {
+        let stopped = self.sec.stopped.is_some();
+        let t = now();
+        let gone: Vec<String> = self.agents.agents.iter().filter(|a| crate::agents::is_coder(&a.brain) && (stopped || !a.active || !a.leased(t))).map(|a| a.slug().to_string()).collect();
+        for slug in gone {
+            if crate::security::unit_active(&crate::desk::unit(&slug)) {
+                self.desk_close(&slug);
+            }
         }
     }
 
@@ -2442,6 +2474,10 @@ impl State {
         // nor while its own terminal is open (sign-in, or the owner driving it)
         if crate::security::unit_active(&format!("{}-signin", crate::runner::unit(a.slug()))) {
             return Err(format!("close {}'s terminal first, then look at its changes", a.name));
+        }
+        // nor while its desktop is open: apps there can write its workspace too
+        if crate::security::unit_active(&crate::desk::unit(a.slug())) {
+            return Err(format!("close {}'s desktop first, then look at its changes", a.name));
         }
         if !self.reviewing.insert(a.id.clone()) {
             return Err(format!("SIOS is already reading {}'s work; try again in a moment", a.name));

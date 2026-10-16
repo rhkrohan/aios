@@ -709,7 +709,12 @@ fn refresh_registry_daily(st: Arc<Mutex<state::State>>) {
 fn schedule_agents(st: Arc<Mutex<state::State>>) {
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(30));
-        let started = st.lock().unwrap_or_else(|p| p.into_inner()).agents_due();
+        let started = {
+            let mut g = st.lock().unwrap_or_else(|p| p.into_inner());
+            // desktops whose agent lost its lease, was paused or stopped (D109)
+            g.desks_sweep();
+            g.agents_due()
+        };
         for ok in started {
             watch_started(&st, &ok);
         }
