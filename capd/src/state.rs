@@ -64,6 +64,36 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 #[cfg(test)]
 use crate::review::git_out;
 
+/// Things in a writable place that can run and weren't there (that way) before the task:
+/// a .git folder, or a file with an execute bit. Paths relative to the place.
+fn runnable_new(place: &Path, snapshot: &Path) -> Vec<String> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut out = vec![];
+    let mut stack = vec![place.to_path_buf()];
+    let mut seen = 0;
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            seen += 1;
+            if seen > 50_000 || out.len() > 100 {
+                return out;
+            }
+            let Ok(m) = e.path().symlink_metadata() else { continue };
+            let rel = e.path().strip_prefix(place).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+            let before = snapshot.join(&rel).symlink_metadata().ok();
+            if m.is_dir() {
+                if e.file_name() == ".git" && before.is_none() {
+                    out.push(rel);
+                } else {
+                    stack.push(e.path());
+                }
+            } else if m.is_file() && m.permissions().mode() & 0o111 != 0 && !before.is_some_and(|b| b.permissions().mode() & 0o111 != 0) {
+                out.push(rel);
+            }
+        }
+    }
+    out
+}
+
 /// A read-and-write place without git is snapshotted before each task, up to this size.
 const PLACE_SNAPSHOT_MAX: u64 = 300 << 20;
 
@@ -672,17 +702,7 @@ impl State {
                         if self.memory.shares.remove(&id).is_some() {
                             self.memory.save();
                         }
-                        let held: Vec<String> = self.holders.iter().filter(|(_, who)| **who == id).map(|(c, _)| c.clone()).collect();
-                        self.revoked.extend(held);
-                        let waiting: Vec<String> = self.waiting.iter().filter(|(_, c)| c.principal == id).map(|(k, _)| k.clone()).collect();
-                        for k in waiting {
-                            self.waiting.remove(&k);
-                            self.ungranted.remove(&k);
-                            self.revoked.insert(k);
-                        }
-                        for x in self.pending.values_mut().filter(|x| x.answer.is_none() && x.cap.principal == id) {
-                            x.answer = Some(Err("that agent was removed".into()));
-                        }
+                        self.end_principal(&id, "that agent was removed", true);
                         let _ = crate::kwin::ask("desk_remove", json!({ "name": a.name }));
                         self.record(&Self::owner_cap(), "agents.remove", &id, "you", &format!("you removed the agent {}", a.name), &json!([]));
                         Ok(json!({ "removed": id }))
@@ -1067,6 +1087,10 @@ impl State {
                 let id = format!("app:{slug}");
                 let token = format!("sios_pair_{}", random_hex(20));
                 let roles: Vec<String> = p["roles"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(String::from)).collect();
+                // paired again: sessions from the old pairing end now
+                if self.iam.get(&id).is_some() {
+                    self.end_principal(&id, "that app was paired again", false);
+                }
                 match self.iam.identities.iter_mut().find(|i| i.id == id) {
                     Some(i) => i.proof = "Pairing token you issued".into(),
                     None => self.iam.identities.push(crate::iam::Identity { id: id.clone(), name: name.clone(), kind: "app".into(), proof: "Pairing token you issued".into(), created_by: "you".into(), roles, since: now() }),
@@ -1089,7 +1113,7 @@ impl State {
                     return Err("no such AI".into());
                 }
                 self.iam.save();
-                self.connectors.forget_ai(&id);
+                self.end_principal(&id, "that AI was removed", true);
                 self.record(&me, "iam.remove", &id, "you", &format!("you removed {id}"), &json!([]));
                 Ok(json!({ "removed": id }))
             }
@@ -1458,10 +1482,11 @@ impl State {
         let attaching_untrusted = egress && tlist.iter().any(|t| self.meta.untrusted_at(t));
 
         // roles: what this identity may do, here, now
-        let mut iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
+        let tainted_now = session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted;
+        let mut iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: tainted_now });
         // a connection the owner gave this AI (Store > Connectors, "who can use it"): its tools
         // are allowed for it, and ask each time unless one of its roles already allows them
-        if iam.result == crate::policy::Res::Fail && cap.principal != crate::iam::SIOS && self.connectors.allows(&tool, &cap.principal).is_ok() && !self.iam.denies(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: false }) {
+        if iam.result == crate::policy::Res::Fail && cap.principal != crate::iam::SIOS && self.connectors.allows(&tool, &cap.principal).is_ok() && !self.iam.denies(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: tainted_now }) {
             let name = self.iam.get(&cap.principal).map(|i| i.name.clone()).unwrap_or_default();
             iam = crate::iam::Decided { result: crate::policy::Res::Ask, detail: format!("You gave {name} this connection; each use asks you.") };
         }
@@ -1723,7 +1748,12 @@ impl State {
             if let Some(o) = clash {
                 return Err(format!("{} already has {} or a folder overlapping it; a folder another agent can change can't be shared", o.name, place.from));
             }
-            if place.write && !real.join(".git").is_dir() {
+            // a git project (or a folder inside one) is never writable: its hooks and config would
+            // run as the owner; code work goes through the agent's own project copy (security review)
+            if place.write && real.ancestors().take_while(|p| p.starts_with(&self.root.canonicalize().unwrap_or_default())).any(|p| p.join(".git").symlink_metadata().is_ok()) {
+                return Err(format!("{} is a git project (or inside one): give it read only, or make it the agent's project", place.from));
+            }
+            if place.write {
                 let size = folder_size(&real, PLACE_SNAPSHOT_MAX);
                 if size > PLACE_SNAPSHOT_MAX {
                     return Err(format!("{} is too big to snapshot before each task (over {} MB); give it read only", place.from, PLACE_SNAPSHOT_MAX >> 20));
@@ -2037,6 +2067,25 @@ impl State {
         why.map(String::from)
     }
 
+    /// An identity is gone (removed, or paired again under the same id): every pass it holds
+    /// is revoked, its waiting requests and approvals end, and no connection is given to it.
+    fn end_principal(&mut self, id: &str, why: &str, forget_connections: bool) {
+        let held: Vec<String> = self.holders.iter().filter(|(_, who)| **who == id).map(|(c, _)| c.clone()).collect();
+        self.revoked.extend(held);
+        let waiting: Vec<String> = self.waiting.iter().filter(|(_, c)| c.principal == id).map(|(k, _)| k.clone()).collect();
+        for k in waiting {
+            self.waiting.remove(&k);
+            self.ungranted.remove(&k);
+            self.revoked.insert(k);
+        }
+        for x in self.pending.values_mut().filter(|x| x.answer.is_none() && x.cap.principal == id) {
+            x.answer = Some(Err(why.into()));
+        }
+        if forget_connections {
+            self.connectors.forget_ai(id);
+        }
+    }
+
     /// The pets (D103): each agent's colour and mood. status (open to any program on
     /// this computer) drops the id too: no names, tasks or reports there. Mood comes from what
     /// the broker knows: paused, its live run, its last report.
@@ -2141,6 +2190,23 @@ impl State {
             }
         }
         let _ = self.agents.report(id, "done", &text, failed, run_id, now());
+        // what it left in your writable folders that can run: named, so you look before using it
+        if let Some(a) = self.agents.get(id).cloned() {
+            let mine = self.dir.join("agents").join(a.slug());
+            let mut found: Vec<String> = vec![];
+            for pl in a.places.iter().filter(|p| p.write) {
+                if let Ok(real) = self.place_folder(&pl.from) {
+                    for f in runnable_new(&real, &mine.join("snapshots").join(run_id).join(&pl.name)) {
+                        found.push(format!("{}/{f}", pl.from));
+                    }
+                }
+            }
+            if !found.is_empty() {
+                let list: Vec<String> = found.iter().take(10).cloned().collect();
+                let more = if found.len() > 10 { format!(" and {} more", found.len() - 10) } else { String::new() };
+                let _ = self.agents.report(id, "progress", &format!("Check before you use them: {} left things that can run in your folders: {}{more}.", a.name, list.join(", ")), true, run_id, now());
+            }
+        }
         // hand-off: only after a task that ended well, to an agent that may work now
         let ok = self.agents.runs.iter().find(|r| r.id == run_id).is_some_and(|r| r.state == "done");
         let (name, next) = self.agents.get(id).map(|a| (a.name.clone(), a.then.clone())).unwrap_or_default();
@@ -2305,7 +2371,8 @@ impl State {
     /// Inside an approval session, may this yes be a click instead of the password?
     /// Only for SIOS's own assistant, and only for what can be undone (D56).
     pub fn session_covers(&self, method: &str, p: &Value) -> bool {
-        let undoable = |tool: &str| tools::spec(tool).is_some_and(|s| s.level != crate::policy::Level::Irreversible && !s.egress);
+        // always-ask tools (clipboard, screen, opening things) keep the password too
+        let undoable = |tool: &str| tools::spec(tool).is_some_and(|s| s.level != crate::policy::Level::Irreversible && !s.egress) && !tools::ALWAYS_ASK.contains(&tool);
         let id = p["id"].as_str().unwrap_or("");
         if self.sec.stopped.is_some() {
             return false;
@@ -4138,6 +4205,22 @@ mod tests {
         assert_eq!(std::fs::read_to_string(root.join("Documents/Copy/about.md")).unwrap(), "v1");
         assert!(!root.join("Documents/Copy/junk.txt").exists());
         assert!(std::fs::read_dir(mine.join("replaced")).unwrap().count() == 1, "what was there is kept, not deleted");
+        // a git project is never writable
+        std::fs::create_dir_all(root.join("Documents/Repo/.git")).unwrap();
+        let e = r.owner("agents.places", json!({ "id": "agent:coder", "places": [{ "from": "Documents/Repo", "as": "repo", "write": true }] }))["error"].as_str().unwrap_or("").to_string();
+        assert!(e.contains("git project"), "{e}");
+        // what it left that can run is found
+        std::fs::create_dir_all(root.join("Documents/Copy/sub/.git/hooks")).unwrap();
+        std::fs::write(root.join("Documents/Copy/build.sh"), "x").unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(root.join("Documents/Copy/build.sh"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let mut found = runnable_new(&root.join("Documents/Copy"), &mine.join("snapshots/r1/copy"));
+        found.sort();
+        assert_eq!(found, vec!["build.sh".to_string(), "sub/.git".to_string()]);
+        std::fs::remove_dir_all(root.join("Documents/Copy/sub")).unwrap();
+        std::fs::remove_file(root.join("Documents/Copy/build.sh")).unwrap();
         // a read-and-write place isn't shared with another agent
         r.owner("agents.add", json!({ "name": "Docs", "brain": "codex", "instructions": "docs", "folder": "Projects/site" }));
         let e = r.owner("agents.places", json!({ "id": "agent:docs", "places": [{ "from": "Documents/Copy", "as": "copy" }] }))["error"].as_str().unwrap_or("").to_string();
@@ -4169,5 +4252,36 @@ mod tests {
         assert_eq!(r.agent("call", json!({ "cap": t, "tool": "trash.list", "args": {}, "dry_run": true }))["ok"]["decision"], "block");
         assert_eq!(r.agent("call", json!({ "cap": t, "tool": "disk.usage", "args": {}, "dry_run": true }))["ok"]["decision"], "block");
         assert_eq!(r.agent("call", json!({ "cap": t, "tool": "disk.usage", "args": { "path": "Projects" }, "dry_run": true }))["ok"]["decision"], "allow");
+    }
+
+    #[test]
+    fn a_roles_deny_when_tainted_still_blocks_a_given_connection_and_removal_ends_sessions() {
+        let mut r = rig();
+        let cat: crate::connectors::Catalog = serde_json::from_value(json!({ "version": 1, "entries": [{
+            "id": "testhub", "name": "TestHub", "publisher": "x", "verified": true, "about": "", "url": "https://api.testhub.example/mcp", "signin": null,
+            "destinations": ["api.testhub.example"],
+            "tools": [{ "name": "testhub.search", "server_tool": "search", "level": "read", "about": "Search.", "args": { "type": "object", "properties": { "query": { "type": "string" } }, "required": ["query"], "additionalProperties": false } }] }] })).unwrap();
+        r.st.connectors.catalog = cat;
+        r.st.connectors.add("testhub", vec!["app:x".into()], Default::default(), 1);
+        r.st.iam.register("app:x", "X", "app", "pairing", crate::iam::OWNER, vec![], 1);
+        let t = r.mint(json!({ "principal": "app:x", "tools": ["testhub.search"], "paths": [""] }));
+        let a = r.st.check_token(&t).unwrap();
+        let sid = r.st.session_of(&a);
+        r.st.sessions.entry(sid).or_default().tainted = true;
+        let mut role = r.st.iam.roles.first().cloned().unwrap();
+        role.id = "no-posting-after-untrusted".into();
+        role.name = "No posting after untrusted text".into();
+        role.global = false;
+        role.statements = vec![serde_json::from_value(json!({ "id": "s1", "effect": "deny", "tools": ["testhub.*"], "places": [], "when": { "tainted": true }, "note": "not after untrusted text" })).unwrap()];
+        r.st.iam.roles.push(role.clone());
+        if let Some(i) = r.st.iam.identities.iter_mut().find(|i| i.id == "app:x") {
+            i.roles = vec![role.id.clone()];
+        }
+        let d = r.agent("call", json!({ "cap": t, "tool": "testhub.search", "args": { "query": "x" }, "dry_run": true }))["ok"]["decision"].clone();
+        assert_eq!(d, "block", "an explicit deny wins over a given connection");
+        // removing the AI ends its passes at once
+        r.owner("iam.remove", json!({ "id": "app:x" }));
+        assert!(r.st.check_token(&t).is_err());
+        assert!(r.st.connectors.tools_for("app:x").is_empty());
     }
 }

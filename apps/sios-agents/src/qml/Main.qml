@@ -1017,7 +1017,7 @@ QQC2.ApplicationWindow {
                             Connections { target: setup; function onVisibleChanged() { if (setup.visible) placesBox.list = (agentPage.a.places || []).slice(); } }
                             function save(l) { win.ask("agents.places", { id: agentPage.a.id, places: l }, "Places saved", "Couldn't save its places"); }
                             Text { text: "Places"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Your folders it can see, beside its project. Nothing else in your home is visible to it; off-limits and Sensitive folders never are. A read-and-write folder that isn't a git project is copied before each task, so you can put it back."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Your folders it can see, beside its project. Nothing else in your home is visible to it; off-limits and Sensitive folders never are. A read-and-write folder is copied before each task, so you can put it back; git projects can only be read (make one the agent's project instead). It can leave files in a read-and-write folder, and SIOS tells you if any of them can run."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
                             Repeater {
                                 model: placesBox.list
                                 delegate: RowLayout {
