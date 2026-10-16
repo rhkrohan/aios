@@ -68,6 +68,36 @@ pub struct Agent {
     /// When its schedule (every / daily) last started a task.
     #[serde(default)]
     pub last_sched: u64,
+    /// Places (D106): the owner's own folders it can see, beside its project.
+    #[serde(default)]
+    pub places: Vec<Place>,
+}
+
+/// One of the owner's folders, mapped into an agent's workspace (D106).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Place {
+    /// Home-relative, checked by the broker (fsguard, off-limits, Sensitive).
+    pub from: String,
+    /// Its name inside the agent's workspace, beside the project.
+    #[serde(rename = "as")]
+    pub name: String,
+    /// Read and write; otherwise read only.
+    #[serde(default)]
+    pub write: bool,
+    /// Until when (0: as long as the agent exists).
+    #[serde(default)]
+    pub until: u64,
+}
+
+impl Place {
+    pub fn live(&self, now: u64) -> bool {
+        self.until == 0 || self.until > now
+    }
+}
+
+/// A place's name inside the workspace: plain, short, not hidden.
+pub fn place_name_ok(n: &str) -> bool {
+    !n.is_empty() && n.len() <= 40 && !n.starts_with('.') && !n.starts_with('-') && n.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
 }
 
 /// One task a coding agent worked on: what it cost and what it touched, counted
@@ -227,6 +257,7 @@ impl Registry {
             max_day_tokens: DAY_TOKENS,
             then: String::new(),
             last_sched: 0,
+            places: vec![],
         };
         let a = Self::apply(a, p)?;
         self.agents.push(a.clone());

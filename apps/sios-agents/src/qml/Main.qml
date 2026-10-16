@@ -511,7 +511,7 @@ QQC2.ApplicationWindow {
                                     frac: agentPage.r ? agentPage.r.tokens / Math.max(1, agentPage.a.max_task_tokens) : 0
                                 }
                                 Meter { label: "Tokens today"; tint: "#c1457d"; value: win.current ? win.tok(win.dayTokens(agentPage.a)) + " of " + win.tok(agentPage.a.max_day_tokens) : ""; frac: win.current ? win.dayTokens(agentPage.a) / Math.max(1, agentPage.a.max_day_tokens) : 0 }
-                                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "SIOS counts what " + win.brainName(agentPage.a) + " reports and stops it at the limit."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: ["cursor", "gemini"].indexOf(agentPage.a.brain) >= 0 ? win.brainName(agentPage.a) + " reports its tokens when a task ends, so SIOS checks the limit then (and its working time all along). A task stopped before it reports counts as a whole task." : "SIOS counts what " + win.brainName(agentPage.a) + " reports and stops it at the limit."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             }
                             Box {
                                 visible: agentPage.coder && !!agentPage.r && agentPage.r.files.length > 0
@@ -1005,6 +1005,60 @@ QQC2.ApplicationWindow {
                                 Button { visible: wsBox.inst === "no"; text: "Install " + win.brainName(agentPage.a); onClicked: win.ask("agents.install_brain", { brain: agentPage.a.brain }, "Installing " + win.brainName(agentPage.a), "Couldn't install it", "A notification says when it's done.") }
                                 Button { visible: wsBox.inst === "yes"; text: "Sign it in"; kind: "plain"; onClicked: win.ask("agents.signin", { id: agentPage.a.id }, "A terminal opened in its workspace", "Couldn't open its workspace", "Follow the steps there, then close it.") }
                                 Button { text: "Make it a git project"; kind: "plain"; onClicked: win.ask("agents.git_init", { id: agentPage.a.id }, "It's a git project now", "Couldn't make it a git project") }
+                            }
+                        }
+                        // Places (D106): which of the owner's folders it sees, beside its project
+                        Box {
+                            id: placesBox
+                            visible: agentPage.coder
+                            property var list: []
+                            property bool rw: false
+                            property bool today: false
+                            Connections { target: setup; function onVisibleChanged() { if (setup.visible) placesBox.list = (agentPage.a.places || []).slice(); } }
+                            function save(l) { win.ask("agents.places", { id: agentPage.a.id, places: l }, "Places saved", "Couldn't save its places"); }
+                            Text { text: "Places"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: Font.DemiBold }
+                            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: "Your folders it can see, beside its project. Nothing else in your home is visible to it; off-limits and Sensitive folders never are. A read-and-write folder that isn't a git project is copied before each task, so you can put it back."; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 13 }
+                            Repeater {
+                                model: placesBox.list
+                                delegate: RowLayout {
+                                    required property var modelData
+                                    required property int index
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    Icon { name: "folder-open"; size: 16; color: Theme.fg3 }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text { Layout.fillWidth: true; elide: Text.ElideMiddle; textFormat: Text.PlainText; text: modelData.from; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 13; font.weight: Font.DemiBold }
+                                        Text { textFormat: Text.PlainText; text: "appears as " + modelData.as + (modelData.until ? " · until " + new Date(modelData.until * 1000).toLocaleString(Qt.locale(), "MMM d, HH:mm") : ""); color: Theme.fg3; font.family: "JetBrains Mono"; font.pixelSize: 11 }
+                                    }
+                                    Pill { text: modelData.write ? "Read & write" : "Read only"; kind: modelData.write ? "warn" : "muted" }
+                                    Button { visible: !!modelData.write; text: "Put back"; kind: "plain"; onClicked: win.confirm("Put " + modelData.from + " back?", "It goes back to how it was before " + agentPage.a.name + "'s last task. What's there now is kept in SIOS's folder, not deleted.", "Put back", () => win.ask("agents.restore_place", { id: agentPage.a.id, as: modelData.as }, "Put back", "Couldn't put it back")) }
+                                    Button { text: "Remove"; kind: "plain"; onClicked: { const l = placesBox.list.slice(); l.splice(index, 1); placesBox.save(l); } }
+                                }
+                            }
+                            Text { visible: placesBox.list.length === 0; textFormat: Text.PlainText; text: "Only its project, for now."; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 13 }
+                            RowLayout {
+                                spacing: 8
+                                Field { id: placeFrom; placeholder: "A folder in your home, e.g. Pictures/Brand" }
+                                Field { id: placeAs; Layout.fillWidth: false; implicitWidth: 150; placeholder: "appears as" }
+                            }
+                            RowLayout {
+                                spacing: 10
+                                Seg { options: [[false, "Read only"], [true, "Read & write"]]; value: placesBox.rw; onPicked: v => placesBox.rw = v }
+                                Seg { options: [[false, "Always"], [true, "Today"]]; value: placesBox.today; onPicked: v => placesBox.today = v }
+                                Item { Layout.fillWidth: true }
+                                Button {
+                                    text: "Add place"
+                                    onClicked: {
+                                        const from = placeFrom.text.trim().replace(/^\/+|\/+$/g, "");
+                                        if (!from) return;
+                                        const as = (placeAs.text.trim() || from.split("/").pop()).toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[-.]+/, "");
+                                        const end = new Date(); end.setHours(23, 59, 0, 0);
+                                        placesBox.save(placesBox.list.concat([{ from: from, as: as, write: placesBox.rw, until: placesBox.today ? Math.floor(end.getTime() / 1000) : 0 }]));
+                                        placeFrom.text = ""; placeAs.text = "";
+                                    }
+                                }
                             }
                         }
                         Box {

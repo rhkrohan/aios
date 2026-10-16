@@ -24,7 +24,7 @@ pub const OWNER_METHODS: &[&str] = &[
     "memory.list", "memory.add", "memory.edit", "memory.delete", "memory.revert", "memory.forget_about", "memory.unforget", "memory.confirm", "memory.dismiss", "memory.share",
     "iam.get", "iam.set_roles", "iam.save_role", "iam.remove_role", "iam.pair", "iam.remove", "iam.whatif",
     "model.set_key", "model.remove_key", "model.consent", "model.configure", "model.test",
-    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin", "agents.merge", "agents.discard", "agents.install_brain",
+    "ai.resume", "agents.add", "agents.update", "agents.remove", "agents.lease", "agents.git_init", "agents.signin", "agents.merge", "agents.discard", "agents.install_brain", "agents.places", "agents.restore_place",
     "connectors.install", "connectors.remove", "connectors.set_ais", "signins.remove",
 ];
 
@@ -62,6 +62,65 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 
 #[cfg(test)]
 use crate::review::git_out;
+
+/// A read-and-write place without git is snapshotted before each task, up to this size.
+const PLACE_SNAPSHOT_MAX: u64 = 300 << 20;
+
+/// Bytes in a folder's plain files (links not followed), stopping once past `cap`.
+fn folder_size(dir: &Path, cap: u64) -> u64 {
+    let mut total = 0u64;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+            let Ok(m) = e.path().symlink_metadata() else { continue };
+            if m.is_dir() {
+                stack.push(e.path());
+            } else if m.is_file() {
+                total += m.len();
+            }
+            if total > cap {
+                return total;
+            }
+        }
+    }
+    total
+}
+
+/// Copy a folder's plain files and folders (links are skipped, never followed).
+fn copy_tree(from: &Path, to: &Path, cap: u64) -> Result<(), String> {
+    if folder_size(from, cap) > cap {
+        return Err("too big to copy".into());
+    }
+    std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
+    for e in std::fs::read_dir(from).map_err(|e| e.to_string())?.flatten() {
+        let m = e.path().symlink_metadata().map_err(|e| e.to_string())?;
+        let dst = to.join(e.file_name());
+        if m.is_dir() {
+            copy_tree(&e.path(), &dst, cap)?;
+        } else if m.is_file() {
+            std::fs::copy(e.path(), &dst).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+/// Empty a folder (its links are removed as links; nothing outside it is touched).
+fn empty_folder(dir: &Path) -> Result<(), String> {
+    for e in std::fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
+        let m = e.path().symlink_metadata().map_err(|e| e.to_string())?;
+        if m.is_dir() { std::fs::remove_dir_all(e.path()) } else { std::fs::remove_file(e.path()) }.map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// The newest snapshot of a place: <snapshots>/<run>/<name>, by the run folder's time.
+fn latest_snapshot(snaps: &Path, name: &str) -> Option<PathBuf> {
+    let mut runs: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(snaps).ok()?.flatten()
+        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path().join(name))))
+        .filter(|(_, p)| p.is_dir()).collect();
+    runs.sort();
+    runs.pop().map(|(_, p)| p)
+}
 
 /// An agent's copy of a project goes: only a real folder under ~/Agents/<slug>/, never
 /// through a link (remove_dir_all doesn't follow links inside), then its empty parent.
@@ -158,6 +217,8 @@ pub struct State {
     /// Each agent's latest live log, read by its watcher outside the lock: agent id ->
     /// (run id, entries). The Agents app reads it from here, cheaply.
     pub live: HashMap<String, (String, Vec<Value>)>,
+    /// Coding CLIs the broker started installing (checked only while listed here).
+    pub installing: std::collections::HashSet<String>,
     /// Agents whose work is being read or merged now (one at a time each).
     pub reviewing: std::collections::HashSet<String>,
     /// Terminal commands running for an AI (D89): job id -> (the pass that started it, its folder).
@@ -227,6 +288,7 @@ impl State {
             agents: crate::agents::Registry::open(dir),
             live: HashMap::new(),
             reviewing: Default::default(),
+            installing: Default::default(),
             terminal_jobs: HashMap::new(),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
@@ -625,19 +687,23 @@ impl State {
                 Ok(json!({ "lease_until": until }))
             })(),
             "agents.git_init" => self.agent_git_init(p["id"].as_str().unwrap_or("")),
+            // Places (D106): which of the owner's folders an agent sees (password)
+            "agents.places" => self.agent_set_places(p),
+            "agents.restore_place" => self.agent_restore_place(p["id"].as_str().unwrap_or(""), p["as"].as_str().unwrap_or("")),
             // install a coding CLI the vendor's documented way, into the owner's ~/.local (password)
             "agents.install_brain" => (|| {
                 let name = p["brain"].as_str().unwrap_or("");
                 let (_, how) = crate::brains::INSTALL.iter().find(|(n, _)| *n == name).ok_or("that isn't a coding agent SIOS knows")?;
                 let label = crate::brains::Brain::from(name).map(|b| b.label()).unwrap_or(name);
                 let unit = format!("sios-install-{name}");
-                let note = format!("ExecStopPost=/usr/bin/gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify SIOS 0 sios-logo SIOS \"Installing {label} finished. Open Agents to sign it in.\" [] {{}} 6000");
+                let note = format!("ExecStopPost=/usr/bin/gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify SIOS 0 sios-logo SIOS \"Installing {label} ended. Open Agents to check it and sign it in.\" [] {{}} 6000");
                 // a fixed command from SIOS's own list, never words from a request
                 let args = ["--user", "--quiet", "--collect", "--unit", unit.as_str(), "--property", note.as_str(), "--property", "RuntimeMaxSec=900", "--", "/bin/sh", "-c", how];
                 let o = crate::exec::run("/usr/bin/systemd-run", &args, None, std::time::Duration::from_secs(20))?;
                 if o.code != Some(0) {
                     return Err(format!("couldn't start installing {label}: {}", o.stderr.trim().chars().take(200).collect::<String>()));
                 }
+                self.installing.insert(name.to_string());
                 self.record(&Self::owner_cap(), "agents.install_brain", name, "you", &format!("you installed {label} from its maker ({how})"), &json!([]));
                 Ok(json!({ "installing": name, "note": "it downloads in the background; a notification says when it's done" }))
             })(),
@@ -664,9 +730,16 @@ impl State {
                 v["moods"] = json!(self.pets().into_iter().map(|p| (p["id"].as_str().unwrap_or("").to_string(), p["mood"].clone())).collect::<serde_json::Map<_, _>>());
                 // which coding CLIs are installed, and whether one is installing now
                 let home = PathBuf::from(std::env::var("HOME").unwrap_or_default());
+                // only installs the broker started are asked about (no system call per poll otherwise)
+                let installing: Vec<String> = self.installing.iter().cloned().collect();
+                for n in installing {
+                    if !crate::security::unit_active(&format!("sios-install-{n}")) {
+                        self.installing.remove(&n);
+                    }
+                }
                 v["installed"] = json!(crate::brains::INSTALL.iter().map(|(n, _)| {
                     let b = crate::brains::Brain::from(n);
-                    let state = if b.and_then(|b| b.find(&home)).is_some() { "yes" } else if crate::security::unit_active(&format!("sios-install-{n}")) { "installing" } else { "no" };
+                    let state = if b.and_then(|b| b.find(&home)).is_some() { "yes" } else if self.installing.contains(*n) { "installing" } else { "no" };
                     (n.to_string(), json!(state))
                 }).collect::<serde_json::Map<_, _>>());
                 Ok(v)
@@ -1552,6 +1625,115 @@ impl State {
         Ok((project.real.clone(), worktree, project.real.join(".git"), mine.join("home"), mine))
     }
 
+    /// One place, checked now: its real folder, or why it can't be one. Every rule that keeps
+    /// AIs out of the owner's things holds: no hidden or off-limits folders, nothing labelled
+    /// Sensitive, not the whole home, not SIOS's agent workspaces, a real folder (no link).
+    fn place_folder(&self, from: &str) -> Result<PathBuf, String> {
+        let r = crate::fsguard::resolve(&self.root, from).map_err(|e| e.to_string())?;
+        if r.rel.is_empty() {
+            return Err("pick a folder inside your home, not all of it".into());
+        }
+        if let Some(b) = self.meta.is_blocked(&r.rel) {
+            return Err(format!("{b} is off limits to every AI"));
+        }
+        if self.meta.labels_at(&r.rel).iter().any(|l| l == "Sensitive") {
+            return Err(format!("{} is labelled Sensitive, so no AI may see it", r.rel));
+        }
+        if r.rel == "Agents" || r.rel.starts_with("Agents/") {
+            return Err("pick one of your own folders, not an agent's workspace".into());
+        }
+        let real = r.real.canonicalize().map_err(|_| format!("{} doesn't exist", r.rel))?;
+        if real != r.real || !real.is_dir() {
+            return Err(format!("{} isn't a folder (or leads somewhere else)", r.rel));
+        }
+        Ok(real)
+    }
+
+    /// Set an agent's places (the owner's password): each checked; read-and-write places
+    /// that aren't git projects must be small enough to snapshot before every task.
+    fn agent_set_places(&mut self, p: &Value) -> Result<Value, String> {
+        let id = p["id"].as_str().unwrap_or("").to_string();
+        let a = self.agents.get(&id).cloned().ok_or("no such agent")?;
+        if !crate::agents::is_coder(&a.brain) {
+            return Err("places are for coding agents; SIOS agents use passes".into());
+        }
+        let project = self.agent_paths(&a).map(|x| x.1.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()).unwrap_or_default();
+        let list = p["places"].as_array().ok_or("places is a list")?;
+        if list.len() > 8 {
+            return Err("at most 8 places".into());
+        }
+        let mut out: Vec<crate::agents::Place> = vec![];
+        for x in list {
+            let place: crate::agents::Place = serde_json::from_value(x.clone()).map_err(|e| format!("a place: {e}"))?;
+            if !crate::agents::place_name_ok(&place.name) || place.name == project || out.iter().any(|o| o.name == place.name) {
+                return Err(format!("\"{}\" can't be a place's name (plain letters, digits, - _ ., unique, not the project's)", place.name));
+            }
+            let real = self.place_folder(&place.from)?;
+            if out.iter().any(|o| self.place_folder(&o.from).is_ok_and(|r| r.starts_with(&real) || real.starts_with(&r))) {
+                return Err(format!("{} overlaps another place", place.from));
+            }
+            if place.write && !real.join(".git").is_dir() {
+                let size = folder_size(&real, PLACE_SNAPSHOT_MAX);
+                if size > PLACE_SNAPSHOT_MAX {
+                    return Err(format!("{} is too big to snapshot before each task (over {} MB); give it read only", place.from, PLACE_SNAPSHOT_MAX >> 20));
+                }
+            }
+            out.push(place);
+        }
+        let said: Vec<String> = out.iter().map(|x| format!("{} as {} ({})", x.from, x.name, if x.write { "read & write" } else { "read only" })).collect();
+        if let Some(x) = self.agents.get_mut(&id) {
+            x.places = out;
+        }
+        self.agents.save();
+        self.record(&Self::owner_cap(), "agents.places", &id, "you", &format!("you set {}'s places: {}", a.name, if said.is_empty() { "none".into() } else { said.join(", ") }), &json!([]));
+        Ok(json!({ "places": self.agents.get(&id).map(|x| x.places.clone()) }))
+    }
+
+    /// The live places for a run: (real folder, where it appears, write), the off-limits and
+    /// Sensitive folders inside them (as the agent sees them, to hide), and the folders to
+    /// snapshot first (read-and-write places that aren't git projects).
+    fn agent_place_binds(&self, a: &crate::agents::Agent, worktree: &Path) -> (Vec<(PathBuf, PathBuf, bool)>, Vec<PathBuf>, Vec<(String, PathBuf)>) {
+        let (mut binds, mut hide, mut snap) = (vec![], vec![], vec![]);
+        let Some(base) = worktree.parent() else { return (binds, hide, snap) };
+        let secret: Vec<PathBuf> = self.meta.blocked.iter().cloned()
+            .chain(self.meta.files.iter().filter(|(_, m)| m.labels.iter().any(|l| l == "Sensitive")).map(|(p, _)| p.clone()))
+            .filter_map(|b| crate::fsguard::resolve(&self.root, &b).ok()).map(|r| r.real).collect();
+        for pl in a.places.iter().filter(|p| p.live(now()) && crate::agents::place_name_ok(&p.name)) {
+            // checked again at every run: a folder may have been labelled or blocked since
+            let Ok(real) = self.place_folder(&pl.from) else { continue };
+            let dst = base.join(&pl.name);
+            for h in secret.iter().filter(|h| h.starts_with(&real) && h.exists()) {
+                if let Ok(rest) = h.strip_prefix(&real) {
+                    hide.push(dst.join(rest));
+                }
+            }
+            if pl.write && !real.join(".git").is_dir() {
+                snap.push((pl.name.clone(), real.clone()));
+            }
+            binds.push((real, dst, pl.write));
+        }
+        (binds, hide, snap)
+    }
+
+    /// Put a read-and-write place back as it was before the agent's last task: what's there
+    /// now goes to the agent's state folder (nothing is deleted), the snapshot comes back.
+    fn agent_restore_place(&mut self, id: &str, name: &str) -> Result<Value, String> {
+        let a = self.agents.get(id).cloned().ok_or("no such agent")?;
+        if !a.run.is_empty() {
+            return Err(format!("{} is still working: stop it first", a.name));
+        }
+        let pl = a.places.iter().find(|p| p.name == name).cloned().ok_or("no such place")?;
+        let real = self.place_folder(&pl.from)?;
+        let (.., mine) = self.agent_paths(&a)?;
+        let snap = latest_snapshot(&mine.join("snapshots"), name).ok_or("there's no snapshot of it yet")?;
+        let aside = mine.join("replaced").join(format!("{}-{}", name, now()));
+        copy_tree(&real, &aside, PLACE_SNAPSHOT_MAX * 2)?;
+        empty_folder(&real)?;
+        copy_tree(&snap, &real, PLACE_SNAPSHOT_MAX * 2)?;
+        self.record(&Self::owner_cap(), "agents.restore_place", id, "you", &format!("you put {} back as it was before {}'s last task (what was there is kept in SIOS's folder)", pl.from, a.name), &json!([]));
+        Ok(json!({ "restored": pl.from }))
+    }
+
     /// "Make it a git project" (D63): git init and a first commit, with the owner's OK.
     fn agent_git_init(&mut self, id: &str) -> Result<Value, String> {
         let a = self.agents.get(id).cloned().ok_or("no such agent")?;
@@ -1649,6 +1831,20 @@ impl State {
             brain.args(&crate::runner::prompt(task, &a.instructions), crate::runner::RULES, (!a.session.is_empty()).then_some(a.session.as_str()), &mcp)
         };
         let env = brain.env(&home);
+        let (places, hide, snap) = self.agent_place_binds(a, &worktree);
+        // read-and-write places without git: a snapshot before each task, so it can be put back
+        if !interactive && !snap.is_empty() {
+            let snaps = mine.join("snapshots");
+            for (name, real) in &snap {
+                copy_tree(real, &snaps.join(run_id).join(name), PLACE_SNAPSHOT_MAX).map_err(|e| format!("couldn't snapshot the place {name} first ({e}), so the task didn't start"))?;
+            }
+            // the last three tasks' snapshots are kept
+            let mut old: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(&snaps).into_iter().flatten().flatten().filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path()))).collect();
+            old.sort();
+            for (_, p) in old.iter().take(old.len().saturating_sub(3)) {
+                let _ = std::fs::remove_dir_all(p);
+            }
+        }
         let args = crate::runner::build(&crate::runner::Run {
             slug: a.slug(),
             worktree: &worktree,
@@ -1661,6 +1857,8 @@ impl State {
             binds: &install.binds,
             files: &files,
             env: &env,
+            places: &places,
+            hide: &hide,
             // the lease is a timer beside the run (it can grow with +1 hour); systemd's
             // hard stop is the 8-hour ceiling a lease can never pass
             max_secs: ceiling,
@@ -1853,7 +2051,15 @@ impl State {
         }
         let (brain, worktree) = self.agents.get(id).map(|a| (a.brain.clone(), self.agent_paths(a).map(|x| x.1).unwrap_or_default())).unwrap_or_default();
         let (text, session, failed) = crate::runner::outcome_of(&brain, run_file, &worktree);
+        // Cursor and Gemini report tokens only at the end: a run that ended without its
+        // result after more than a minute counts as a whole task toward today's limit, so
+        // stopping one's own CLI early can't hide what it used (security review)
+        let task_cap = self.agents.get(id).map(|a| a.max_task_tokens).unwrap_or(0);
+        let end_only = brain == "cursor" || brain == "gemini";
         if let Some(r) = self.agents.run_mut(run_id) {
+            if end_only && failed && text.starts_with("The run ended without a result") && now().saturating_sub(r.started) > 60 {
+                r.tokens = r.tokens.max(task_cap);
+            }
             r.ended = now();
             if r.state == "working" {
                 r.state = if failed { "failed" } else { "done" }.into();
@@ -1863,7 +2069,7 @@ impl State {
             if a.run == run_id {
                 a.run.clear();
             }
-            if let Some(s) = session {
+            if let Some(s) = session.filter(|s| crate::brains::session_ok(s)) {
                 a.session = s;
             }
         }
@@ -3799,5 +4005,55 @@ mod tests {
         r.owner("agents.update", json!({ "id": "agent:pip", "active": false }));
         assert_eq!(mood(&mut r)["mood"], "sleepy");
         assert_eq!(r.st.handle_as(&json!({ "method": "agents.view", "params": {} }), Some(crate::peer::Who::OwnerApp))["ok"]["moods"]["agent:pip"], "sleepy");
+    }
+
+    #[test]
+    fn places_give_an_agent_only_the_owners_folders_it_was_given() {
+        let mut r = rig();
+        let root = r.st.root.canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("Projects/site/.git")).unwrap();
+        std::fs::create_dir_all(root.join("Pictures/Brand Kit/Private")).unwrap();
+        std::fs::write(root.join("Pictures/Brand Kit/logo.svg"), "<svg/>").unwrap();
+        std::fs::create_dir_all(root.join("Documents/Copy")).unwrap();
+        std::fs::write(root.join("Documents/Copy/about.md"), "v1").unwrap();
+        r.st.meta.files.insert("Pictures/Brand Kit/Private".into(), crate::meta::FileMeta { labels: vec!["Sensitive".into()], ..Default::default() });
+        r.st.meta.files.insert("Documents/Secret".into(), crate::meta::FileMeta { labels: vec!["Sensitive".into()], ..Default::default() });
+        std::fs::create_dir_all(root.join("Documents/Secret")).unwrap();
+        r.owner("agents.add", json!({ "name": "Coder", "brain": "codex", "instructions": "help", "folder": "Projects/site" }));
+        let set = |r: &mut Rig, places: Value| r.owner("agents.places", json!({ "id": "agent:coder", "places": places }));
+        for (bad, why) in [
+            (json!([{ "from": "Documents/Taxes", "as": "taxes" }]), "off limits"),
+            (json!([{ "from": "Documents/Secret", "as": "s" }]), "Sensitive"),
+            (json!([{ "from": "", "as": "home" }]), "not all of it"),
+            (json!([{ "from": "Agents", "as": "a" }]), "agent's workspace"),
+            (json!([{ "from": "Documents/Copy", "as": "../x" }]), "name"),
+            (json!([{ "from": "Documents/Copy", "as": "site" }]), "name"),
+            (json!([{ "from": "Documents", "as": "docs" }, { "from": "Documents/Copy", "as": "copy" }]), "overlaps"),
+            (json!([{ "from": "../etc", "as": "etc" }]), ""),
+        ] {
+            let e = set(&mut r, bad.clone())["error"].as_str().unwrap_or("").to_string();
+            assert!(!e.is_empty() && e.contains(why), "{bad}: {e}");
+        }
+        assert!(r.agent("agents.places", json!({ "id": "agent:coder", "places": [] }))["error"].is_string(), "only the owner");
+        let ok = set(&mut r, json!([{ "from": "Pictures/Brand Kit", "as": "brand" }, { "from": "Documents/Copy", "as": "copy", "write": true }]));
+        assert_eq!(ok["ok"]["places"].as_array().unwrap().len(), 2, "{ok}");
+        let a = r.st.agents.get("agent:coder").cloned().unwrap();
+        let w = root.join("Agents/coder/site");
+        let (binds, hide, snap) = r.st.agent_place_binds(&a, &w);
+        assert_eq!(binds, vec![(root.join("Pictures/Brand Kit"), root.join("Agents/coder/brand"), false), (root.join("Documents/Copy"), root.join("Agents/coder/copy"), true)]);
+        assert_eq!(hide, vec![root.join("Agents/coder/brand/Private")], "Sensitive inside a place is hidden where the agent sees it");
+        assert_eq!(snap, vec![("copy".to_string(), root.join("Documents/Copy"))], "read-and-write without git: snapshotted");
+        // a snapshot, a change by the agent, and the owner puts it back
+        let mine = r.st.dir.join("agents/coder");
+        copy_tree(&root.join("Documents/Copy"), &mine.join("snapshots/r1/copy"), PLACE_SNAPSHOT_MAX).unwrap();
+        std::fs::write(root.join("Documents/Copy/about.md"), "broken").unwrap();
+        std::fs::write(root.join("Documents/Copy/junk.txt"), "x").unwrap();
+        assert!(r.owner("agents.restore_place", json!({ "id": "agent:coder", "as": "copy" }))["ok"].is_object());
+        assert_eq!(std::fs::read_to_string(root.join("Documents/Copy/about.md")).unwrap(), "v1");
+        assert!(!root.join("Documents/Copy/junk.txt").exists());
+        assert!(std::fs::read_dir(mine.join("replaced")).unwrap().count() == 1, "what was there is kept, not deleted");
+        // a place labelled Sensitive later is dropped at the next run
+        r.st.meta.files.insert("Documents/Copy".into(), crate::meta::FileMeta { labels: vec!["Sensitive".into()], ..Default::default() });
+        assert_eq!(r.st.agent_place_binds(&a, &w).0.len(), 1);
     }
 }

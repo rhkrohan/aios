@@ -28,6 +28,18 @@ pub fn safe_path(p: &Path) -> bool {
     p.is_absolute() && !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "/._-@+".contains(c)) && !s.contains("..")
 }
 
+/// One of the owner's folders (a place, D106): any name a person gives a folder, spaces
+/// included, but nothing systemd would read as syntax (: " \\ % $) and no "..".
+pub fn place_path_ok(p: &Path) -> bool {
+    let s = p.to_string_lossy();
+    p.is_absolute() && !s.contains("..") && !s.chars().any(|c| c.is_control() || ":\"\\%$".contains(c))
+}
+
+/// A bind or hide spec for a unit property, quoted so a space is part of the path.
+fn quoted(spec: &str) -> String {
+    if spec.contains(' ') { format!("\"{spec}\"") } else { spec.to_string() }
+}
+
 /// The owner's words for one task, with their standing instructions first unless the
 /// task is just those (a scheduled run).
 pub fn prompt(task: &str, instructions: &str) -> String {
@@ -56,6 +68,10 @@ pub struct Run<'a> {
     pub binds: &'a [PathBuf],
     pub files: &'a [(PathBuf, PathBuf)],
     pub env: &'a [(String, String)],
+    /// Places (D106): (the owner's folder, where it appears, write), and folders inside them
+    /// to hide (off limits, Sensitive), as the agent sees them.
+    pub places: &'a [(PathBuf, PathBuf, bool)],
+    pub hide: &'a [PathBuf],
     pub max_secs: u64,
     pub uid: u32,
     /// The sign-in terminal: same sandbox, its own unit, no output file.
@@ -117,6 +133,19 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
     ]);
     for b in r.binds {
         a.extend(["-p".into(), format!("BindReadOnlyPaths={}", d(b))]);
+    }
+    // its places: the owner's folders, beside its project; inside them, what's off limits is hidden
+    for (src, dst, write) in r.places {
+        if !place_path_ok(src) || !safe_path(dst) {
+            return Err(format!("{} can't be given to an agent (its name has : \" \\ % or $)", src.display()));
+        }
+        a.extend(["-p".into(), format!("{}={}", if *write { "BindPaths" } else { "BindReadOnlyPaths" }, quoted(&format!("{}:{}", d(src), d(dst))))]);
+    }
+    for h in r.hide {
+        if !place_path_ok(h) {
+            return Err(format!("{} can't be hidden safely", h.display()));
+        }
+        a.extend(["-p".into(), format!("InaccessiblePaths={}", quoted(&format!("-{}", d(h))))]);
     }
     // its config files: written by SIOS outside its home, bound over the path it reads
     for (src, dst) in r.files {
@@ -192,18 +221,17 @@ pub fn outcome_of(brain: &str, run_file: &Path, worktree: &Path) -> (String, Opt
     }
 }
 
-/// The final line of a run's stream: its result text, session id and whether it failed.
+/// How a Claude run ended: its last result's text, the session from its first init line
+/// (later lines could be the agent's own writing), and failed if any result failed.
 pub fn outcome(run_file: &Path) -> (String, Option<String>, bool) {
-    let text = std::fs::read_to_string(run_file).unwrap_or_default();
-    let last = text.lines().rev().filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok()).find(|v| v["type"] == "result");
-    match last {
-        Some(v) => (
-            v["result"].as_str().unwrap_or("Finished.").chars().take(2000).collect(),
-            v["session_id"].as_str().map(String::from),
-            v["is_error"].as_bool().unwrap_or(false) || v["subtype"].as_str().is_some_and(|s| s != "success"),
-        ),
-        None => ("The run ended without a result (stopped, out of time, or not signed in yet).".into(), None, true),
-    }
+    let (text, _) = stream(run_file);
+    let lines: Vec<serde_json::Value> = text.lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    let session = lines.iter().find(|v| v["type"] == "system" && v["subtype"] == "init").and_then(|v| v["session_id"].as_str()).filter(|x| crate::brains::session_ok(x)).map(String::from);
+    let results: Vec<&serde_json::Value> = lines.iter().filter(|v| v["type"] == "result").collect();
+    let Some(last) = results.last() else { return ("The run ended without a result (stopped, out of time, or not signed in yet).".into(), session, true) };
+    let failed = results.iter().any(|v| v["is_error"].as_bool().unwrap_or(false) || v["subtype"].as_str().is_some_and(|s| s != "success"));
+    let session = session.or_else(|| last["session_id"].as_str().filter(|x| crate::brains::session_ok(x)).map(String::from));
+    (last["result"].as_str().unwrap_or("Finished.").chars().take(2000).collect(), session, failed)
 }
 
 /// One stream-json line as a line a person reads in the agent's live log.
@@ -284,7 +312,9 @@ pub fn progress(run_file: &Path, worktree: &Path) -> Progress {
                 let id = m["id"].as_str().unwrap_or("").to_string();
                 if id.is_empty() || seen.insert(id) {
                     let u = &m["usage"];
-                    out.tokens += ["input_tokens", "output_tokens", "cache_creation_input_tokens"].iter().map(|k| u[*k].as_u64().unwrap_or(0)).sum::<u64>();
+                    // each field capped and the sum saturating: a forged line can't wrap the count (security review)
+                    let add = ["input_tokens", "output_tokens", "cache_creation_input_tokens"].iter().map(|k| u[*k].as_u64().unwrap_or(0).min(crate::brains::MAX_FIELD)).fold(0u64, u64::saturating_add);
+                    out.tokens = out.tokens.saturating_add(add);
                 }
                 for c in m["content"].as_array().into_iter().flatten() {
                     match c["type"].as_str().unwrap_or("") {
@@ -384,6 +414,8 @@ mod tests {
             binds: &p.binds,
             files: &p.files,
             env: &[],
+            places: &[],
+            hide: &[],
             max_secs: 7200,
             uid: 1000,
             interactive: false,
@@ -423,6 +455,26 @@ mod tests {
         assert!(b.contains(&"BindReadOnlyPaths=/s/cursor-mcp.json:/home/r/.local/share/sios/agents/coder/home/.cursor/mcp.json".to_string()));
         assert!(b.contains(&"--pty".to_string()) && b.contains(&"--unit=sios-agent-coder-signin".to_string()));
         assert!(!b.iter().any(|x| x.starts_with("StandardOutput=")));
+        // places: the owner's folders beside its project, read-only or not; spaces quoted;
+        // anything systemd would read as syntax is refused; off-limits folders inside are hidden
+        let places = vec![
+            (PathBuf::from("/home/r/Pictures/Brand Kit"), PathBuf::from("/home/r/Agents/coder/brand"), false),
+            (PathBuf::from("/home/r/Documents/Copy"), PathBuf::from("/home/r/Agents/coder/copy"), true),
+        ];
+        let hide = vec![PathBuf::from("/home/r/Agents/coder/copy/Private notes")];
+        let mut r2 = run(&p, w);
+        r2.places = &places;
+        r2.hide = &hide;
+        let c = build(&r2).unwrap();
+        assert!(c.contains(&"BindReadOnlyPaths=\"/home/r/Pictures/Brand Kit:/home/r/Agents/coder/brand\"".to_string()));
+        assert!(c.contains(&"BindPaths=/home/r/Documents/Copy:/home/r/Agents/coder/copy".to_string()));
+        assert!(c.contains(&"InaccessiblePaths=\"-/home/r/Agents/coder/copy/Private notes\"".to_string()));
+        for bad in ["/home/r/a:b", "/home/r/%h", "/home/r/x\"y", "/home/r/$HOME", "/home/r/../etc"] {
+            let pl = vec![(PathBuf::from(bad), PathBuf::from("/home/r/Agents/coder/x"), false)];
+            let mut r3 = run(&p, w);
+            r3.places = &pl;
+            assert!(build(&r3).is_err(), "{bad}");
+        }
     }
 
     #[test]
