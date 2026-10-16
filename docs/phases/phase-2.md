@@ -61,6 +61,11 @@ Agents and connectors track (2026-10-15 plan, D58 to D84, `docs/plan/18-agents-a
 - [x] C1 MCP client and connector host in capd; signed catalog; Sign-ins vault; GitHub demo (built; remote HTTPS servers first, confined local servers come with C2; the live GitHub check needs a token on the next image)
 - [x] A8 Agents app in Daylight: live output beside the agent, a box for the next task, token limits per task and per day, working time with +1 hour, activity per agent, a New agent window that says what each brain can do (D86; built and checked on a virtual screen; VM check with the next image)
 - [ ] D1 Daylight everywhere (D85, D87): Settings and Agents built; Apps menu cleaned and the Terminal restyled; KDE windows in Daylight colours; next Files, Store, Memory, Monitor, the Ask bar and Approve to the approved mockups (docs/design/apps-daylight.html)
+- [ ] L0 Groundwork for the model (doc 19): the planner sees every tool; levels fixed; the undo journal survives a restart; every runtime prompt in llm/prompts
+- [ ] L1 Machine catalog (D88): shared types and inverses; settings.get/set over the native Settings areas; media, clipboard, notifications, battery, processes; then git, packages
+- [ ] L2 Terminal (D89): command catalog generated at image build for every program; terminal.run (argv, sandboxed, risk per subcommand)
+- [ ] L3 Workflows (D90 to D92): plan v2 typed graph, parallel executor, one approval with dry run and lease, taint rules, recipes and Reflex
+- [ ] L4 The SIOS model (D93, D94): bake-off, export.py, scenario generator, eval set, first SFT run, llama-server unit
 - [ ] C2 Mail and calendar as connectors (Google Workspace MCP), native IMAP/CalDAV fallback
 - [ ] C3 Connectors tab in the Store; developer mode
 - [ ] A10 Integration, image, full gate

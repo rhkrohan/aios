@@ -1,6 +1,7 @@
 # Tasks
 
 ## Active
+- [ ] **The machine and the model (doc 19): L0 groundwork, then L1 catalog, L2 terminal, L3 workflows, L4 the ~3-4B SIOS model** - Phase 2 (`docs/plan/19-machine-and-model.md`)
 - [ ] **Agents and connectors: A1 to A8 and C1 built; next C2 mail and calendar, then A0 VM checks when the image lands** - Phase 2 (`docs/plan/18-agents-and-connectors.md`)
 - [ ] **Daylight everywhere (D85, D87): Settings and Agents built, Terminal and Apps menu done; next Files, Store, Memory, Monitor, Ask bar, Approve** - Phase 2 (`docs/design/`)
 - [ ] **Security engine S1: Stop switch and process hardening** - Phase 2 security track (`docs/plan/17-security-engine.md`); next image waits for S9
