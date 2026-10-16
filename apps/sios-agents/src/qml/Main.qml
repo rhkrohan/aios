@@ -436,7 +436,7 @@ QQC2.ApplicationWindow {
                                 spacing: 8
                                 Rectangle { Layout.alignment: Qt.AlignHCenter; implicitWidth: 44; implicitHeight: 44; radius: 22; color: Theme.surface3; Icon { anchors.centerIn: parent; name: "plus"; size: 20; color: Theme.fg2 } }
                                 Text { Layout.alignment: Qt.AlignHCenter; text: "New agent"; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 14 }
-                                Text { Layout.alignment: Qt.AlignHCenter; text: "Claude Code, Codex, Cursor or Gemini for building things; SIOS for tidying and reminders"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
+                                Text { Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: parent.parent.width - 48; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; text: "Claude Code, Codex, Cursor or Gemini for building things; SIOS for tidying and reminders"; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12 }
                             }
                             MouseArea { id: nm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: newAgent.open() }
                         }

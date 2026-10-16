@@ -52,6 +52,11 @@ names=$(ls /var/tmp/sios-dev)
 echo "$names" | grep -qx capd && systemctl --user restart sios-broker.service
 echo "$names" | grep -qx brain-d && systemctl --user restart sios-brain.service
 for n in $names; do case $n in sios-*) pkill -x "$n" || true;; esac; done
+# the Ask bar lives in the background from login: start it again
+if echo "$names" | grep -qx sios-ask; then
+  export WAYLAND_DISPLAY=wayland-0
+  systemd-run --user --quiet --collect --unit "sios-ask-dev-$(date +%s)" /usr/bin/sios-ask --background
+fi
 echo "installed on the VM: $(echo $names)"
 REMOTE
 touch "$HERE/apps/.vm-dev-stamp"
