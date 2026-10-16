@@ -89,18 +89,25 @@ fn folder_size(dir: &Path, cap: u64) -> u64 {
 
 /// Copy a folder's plain files and folders (links are skipped, never followed).
 fn copy_tree(from: &Path, to: &Path, cap: u64) -> Result<(), String> {
-    if !from.symlink_metadata().is_ok_and(|m| m.is_dir()) {
-        return Err(format!("{} isn't a folder", from.display()));
-    }
-    if folder_size(from, cap) > cap {
+    // the top folder as the system names it; below it, every level must stay exactly that
+    let from = from.canonicalize().map_err(|e| format!("{}: {e}", from.display()))?;
+    if folder_size(&from, cap) > cap {
         return Err("too big to copy".into());
+    }
+    copy_level(&from, to)
+}
+
+fn copy_level(from: &Path, to: &Path) -> Result<(), String> {
+    // a real folder at exactly this path: no link anywhere on the way (checked at every level)
+    if !from.symlink_metadata().is_ok_and(|m| m.is_dir()) || from.canonicalize().ok().as_deref() != Some(from) {
+        return Err(format!("{} isn't a folder (or leads somewhere else)", from.display()));
     }
     std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
     for e in std::fs::read_dir(from).map_err(|e| e.to_string())?.flatten() {
         let m = e.path().symlink_metadata().map_err(|e| e.to_string())?;
         let dst = to.join(e.file_name());
         if m.is_dir() {
-            copy_tree(&e.path(), &dst, cap)?;
+            copy_level(&e.path(), &dst)?;
         } else if m.is_file() {
             copy_file_nofollow(&e.path(), &dst)?;
         }
@@ -112,9 +119,10 @@ fn copy_tree(from: &Path, to: &Path, cap: u64) -> Result<(), String> {
 /// opened with O_NOFOLLOW and checked to be a plain file through the open handle.
 fn copy_file_nofollow(from: &Path, to: &Path) -> Result<(), String> {
     use std::os::unix::fs::OpenOptionsExt;
+    // the platform's own value (it differs between x86 and arm64 Linux: security review)
     #[cfg(target_os = "linux")]
-    const O_NOFOLLOW: i32 = 0o400000;
-    #[cfg(not(target_os = "linux"))]
+    const O_NOFOLLOW: i32 = libc::O_NOFOLLOW;
+    #[cfg(target_os = "macos")]
     const O_NOFOLLOW: i32 = 0x100;
     let mut src = std::fs::OpenOptions::new().read(true).custom_flags(O_NOFOLLOW).open(from).map_err(|e| format!("{}: {e}", from.display()))?;
     if !src.metadata().map_err(|e| e.to_string())?.is_file() {
@@ -1725,8 +1733,13 @@ impl State {
             .chain(self.meta.files.iter().filter(|(_, m)| m.labels.iter().any(|l| l == "Sensitive")).map(|(p, _)| p.clone()))
             .filter_map(|b| crate::fsguard::resolve(&self.root, &b).ok()).map(|r| r.real).collect();
         for pl in a.places.iter().filter(|p| p.live(now()) && crate::agents::place_name_ok(&p.name)) {
-            // checked again at every run: a folder may have been labelled or blocked since
+            // checked again at every run: a folder may have been labelled or blocked since,
+            // and a writable one is never shared (places set before that rule included)
             let Ok(real) = self.place_folder(&pl.from) else { continue };
+            let shared = self.agents.agents.iter().filter(|o| o.id != a.id).any(|o| o.places.iter().any(|q| (q.write || pl.write) && self.place_folder(&q.from).is_ok_and(|r| r.starts_with(&real) || real.starts_with(&r))));
+            if shared {
+                continue;
+            }
             let dst = base.join(&pl.name);
             for h in secret.iter().filter(|h| h.starts_with(&real) && h.exists()) {
                 if let Ok(rest) = h.strip_prefix(&real) {
@@ -1860,7 +1873,8 @@ impl State {
             brain.args(&crate::runner::prompt(task, &a.instructions), crate::runner::RULES, (!a.session.is_empty()).then_some(a.session.as_str()), &mcp)
         };
         let env = brain.env(&home);
-        let (places, hide, snap) = self.agent_place_binds(a, &worktree);
+        // the sign-in terminal sees no places: only a task's run gets them, after its snapshot
+        let (places, hide, snap) = if interactive { (vec![], vec![], vec![]) } else { self.agent_place_binds(a, &worktree) };
         // read-and-write places without git: a snapshot before each task, so it can be put back
         if !interactive && !snap.is_empty() {
             let snaps = mine.join("snapshots");
@@ -3962,6 +3976,9 @@ mod tests {
 
     #[test]
     fn an_agents_work_is_reviewed_and_merged_through_the_broker_and_a_clash_changes_nothing() {
+        if !Path::new("/usr/bin/git").exists() {
+            return; // a build container without git; the image has it
+        }
         let mut r = rig();
         let root = r.st.root.canonicalize().unwrap();
         let proj = root.join("Projects/site");
