@@ -2259,9 +2259,12 @@ impl State {
             return Err(format!("{} isn't a folder", cwd.rel));
         }
         let writable = class != Class::R;
+        // a command that sends out sees only its own working folder, so what it could upload is
+        // exactly what the owner's OK names (security review)
+        let only_cwd = class == Class::S;
         // the pass's folders; "the whole home" means its visible top-level folders, never dot folders
         let mut binds: Vec<(PathBuf, bool)> = Vec::new();
-        for p in &cap.paths {
+        for p in cap.paths.iter().filter(|_| !only_cwd) {
             if p.is_empty() {
                 for e in std::fs::read_dir(&root).map_err(|e| e.to_string())?.flatten() {
                     let n = e.file_name().to_string_lossy().to_string();

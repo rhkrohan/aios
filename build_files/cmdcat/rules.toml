@@ -1,6 +1,9 @@
 # Risk rules for the SIOS command catalog (D89). Read by build_files/cmdcat/cmdcat.py at
 # image build; the broker only ever sees the result in catalog.json.
 #
+# Options that make a program run another program (tar --to-command, rsync -e, zip -TT...)
+# are X. Shortened long options (--pag) count when they raise a class, never to lower it.
+#
 # Classes: R reads only (runs without asking, sandboxed, no network)
 #          C changes something on this computer (asks once per plan)
 #          X can't be undone (always asks)
@@ -231,10 +234,11 @@ class = "C"
 class = "C"
 [commands.tar]
 class = "C"
-flags = { "-t" = "R", "--list" = "R" }
+flags = { "-t" = "R", "--list" = "R", "--to-command" = "X", "--checkpoint-action" = "X", "-I" = "X", "--use-compress-program" = "X", "--info-script" = "X", "--new-volume-script" = "X", "-F" = "X", "--rsh-command" = "X" }
 why = "creates or unpacks archives; listing only reads"
 [commands.zip]
 class = "C"
+flags = { "-TT" = "X", "--unzip-command" = "X" }
 [commands.unzip]
 class = "C"
 flags = { "-l" = "R", "-t" = "R" }
@@ -411,6 +415,7 @@ class = "S"
 class = "S"
 [commands.rsync]
 class = "C"
+flags = { "-e" = "X", "--rsh" = "X", "--rsync-path" = "X" }
 why = "local copies change files; a host:path destination sends out (the broker treats any host: argument as S)"
 [commands.nc]
 class = "S"

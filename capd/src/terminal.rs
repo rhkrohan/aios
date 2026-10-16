@@ -154,11 +154,14 @@ pub fn classify_argv(argv: &[String], cat: &Value) -> (Class, String) {
         let mut lowest: Option<Class> = None;
         for a in rest {
             for (k, c) in flags {
-                let hit = a == k
-                    || (k.starts_with("--") && a.starts_with(&format!("{k}=")))
-                    || (k.len() == 2 && k.starts_with('-') && !k.starts_with("--") && a.starts_with('-') && !a.starts_with("--") && a[1..].contains(&k[1..]));
+                let c = Class::named(c.as_str().unwrap_or("ask"));
+                let exact = a == k || (k.starts_with("--") && a.starts_with(&format!("{k}=")));
+                // programs accept shortened long options (--pag for --pager) and joined short
+                // ones (-ibak): those count too, but only to raise the class, never to lower it
+                let long_prefix = k.starts_with("--") && a.starts_with("--") && a.len() > 3 && k.starts_with(a.split('=').next().unwrap_or(a));
+                let joined_short = k.len() == 2 && k.starts_with('-') && !k.starts_with("--") && a.starts_with('-') && !a.starts_with("--") && a[1..].contains(&k[1..]);
+                let hit = exact || ((long_prefix || joined_short) && c >= class);
                 if hit {
-                    let c = Class::named(c.as_str().unwrap_or("ask"));
                     if c >= class {
                         class = c;
                     } else if !by_sub {
@@ -458,11 +461,14 @@ mod tests {
         assert_eq!(class(&["git", "-C", "status", "push"]), Class::S, "every subcommand word counts");
         assert_eq!(class(&["git", "push", "--force"]), Class::X);
         assert_eq!(class(&["git", "-c", "core.pager=sh", "log"]), Class::Block);
-        assert_eq!(class(&["tar", "-tf", "a.tar"]), Class::R, "a listing flag lowers");
+        assert_eq!(class(&["tar", "-t", "-f", "a.tar"]), Class::R, "a listing flag, written on its own, lowers");
+        assert_eq!(class(&["tar", "-tf", "a.tar"]), Class::C, "joined, it can't be told apart from -xf's kind, so it doesn't");
         assert_eq!(class(&["tar", "-xf", "a.tar"]), Class::C);
         assert_eq!(class(&["sed", "-n", "p", "f"]), Class::R);
         assert_eq!(class(&["sed", "-ibak", "s/a/b/", "f"]), Class::C, "combined short flags count");
         assert_eq!(class(&["sed", "--in-place=.b", "s/a/b/", "f"]), Class::C);
+        assert_eq!(class(&["sed", "--in-pl", "s/a/b/", "f"]), Class::C, "a shortened long option still raises");
+        assert_eq!(class(&["tar", "--li", "-f", "a.tar"]), Class::C, "but never lowers");
         assert_eq!(class(&["kscreen-doctor", "-o"]), Class::R);
         assert_eq!(class(&["kscreen-doctor", "-o", "output.1.mode.1"]), Class::C, "a lowering flag can't undo a positional");
     }
