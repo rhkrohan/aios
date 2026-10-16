@@ -109,6 +109,31 @@ pub fn understand(request: &str, now: &Value) -> Option<(String, Value, String)>
         return step("network.bluetooth_power", json!({ "on": on }), format!("Bluetooth is {}.", if on { "on" } else { "off" }));
     }
 
+    // Night Light: "night light on", "turn off night light"
+    if has("night") && has("light") && only(&["night", "light", "mode"]) {
+        let on = on_off(&w)?;
+        return step("settings.night_light", json!({ "on": on }), format!("Night Light is {}.", if on { "on" } else { "off" }));
+    }
+    // the microphone: "mute the mic", "unmute microphone"
+    if (has("mic") || has("microphone")) && w.iter().all(|x| ["mute", "unmute", "mic", "microphone", "turn", "on", "off"].contains(&x.as_str())) {
+        let muted = if has("unmute") { false } else if has("mute") { true } else { !on_off(&w)? };
+        return step("audio.mic_mute", json!({ "on": muted }), format!("The microphone is {}.", if muted { "muted" } else { "on" }));
+    }
+    // power profiles: "power saver mode", "battery saver off", "performance mode"
+    let power_words = ["power", "saver", "saving", "battery", "mode", "performance", "balanced", "on", "off", "switch", "to", "turn", "use", "set"];
+    if (has("saver") || has("saving") || has("performance") || has("balanced")) && w.iter().all(|x| power_words.contains(&x.as_str())) {
+        let profile = if has("performance") {
+            "performance"
+        } else if has("balanced") {
+            "balanced"
+        } else if on_off(&w) == Some(false) {
+            "balanced"
+        } else {
+            "power-saver"
+        };
+        return step("power.profile", json!({ "profile": profile }), format!("Power profile set to {}.", profile.replace('-', " ")));
+    }
+
     // lock: "lock the screen", "lock my computer"
     if w.first().is_some_and(|x| x == "lock") && w.iter().all(|x| ["lock", "screen", "computer", "it", "up"].contains(&x.as_str())) {
         return step("system.lock", json!({}), "Locked the screen.".into());
@@ -198,6 +223,13 @@ mod tests {
         assert_eq!(tool("open terminal"), Some(("apps.open".into(), json!({ "app": "terminal" }))));
         assert_eq!(tool("open firefox"), Some(("apps.open".into(), json!({ "app": "browser" }))));
         assert_eq!(tool("change wallpaper to lake"), Some(("settings.set_wallpaper".into(), json!({ "name": "lake" }))));
+        assert_eq!(tool("turn on night light"), Some(("settings.night_light".into(), json!({ "on": true }))));
+        assert_eq!(tool("night light off"), Some(("settings.night_light".into(), json!({ "on": false }))));
+        assert_eq!(tool("mute the mic"), Some(("audio.mic_mute".into(), json!({ "on": true }))));
+        assert_eq!(tool("unmute microphone"), Some(("audio.mic_mute".into(), json!({ "on": false }))));
+        assert_eq!(tool("power saver mode"), Some(("power.profile".into(), json!({ "profile": "power-saver" }))));
+        assert_eq!(tool("battery saver off"), Some(("power.profile".into(), json!({ "profile": "balanced" }))));
+        assert_eq!(tool("performance mode"), Some(("power.profile".into(), json!({ "profile": "performance" }))));
         let (_, a, r) = understand("Remind me in 2 hours to call the Bank.", &json!({})).unwrap();
         assert_eq!(a, json!({ "minutes": 120, "text": "call the Bank" }));
         assert_eq!(r, "I'll remind you in 2 hours to call the Bank.");
@@ -221,6 +253,9 @@ mod tests {
             "lock the screen and email Sara",
             "make the wallpaper of my presentation dark",
             "set brightness to 50 then open terminal",
+            "night light at 9pm",
+            "mute the mic in zoom",
+            "light mode and night light",
         ] {
             assert!(tool(req).is_none(), "{req}");
         }

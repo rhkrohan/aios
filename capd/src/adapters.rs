@@ -192,6 +192,139 @@ fn bluetooth_on() -> Option<bool> {
     Some(v.trim().ends_with("true"))
 }
 
+
+// ------------------------------------------------------------ devices (wave 1, D104)
+// The same commands the native Settings pages use (apps/sios-settings/src).
+
+/// busctl's JSON: {"type": ..., "data": ...}, one per line; the data of each line.
+fn bus_json(args: &[&str]) -> Result<Vec<Value>, String> {
+    let out = sh_within("/usr/bin/busctl", args, Duration::from_secs(10))?;
+    Ok(out.lines().filter_map(|l| serde_json::from_str::<Value>(l).ok()).map(|v| v["data"].clone()).collect())
+}
+
+const UPOWER_STATES: [&str; 7] = ["unknown", "charging", "discharging", "empty", "full", "waiting to charge", "waiting to discharge"];
+
+fn battery() -> Value {
+    let props = bus_json(&["--system", "--json=short", "get-property", "org.freedesktop.UPower", "/org/freedesktop/UPower/devices/DisplayDevice", "org.freedesktop.UPower.Device", "IsPresent", "Percentage", "State", "TimeToEmpty", "TimeToFull"]).unwrap_or_default();
+    let mut b = if props.len() >= 5 && props[0] == true {
+        let state = props[2].as_u64().unwrap_or(0) as usize;
+        let mins = |v: &Value| v.as_i64().filter(|s| *s > 0).map(|s| s / 60);
+        json!({ "present": true, "percent": props[1].as_f64().map(|p| p.round() as i64), "state": UPOWER_STATES.get(state).unwrap_or(&"unknown"),
+                "minutes_to_empty": mins(&props[3]), "minutes_to_full": mins(&props[4]) })
+    } else {
+        json!({ "present": false, "note": "this computer runs on mains power (no battery)" })
+    };
+    if let Ok(p) = power_profile() {
+        b["power_profile"] = json!(p);
+    }
+    b
+}
+
+const PP: [&str; 3] = ["org.freedesktop.UPower.PowerProfiles", "/org/freedesktop/UPower/PowerProfiles", "org.freedesktop.UPower.PowerProfiles"];
+
+fn power_profile() -> Result<String, String> {
+    let v = bus_json(&["--system", "--json=short", "get-property", PP[0], PP[1], PP[2], "ActiveProfile"])?;
+    v.first().and_then(|x| x.as_str()).map(String::from).ok_or_else(|| "power profiles aren't available here".into())
+}
+
+fn night_light_on() -> bool {
+    sh("/usr/bin/kreadconfig6", &["--file", "kwinrc", "--group", "NightColor", "--key", "Active"]).is_ok_and(|v| v == "true")
+}
+
+fn kwin_reconfigure() {
+    let _ = sh("/usr/bin/gdbus", &["call", "--session", "--dest", "org.kde.KWin", "--object-path", "/KWin", "--method", "org.kde.KWin.reconfigure"]);
+}
+
+/// The screens KScreen knows that are on: (name, scale).
+fn screens() -> Result<Vec<(String, f64)>, String> {
+    let out = sh_within("/usr/bin/kscreen-doctor", &["-j"], Duration::from_secs(10))?;
+    let v: Value = out.find('{').and_then(|i| serde_json::from_str(&out[i..]).ok()).ok_or("couldn't read the screens")?;
+    Ok(v["outputs"].as_array().into_iter().flatten()
+        .filter(|o| o["connected"] == true && o["enabled"] != false)
+        .filter_map(|o| Some((o["name"].as_str()?.to_string(), o["scale"].as_f64().unwrap_or(1.0))))
+        .filter(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+        .collect())
+}
+
+const SCALES: [f64; 7] = [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+
+/// Sound outputs and inputs PipeWire knows (pactl's JSON), with the defaults marked.
+fn audio_devices() -> Result<Value, String> {
+    let def_sink = sh("/usr/bin/pactl", &["get-default-sink"]).unwrap_or_default();
+    let def_src = sh("/usr/bin/pactl", &["get-default-source"]).unwrap_or_default();
+    let list = |what: &str, def: &str| -> Result<Vec<Value>, String> {
+        let v: Value = serde_json::from_str(&sh("/usr/bin/pactl", &["-f", "json", "list", what])?).map_err(|_| "couldn't read the sound devices")?;
+        Ok(v.as_array().into_iter().flatten()
+            // a microphone list without the speakers' "monitor" copies
+            .filter(|d| !d["name"].as_str().unwrap_or("").ends_with(".monitor"))
+            .map(|d| json!({ "id": d["name"], "name": d["description"], "default": d["name"].as_str() == Some(def), "muted": d["mute"] }))
+            .collect())
+    };
+    Ok(json!({ "outputs": list("sinks", &def_sink)?, "inputs": list("sources", &def_src)? }))
+}
+
+fn mic_muted() -> Result<bool, String> {
+    // "Mute: yes"
+    Ok(sh("/usr/bin/pactl", &["get-source-mute", "@DEFAULT_SOURCE@"])?.ends_with("yes"))
+}
+
+/// Bluetooth devices BlueZ knows: (D-Bus path, name, address, paired, connected).
+fn bt_devices() -> Result<Vec<(String, String, String, bool, bool)>, String> {
+    let v = bus_json(&["--system", "--json=short", "call", "org.bluez", "/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"])?;
+    let objs = v.first().and_then(|d| d.as_array()).and_then(|a| a.first()).and_then(|o| o.as_object()).cloned().unwrap_or_default();
+    let mut out = vec![];
+    for (path, ifaces) in objs {
+        let Some(d) = ifaces.get("org.bluez.Device1") else { continue };
+        let p = |k: &str| d[k]["data"].clone();
+        let ok_path = path.strip_prefix("/org/bluez/hci").and_then(|r| r.split_once("/dev_")).is_some_and(|(n, a)| n.chars().all(|c| c.is_ascii_digit()) && a.len() == 17 && a.chars().all(|c| c.is_ascii_hexdigit() || c == '_'));
+        if !ok_path {
+            continue;
+        }
+        let name: String = p("Alias").as_str().or(p("Name").as_str()).unwrap_or("").chars().filter(|c| !c.is_control()).take(60).collect();
+        out.push((path.clone(), name, p("Address").as_str().unwrap_or("").to_string(), p("Paired") == true, p("Connected") == true));
+    }
+    Ok(out)
+}
+
+/// The keyboard layouts the owner set up, and which one is on: ([(code, name)], index).
+fn layouts() -> Result<(Vec<(String, String)>, u64), String> {
+    let l = bus_json(&["--user", "--json=short", "call", "org.kde.keyboard", "/Layouts", "org.kde.KeyboardLayouts", "getLayoutsList"])?;
+    let list: Vec<(String, String)> = l.first().and_then(|d| d.as_array()).and_then(|a| a.first()).and_then(|a| a.as_array()).into_iter().flatten()
+        .filter_map(|t| Some((t[0].as_str()?.to_string(), t[2].as_str().unwrap_or("").to_string()))).collect();
+    let cur = bus_json(&["--user", "--json=short", "call", "org.kde.keyboard", "/Layouts", "org.kde.KeyboardLayouts", "getLayout"])?;
+    let i = cur.first().and_then(|d| d.as_array()).and_then(|a| a.first()).and_then(|x| x.as_u64()).unwrap_or(0);
+    Ok((list, i))
+}
+
+fn set_layout(i: u64) -> Result<(), String> {
+    bus_json(&["--user", "--json=short", "call", "org.kde.keyboard", "/Layouts", "org.kde.KeyboardLayouts", "setLayout", "u", &i.to_string()]).map(|_| ())
+}
+
+fn printers() -> Value {
+    let out = sh("/usr/bin/lpstat", &["-p", "-d"]).unwrap_or_default();
+    let default = out.lines().find_map(|l| l.strip_prefix("system default destination: ")).unwrap_or("").trim().to_string();
+    let list: Vec<Value> = out.lines().filter_map(|l| {
+        let rest = l.strip_prefix("printer ")?;
+        let (name, state) = rest.split_once(' ')?;
+        let state = if state.contains("disabled") { "off" } else if state.contains("printing") { "printing" } else { "ready" };
+        Some(json!({ "name": name, "state": state, "default": name == default }))
+    }).collect();
+    json!({ "printers": list })
+}
+
+fn updates() -> Result<Value, String> {
+    let v: Value = serde_json::from_str(&sh_within("/usr/bin/rpm-ostree", &["status", "--json"], Duration::from_secs(20))?).map_err(|_| "couldn't read the system version")?;
+    let deps = v["deployments"].as_array().cloned().unwrap_or_default();
+    let booted = deps.iter().find(|d| d["booted"] == true);
+    let staged = deps.iter().find(|d| d["staged"] == true);
+    Ok(json!({
+        "version": booted.and_then(|d| d["version"].as_str()),
+        "built": booted.and_then(|d| d["timestamp"].as_u64()),
+        "update_ready": staged.and_then(|d| d["version"].as_str()),
+        "note": if staged.is_some() { "an update is downloaded: it's used after the next restart" } else { "no update waiting; Settings > System checks for new ones" },
+    }))
+}
+
 // ------------------------------------------------------------ the tools
 
 /// Carry out a system tool for real. None: not one of these (the caller decides).
@@ -366,6 +499,77 @@ pub fn run(tool: &str, args: &Value, root: &Path) -> Option<Result<Done, String>
             sh("/usr/bin/systemd-run", &cmd)?;
             ok(json!({ if installing { "installing" } else { "removing" }: id, "job": unit, "note": "it runs in the background; a notification says when it's done" }))
         })(),
+        // ---- devices (wave 1, D104)
+        "system.battery" => ok(battery()),
+        "power.profile" => (|| {
+            let want = s("profile");
+            if !["power-saver", "balanced", "performance"].contains(&want) {
+                return Err("the profile is power-saver, balanced or performance".to_string());
+            }
+            let was = power_profile()?;
+            sh("/usr/bin/busctl", &["--system", "set-property", PP[0], PP[1], PP[2], "ActiveProfile", "s", want])?;
+            Ok(Done { result: json!({ "power_profile": power_profile()?, "was": was }), undo: Some(json!({ "profile": was })) })
+        })(),
+        "settings.night_light" => (|| {
+            let (want, was) = (on()?, night_light_on());
+            sh("/usr/bin/kwriteconfig6", &["--notify", "--file", "kwinrc", "--group", "NightColor", "--key", "Active", "--type", "bool", if want { "true" } else { "false" }])?;
+            kwin_reconfigure();
+            Ok(Done { result: json!({ "night_light": night_light_on(), "was": was }), undo: Some(json!({ "on": was })) })
+        })(),
+        "settings.display_scale" => (|| {
+            // the usual steps, or (to undo) whatever it was before, within reason
+            let want = args.get("scale").and_then(|v| v.as_f64()).filter(|x| SCALES.iter().any(|s| (s - x).abs() < 0.001) || (args.get("screen").is_some() && (0.5..=4.0).contains(x))).ok_or("the scale is 1, 1.25, 1.5, 1.75, 2, 2.5 or 3")?;
+            let list = screens()?;
+            let (name, was) = match s("screen") {
+                "" => list.first().cloned().ok_or("no screen is on")?,
+                n => list.iter().find(|(x, _)| x == n).cloned().ok_or_else(|| format!("no screen called {n}"))?,
+            };
+            let num = |x: f64| { let t = format!("{x:.2}"); t.trim_end_matches('0').trim_end_matches('.').to_string() };
+            sh_within("/usr/bin/kscreen-doctor", &[&format!("output.{name}.scale.{}", num(want))], Duration::from_secs(15))?;
+            Ok(Done { result: json!({ "screen": name, "scale": want, "was": was }), undo: Some(json!({ "scale": was, "screen": name })) })
+        })(),
+        "audio.outputs" => audio_devices().map(|v| Done { result: v, undo: None }),
+        "audio.set_output" => (|| {
+            let want = s("output");
+            let devs = audio_devices()?;
+            let list = devs["outputs"].as_array().cloned().unwrap_or_default();
+            // by its id or its name as shown; only one PipeWire lists
+            let hit = list.iter().find(|d| d["id"] == want || d["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(want))).ok_or_else(|| format!("no sound output called {want}"))?;
+            let id = hit["id"].as_str().unwrap_or("").to_string();
+            let was = list.iter().find(|d| d["default"] == true).and_then(|d| d["id"].as_str()).map(String::from);
+            sh("/usr/bin/pactl", &["set-default-sink", &id])?;
+            Ok(Done { result: json!({ "output": hit["name"], "was": was }), undo: was.map(|w| json!({ "output": w })) })
+        })(),
+        "audio.mic_mute" => (|| {
+            let (want, was) = (on()?, mic_muted()?);
+            sh("/usr/bin/pactl", &["set-source-mute", "@DEFAULT_SOURCE@", if want { "1" } else { "0" }])?;
+            Ok(Done { result: json!({ "mic_muted": mic_muted()?, "was": was }), undo: Some(json!({ "on": was })) })
+        })(),
+        "bluetooth.devices" => (|| {
+            if bluetooth_on().is_none() {
+                return ok(json!({ "devices": [], "note": "this computer has no Bluetooth" }));
+            }
+            let d: Vec<Value> = bt_devices()?.into_iter().map(|(_, name, addr, paired, conn)| json!({ "name": name, "address": addr, "paired": paired, "connected": conn })).collect();
+            ok(json!({ "bluetooth_on": bluetooth_on(), "devices": d }))
+        })(),
+        // only devices the owner already paired (pairing is the owner's, in Settings)
+        "bluetooth.connect" => (|| {
+            let (want, who) = (on()?, s("device"));
+            let devs = bt_devices()?;
+            let (path, name, _, _, was) = devs.into_iter().find(|(_, n, a, p, _)| *p && (n.eq_ignore_ascii_case(who) || a.eq_ignore_ascii_case(who))).ok_or_else(|| format!("no paired device called {who}"))?;
+            sh_within("/usr/bin/busctl", &["--system", "call", "org.bluez", &path, "org.bluez.Device1", if want { "Connect" } else { "Disconnect" }], Duration::from_secs(25))?;
+            Ok(Done { result: json!({ "device": name, "connected": want, "was": was }), undo: Some(json!({ "device": name, "on": was })) })
+        })(),
+        "keyboard.layout" => (|| {
+            let want = s("layout");
+            let (list, cur) = layouts()?;
+            let i = list.iter().position(|(c, n)| c.eq_ignore_ascii_case(want) || n.eq_ignore_ascii_case(want)).ok_or_else(|| format!("{want} isn't one of your layouts ({}); add layouts in Settings > Keyboard", list.iter().map(|(c, _)| c.as_str()).collect::<Vec<_>>().join(", ")))?;
+            set_layout(i as u64)?;
+            let was = list.get(cur as usize).map(|(c, _)| c.clone());
+            Ok(Done { result: json!({ "layout": list[i].0, "name": list[i].1, "was": was }), undo: was.map(|w| json!({ "layout": w })) })
+        })(),
+        "printers.list" => ok(printers()),
+        "system.update_check" => updates().map(|v| Done { result: v, undo: None }),
         // windows, through KWin (kwin.rs); SIOS's own windows are refused inside the script
         "apps.list" | "apps.focus" | "apps.close" | "apps.arrange" => (|| {
             let (what, a) = crate::kwin::args(tool, args)?;
@@ -405,5 +609,11 @@ mod tests {
         // names that a URL parser would read as another place stay one plain path
         assert_eq!(file_url(Path::new("/home/r/a%2Fevil.desktop")), "file:///home/r/a%252Fevil.desktop");
         assert_eq!(file_url(Path::new("/home/r/x#y?z w")), "file:///home/r/x%23y%3Fz%20w");
+        // wave 1: bad arguments stop before anything runs
+        assert!(run("power.profile", &json!({ "profile": "turbo" }), d.path()).unwrap().unwrap_err().contains("power-saver"));
+        assert!(run("settings.display_scale", &json!({ "scale": 1.3 }), d.path()).unwrap().unwrap_err().contains("1.25"));
+        assert!(run("settings.night_light", &json!({}), d.path()).unwrap().unwrap_err().contains("on"));
+        assert!(run("audio.mic_mute", &json!({ "on": "yes" }), d.path()).unwrap().is_err());
+        assert!(run("bluetooth.connect", &json!({ "device": "x" }), d.path()).unwrap().unwrap_err().contains("on"));
     }
 }

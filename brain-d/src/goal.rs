@@ -492,6 +492,9 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
             texts.push((n, found_text(&res["result"])));
         } else if r.is_conn(&s.tool) {
             texts.push((n, res["result"]["text"].as_str().unwrap_or("").chars().take(1500).collect()));
+        } else if let Some(t) = device_text(&s.tool, &res["result"]) {
+            // what a device look-up found (battery, sound, Bluetooth...), for the reply only
+            texts.push((n, t));
         } else if s.tool.starts_with("terminal.") {
             // what it printed (and why it failed, if it did), for the reply only
             let out = res["result"]["stdout"].as_str().unwrap_or("");
@@ -503,6 +506,41 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
         done_log.push(format!("  step {n}: {} {} -> ok", s.tool, s.args_json));
     }
     Ok(Outcome::Done(texts))
+}
+
+/// A device look-up's answer as a short plain line for the reply ({{N}}). Names come
+/// from devices (a Bluetooth device names itself): they go only in the reply, never
+/// back to the planner, and are cut and stripped of control characters.
+pub fn device_text(tool: &str, r: &Value) -> Option<String> {
+    let name = |v: &Value| -> String { v.as_str().unwrap_or("?").chars().filter(|c| !c.is_control()).take(60).collect() };
+    let list = |key: &str, f: &dyn Fn(&Value) -> String| -> String {
+        let items: Vec<String> = r[key].as_array().into_iter().flatten().take(12).map(f).collect();
+        if items.is_empty() { "none".into() } else { items.join("; ") }
+    };
+    let t = match tool {
+        "system.battery" => {
+            let profile = r["power_profile"].as_str().map(|p| format!(", power profile {}", p.replace('-', " "))).unwrap_or_default();
+            if r["present"] == true {
+                let left = r["minutes_to_empty"].as_i64().map(|m| format!(", about {} h {} min left", m / 60, m % 60)).or_else(|| r["minutes_to_full"].as_i64().map(|m| format!(", full in about {} h {} min", m / 60, m % 60))).unwrap_or_default();
+                format!("{}% ({}){left}{profile}", r["percent"].as_i64().unwrap_or(0), r["state"].as_str().unwrap_or("unknown"))
+            } else {
+                format!("no battery: this computer runs on mains power{profile}")
+            }
+        }
+        "audio.outputs" => format!(
+            "outputs: {}. Microphones: {}",
+            list("outputs", &|d| format!("{}{}", name(&d["name"]), if d["default"] == true { " (in use)" } else { "" })),
+            list("inputs", &|d| format!("{}{}{}", name(&d["name"]), if d["default"] == true { " (in use)" } else { "" }, if d["muted"] == true { ", muted" } else { "" }))
+        ),
+        "bluetooth.devices" => match r["note"].as_str() {
+            Some(n) => n.to_string(),
+            None => list("devices", &|d| format!("{}{}", name(&d["name"]), if d["connected"] == true { " (connected)" } else if d["paired"] == true { " (paired)" } else { "" })),
+        },
+        "printers.list" => list("printers", &|p| format!("{} ({}{})", name(&p["name"]), p["state"].as_str().unwrap_or("?"), if p["default"] == true { ", default" } else { "" })),
+        "system.update_check" => format!("SIOS {}; {}", r["version"].as_str().unwrap_or("?"), match r["update_ready"].as_str() { Some(v) => format!("update {v} is ready and is used after a restart"), None => "no update is waiting".into() }),
+        _ => return None,
+    };
+    Some(t)
 }
 
 /// A search's results in a few plain lines for the reply: the best 10, with why.
@@ -612,5 +650,21 @@ mod look_tests {
         assert!(!q.contains('\n') && !q.contains('\u{202e}'));
         assert!(q.starts_with('"') && q.ends_with('"'));
         assert_eq!(super::quoted("say \"hi\".pdf"), r#""say \"hi\".pdf""#);
+    }
+}
+
+#[cfg(test)]
+mod device_text_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn device_answers_read_plainly_and_names_are_cut() {
+        assert_eq!(device_text("system.battery", &json!({ "present": true, "percent": 64, "state": "discharging", "minutes_to_empty": 190, "power_profile": "balanced" })).unwrap(), "64% (discharging), about 3 h 10 min left, power profile balanced");
+        assert_eq!(device_text("system.battery", &json!({ "present": false })).unwrap(), "no battery: this computer runs on mains power");
+        let t = device_text("bluetooth.devices", &json!({ "devices": [{ "name": "Buds\u{1b}[31m Pro", "connected": true }, { "name": "Keyboard", "paired": true }] })).unwrap();
+        assert_eq!(t, "Buds[31m Pro (connected); Keyboard (paired)");
+        assert_eq!(device_text("system.update_check", &json!({ "version": "44.1", "update_ready": null })).unwrap(), "SIOS 44.1; no update is waiting");
+        assert!(device_text("files.list", &json!({})).is_none());
     }
 }

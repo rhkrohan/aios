@@ -61,6 +61,19 @@ pub const TOOLS: &[ToolSpec] = &[
     ToolSpec { name: "apps.list", level: Level::Read, egress: false, path_args: &[], about: "List the open apps and their windows." },
     ToolSpec { name: "network.list", level: Level::Read, egress: false, path_args: &[], about: "List network connections and nearby Wi-Fi networks." },
     ToolSpec { name: "system.state", level: Level::Read, egress: false, path_args: &[], about: "The computer right now: volume, brightness, theme, network, battery, Do Not Disturb, the focused app." },
+    // devices and settings (wave 1, D104): the commands Settings uses
+    ToolSpec { name: "system.battery", level: Level::Read, egress: false, path_args: &[], about: "Battery level, charging or not, time left, and the power profile." },
+    ToolSpec { name: "power.profile", level: Level::Reversible, egress: false, path_args: &[], about: "Set the power profile: power-saver, balanced or performance." },
+    ToolSpec { name: "settings.night_light", level: Level::Reversible, egress: false, path_args: &[], about: "Turn Night Light (warmer colours) on or off." },
+    ToolSpec { name: "settings.display_scale", level: Level::Reversible, egress: false, path_args: &[], about: "Make everything on a screen bigger or smaller: scale 1 to 3." },
+    ToolSpec { name: "audio.outputs", level: Level::Read, egress: false, path_args: &[], about: "The speakers, headphones and microphones, and which are in use." },
+    ToolSpec { name: "audio.set_output", level: Level::Reversible, egress: false, path_args: &[], about: "Play sound through another output (speakers, headphones...)." },
+    ToolSpec { name: "audio.mic_mute", level: Level::Reversible, egress: false, path_args: &[], about: "Mute or unmute the microphone." },
+    ToolSpec { name: "bluetooth.devices", level: Level::Read, egress: false, path_args: &[], about: "Bluetooth devices this computer knows, paired and connected." },
+    ToolSpec { name: "bluetooth.connect", level: Level::Reversible, egress: false, path_args: &[], about: "Connect or disconnect a Bluetooth device the owner already paired." },
+    ToolSpec { name: "keyboard.layout", level: Level::Reversible, egress: false, path_args: &[], about: "Switch to another of the owner's keyboard layouts." },
+    ToolSpec { name: "printers.list", level: Level::Read, egress: false, path_args: &[], about: "The printers set up on this computer and which is the default." },
+    ToolSpec { name: "system.update_check", level: Level::Read, egress: false, path_args: &[], about: "SIOS's version and whether an update is ready." },
     // memory (Vault): checked and logged like everything else
     ToolSpec { name: "memory.search", level: Level::Read, egress: false, path_args: &[], about: "Search what the owner asked SIOS to remember: facts, preferences, people, past goals." },
     ToolSpec { name: "memory.save", level: Level::Reversible, egress: false, path_args: &[], about: "Remember a fact or preference the owner stated. Never passwords or keys (refused)." },
@@ -173,6 +186,9 @@ pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     // settings
     "settings.set_theme", "settings.set_volume", "settings.set_brightness", "settings.set_wallpaper", "settings.dnd",
     "network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind",
+    // devices (wave 1): look-ups, and settings that undo
+    "system.battery", "audio.outputs", "bluetooth.devices", "printers.list", "system.update_check",
+    "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "audio.mic_mute", "keyboard.layout",
 ];
 
 pub fn acts_without_asking(name: &str) -> bool {
@@ -661,7 +677,11 @@ pub fn run(tool: &str, args: &Value, env: &Env, meta: &mut Store) -> Result<Outc
             let kind = if tool == "apps.install" { "install" } else { "uninstall" };
             Ok(done(json!({ "effect": { "type": kind, "app": app } })))
         }
-        "apps.list" | "network.list" | "system.state" => Err(format!("{tool} works once SIOS's system adapters are installed")),
+        // wave 1 settings: the preview acts them out; on SIOS the adapters do them
+        "power.profile" | "settings.night_light" | "settings.display_scale" | "audio.set_output" | "audio.mic_mute" | "bluetooth.connect" | "keyboard.layout" => {
+            Ok(done(json!({ "effect": { "type": tool, "args": args } })))
+        }
+        "apps.list" | "network.list" | "system.state" | "system.battery" | "audio.outputs" | "bluetooth.devices" | "printers.list" | "system.update_check" => Err(format!("{tool} works once SIOS's system adapters are installed")),
         other => Err(format!("{other} isn't a real tool")),
     }
 }
@@ -704,7 +724,7 @@ mod tests {
         for t in ACTS_WITHOUT_ASKING {
             let s = spec(t).unwrap_or_else(|| panic!("{t} isn't a tool"));
             assert!(!s.egress && s.level != Level::Irreversible, "{t}");
-            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind"].contains(t), "{t}: only look-ups and settings");
+            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "audio.mic_mute", "keyboard.layout"].contains(t), "{t}: only look-ups and settings");
         }
         for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send"] {
             assert!(!acts_without_asking(t), "{t} must ask");
@@ -713,7 +733,10 @@ mod tests {
 }
 
 /// The adapter tools an undo may run again (their own previous value, or a reminder's cancel).
-const UNDO_ADAPTERS: [&str; 8] = ["settings.set_volume", "settings.set_brightness", "settings.set_theme", "settings.set_wallpaper", "settings.dnd", "network.wifi_power", "network.bluetooth_power", "system.remind.cancel"];
+const UNDO_ADAPTERS: [&str; 15] = [
+    "settings.set_volume", "settings.set_brightness", "settings.set_theme", "settings.set_wallpaper", "settings.dnd", "network.wifi_power", "network.bluetooth_power", "system.remind.cancel",
+    "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "audio.mic_mute", "bluetooth.connect", "keyboard.layout",
+];
 
 /// A journal entry read back from disk may only touch the owner's home, SIOS's own
 /// snapshots, or re-run one of the adapter undos: anything else is dropped.

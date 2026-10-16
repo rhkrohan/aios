@@ -117,7 +117,13 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
             "required": ["text", "kind", "group"],
             "additionalProperties": false
         }),
-        "apps.list" | "network.list" | "system.state" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
+        "apps.list" | "network.list" | "system.state" | "system.battery" | "audio.outputs" | "bluetooth.devices" | "printers.list" | "system.update_check" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
+        "power.profile" => json!({ "type": "object", "properties": { "profile": { "type": "string", "enum": ["power-saver", "balanced", "performance"] } }, "required": ["profile"], "additionalProperties": false }),
+        "settings.night_light" | "audio.mic_mute" => json!({ "type": "object", "properties": { "on": { "type": "boolean" } }, "required": ["on"], "additionalProperties": false }),
+        "settings.display_scale" => json!({ "type": "object", "properties": { "scale": { "type": "number", "enum": [1, 1.25, 1.5, 1.75, 2, 2.5, 3] }, "screen": { "type": "string", "description": "Optional screen name; the first screen if left out." } }, "required": ["scale"], "additionalProperties": false }),
+        "audio.set_output" => json!({ "type": "object", "properties": { "output": { "type": "string", "description": "An output's id or name from audio.outputs." } }, "required": ["output"], "additionalProperties": false }),
+        "bluetooth.connect" => json!({ "type": "object", "properties": { "device": { "type": "string", "description": "A paired device's name or address from bluetooth.devices." }, "on": { "type": "boolean", "description": "true connects, false disconnects." } }, "required": ["device", "on"], "additionalProperties": false }),
+        "keyboard.layout" => json!({ "type": "object", "properties": { "layout": { "type": "string", "description": "One of the owner's layouts, by code (us, de) or name." } }, "required": ["layout"], "additionalProperties": false }),
         "terminal.read" | "terminal.run" => json!({
             "type": "object",
             "properties": {
