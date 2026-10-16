@@ -1956,7 +1956,7 @@ impl State {
 
     /// Count and log a model call that went out: provider, model, sizes; never contents.
     pub fn model_done(&mut self, prep: &crate::gateway::Prepared, out: &Result<Value, String>) -> Value {
-        self.gateway.counted(now());
+        self.gateway.counted(now(), &prep.provider, out.as_ref().map(|v| v["usage"].clone()).as_ref().unwrap_or(&Value::Null));
         let target = format!("{}/{}", prep.provider.id, prep.provider.model);
         let size = |v: &Value| v.to_string().len();
         let reason = match out {
@@ -3122,7 +3122,7 @@ mod tests {
     #[test]
     fn the_gateway_holds_keys_and_checks_every_call() {
         let mut r = rig();
-        let mock = |id: &str, url: &str| crate::gateway::Provider { id: id.into(), kind: "mock".into(), label: id.into(), model: "m1".into(), base_url: url.into(), consent: false };
+        let mock = |id: &str, url: &str| crate::gateway::Provider { id: id.into(), kind: "mock".into(), label: id.into(), model: "m1".into(), base_url: url.into(), consent: false, ..Default::default() };
         r.st.gateway.cfg.providers.push(mock("online", ""));
         let svc = r.st.service_secret.clone();
         let complete = |r: &mut Rig, cap: Option<&str>| {

@@ -141,10 +141,10 @@ pub fn understand(request: &str, now: &Value) -> Option<(String, Value, String)>
         if w[5] != "to" || !(1..=1440).contains(&minutes) {
             return None;
         }
-        // the owner's own words after "to", as they typed them
-        let lower = request.to_lowercase();
-        let at = lower.find(" to ")? + 4;
-        let text: String = request[at..].trim().trim_end_matches(['.', '!']).chars().take(200).collect();
+        // the owner's own words after "to", as they typed them (found in the original text,
+        // never by an index from a lowercased copy, which can differ in length: security review)
+        let at = request.char_indices().find(|(i, _)| request.get(*i..*i + 4).is_some_and(|x| x.eq_ignore_ascii_case(" to ")))?.0 + 4;
+        let text: String = request.get(at..)?.trim().trim_end_matches(['.', '!']).chars().take(200).collect();
         if text.is_empty() {
             return None;
         }
@@ -201,6 +201,11 @@ mod tests {
         let (_, a, r) = understand("Remind me in 2 hours to call the Bank.", &json!({})).unwrap();
         assert_eq!(a, json!({ "minutes": 120, "text": "call the Bank" }));
         assert_eq!(r, "I'll remind you in 2 hours to call the Bank.");
+        // letters that change length when lowercased never break the cut
+        let (_, a, _) = understand("İİİ remind me in 5 minutes to İstanbul call", &json!({})).map(|x| x).unwrap_or(("".into(), json!(null), "".into()));
+        assert!(a.is_null() || a["text"].is_string());
+        let (_, a, _) = understand("Remind me in 5 minutes to call İlkay", &json!({})).unwrap();
+        assert_eq!(a["text"], "call İlkay");
     }
 
     #[test]

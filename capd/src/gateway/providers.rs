@@ -37,6 +37,13 @@ fn as_out(text: String, structured: bool, who: &str) -> Result<Value, String> {
     }
 }
 
+/// The tokens a provider says the call used, beside the answer (counted by the broker).
+fn with_usage(out: Result<Value, String>, input: &Value, output: &Value) -> Result<Value, String> {
+    let mut v = out?;
+    v["usage"] = json!({ "in": input.as_u64().unwrap_or(0), "out": output.as_u64().unwrap_or(0) });
+    Ok(v)
+}
+
 pub fn send(p: &Prepared) -> Result<Value, String> {
     let key = p.key.as_ref().map(|k| k.as_str()).unwrap_or("");
     match p.provider.kind.as_str() {
@@ -76,7 +83,7 @@ fn anthropic(p: &Prepared, key: &str) -> Result<Value, String> {
         _ => {}
     }
     let text: String = v["content"].as_array().into_iter().flatten().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("");
-    as_out(text, p.schema.is_some(), "Claude")
+    with_usage(as_out(text, p.schema.is_some(), "Claude"), &v["usage"]["input_tokens"], &v["usage"]["output_tokens"])
 }
 
 /// OpenAI Responses API (what brain-d used directly before D33).
@@ -101,7 +108,7 @@ fn openai(p: &Prepared, key: &str) -> Result<Value, String> {
         .filter_map(|c| c["text"].as_str().map(String::from))
         .collect::<Vec<_>>()
         .join("\n");
-    as_out(text, p.schema.is_some(), "OpenAI")
+    with_usage(as_out(text, p.schema.is_some(), "OpenAI"), &v["usage"]["input_tokens"], &v["usage"]["output_tokens"])
 }
 
 /// Any OpenAI-compatible chat API: Gemini's compatible endpoint, OpenRouter, Ollama, llama.cpp.
@@ -124,7 +131,7 @@ fn compat(p: &Prepared, key: &str) -> Result<Value, String> {
     if let Some(s) = &p.schema {
         body["response_format"] = json!({ "type": "json_schema", "json_schema": { "name": "answer", "strict": true, "schema": s } });
         match post(&url, &headers, &body, &p.provider.label) {
-            Ok(v) => return as_out(read(&v), true, &p.provider.label),
+            Ok(v) => return with_usage(as_out(read(&v), true, &p.provider.label), &v["usage"]["prompt_tokens"], &v["usage"]["completion_tokens"]),
             Err(e) if e.contains(" answered 4") => {
                 body["response_format"] = json!({ "type": "json_object" });
                 body["messages"][0]["content"] = json!(format!("{}\n\nAnswer with one JSON object that matches this JSON Schema exactly:\n{s}", p.system));
@@ -133,7 +140,7 @@ fn compat(p: &Prepared, key: &str) -> Result<Value, String> {
         }
     }
     let v = post(&url, &headers, &body, &p.provider.label)?;
-    as_out(read(&v), p.schema.is_some(), &p.provider.label)
+    with_usage(as_out(read(&v), p.schema.is_some(), &p.provider.label), &v["usage"]["prompt_tokens"], &v["usage"]["completion_tokens"])
 }
 
 /// Google's Gemini API, natively.
@@ -154,5 +161,5 @@ fn gemini(p: &Prepared, key: &str) -> Result<Value, String> {
         return Err("Gemini declined this request.".into());
     }
     let text: String = v["candidates"][0]["content"]["parts"].as_array().into_iter().flatten().filter_map(|x| x["text"].as_str()).collect::<Vec<_>>().join("");
-    as_out(text, p.schema.is_some(), "Gemini")
+    with_usage(as_out(text, p.schema.is_some(), "Gemini"), &v["usageMetadata"]["promptTokenCount"], &v["usageMetadata"]["candidatesTokenCount"])
 }
