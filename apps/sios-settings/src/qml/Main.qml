@@ -1,8 +1,10 @@
-// SIOS Settings, the preview's Settings (SettingsApp.tsx) on the real machine.
-//   Assistant: Brain, Permissions, Connected AI apps (they configure brain-d
-//              and capd, so they arrive with the assistant, Stage B)
-//   This computer: Appearance, Wi-Fi, Updates, About (real now)
-//   More: KDE's System Settings pages (display, sound, Bluetooth, ...)
+// SIOS Settings in Daylight (D85), every setting native (no KDE pages, owner 2026-10-16).
+//   Assistant: Brain, Permissions, Connectors, Connected AI apps (the broker)
+//   This computer: Appearance, Display, Sound, Wi-Fi, Bluetooth, Notifications,
+//                  Power, Keyboard, Mouse & touchpad, Printers
+//   You: your account, date & time, accessibility.  System: updates, about.
+// Each area of the computer is a page file (DisplayPage.qml...) over its own
+// backend (display.cpp...), both built on area.h.
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
@@ -74,7 +76,6 @@ QQC2.ApplicationWindow {
         property string icon
         property string label
         property string key
-        property string kcm: ""
         property color tile: "#6b7480"
         property string badge: ""
         Layout.fillWidth: true
@@ -95,131 +96,15 @@ QQC2.ApplicationWindow {
             }
             Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: nav.label; color: nav.on ? "#ffffff" : Theme.fg; font.family: Theme.ui; font.pixelSize: 14; font.weight: nav.on ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
             Text { visible: nav.badge !== ""; textFormat: Text.PlainText; text: nav.badge; color: nav.on ? "#ffffff" : Theme.fg3; opacity: 0.85; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
-            Icon { visible: nav.kcm !== ""; name: "external-link"; size: 13; color: Theme.fg3 }
         }
-        MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: nav.kcm ? system.openKdePage(nav.kcm) : (win.page = nav.key) }
+        MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.page = nav.key }
         Accessible.role: Accessible.Button
         Accessible.name: label
     }
     component Header: Text { visible: !win.q; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.7; Layout.leftMargin: 10; Layout.topMargin: 16; Layout.bottomMargin: 4 }
 
-    component Card: Rectangle {
-        default property alias content: inner.data
-        Layout.fillWidth: true
-        implicitHeight: inner.implicitHeight + 48
-        radius: 16
-        color: Theme.surface
-        border.width: 1
-        border.color: Theme.line
-        ColumnLayout { id: inner; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 } spacing: 14 }
-    }
-    component Toggle: Rectangle {
-        id: tg
-        property bool on
-        signal toggled()
-        implicitWidth: 44; implicitHeight: 26; radius: 13
-        color: on ? Theme.accent : Theme.lineStrong
-        Rectangle { width: 20; height: 20; radius: 10; y: 3; x: tg.on ? 21 : 3; color: "white"; Behavior on x { NumberAnimation { duration: 140 } } }
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tg.toggled() }
-        Accessible.role: Accessible.CheckBox
-        Accessible.checked: on
-    }
-    component Field: Rectangle {
-        property alias text: tf.text
-        property alias placeholder: tf.placeholderText
-        property alias secret: tf.echoMode
-        property alias field: tf
-        signal accepted()
-        Layout.fillWidth: true
-        implicitHeight: 32; radius: 8
-        color: Theme.surface; border.width: 1; border.color: tf.activeFocus ? Theme.accent : Theme.line
-        QQC2.TextField {
-            id: tf
-            anchors.fill: parent; anchors.leftMargin: 10
-            placeholderTextColor: Theme.fg3; color: Theme.fg; background: null
-            font.family: Theme.ui; font.pixelSize: 13
-            onAccepted: parent.accepted()
-        }
-    }
-    component PageTitle: ColumnLayout {
-        property string title
-        property string sub
-        Layout.fillWidth: true
-        Layout.bottomMargin: 8
-        spacing: 6
-        Text { textFormat: Text.PlainText; text: parent.title; color: Theme.fg; font.family: Theme.display; font.pixelSize: 34; font.weight: Font.DemiBold }
-        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; textFormat: Text.PlainText; text: parent.sub; color: Theme.fg2; font.family: Theme.ui; font.pixelSize: 15 }
-    }
-    component Soon: Rectangle {
-        property string text
-        Layout.fillWidth: true
-        implicitHeight: soonText.implicitHeight + 24
-        radius: 14
-        color: Theme.aiSoft
-        border.width: 1
-        border.color: Qt.rgba(Theme.ai.r, Theme.ai.g, Theme.ai.b, 0.25)
-        RowLayout {
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 18 }
-            spacing: 12
-            Icon { name: "sparkles"; size: 16; color: Theme.aiInk }
-            Text { id: soonText; Layout.fillWidth: true; textFormat: Text.PlainText; text: parent.parent.text; wrapMode: Text.WordWrap; color: Theme.aiInk; font.family: Theme.ui; font.pixelSize: 13 }
-        }
-    }
 
     // a titled group of rows with a rounded frame, as in Daylight
-    component SectionLabel: Text { color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold; font.capitalization: Font.AllUppercase; font.letterSpacing: 0.8; Layout.leftMargin: 14; Layout.topMargin: 6 }
-    component Group: Item {
-        default property alias rows: col.data
-        Layout.fillWidth: true
-        implicitHeight: col.implicitHeight
-        Rectangle { anchors.fill: parent; radius: 14; color: Theme.surface }
-        ColumnLayout { id: col; width: parent.width; spacing: 0 }
-        // the frame sits on top so a row's hover colour never covers it
-        Rectangle { anchors.fill: parent; radius: 14; color: "transparent"; border.width: 1; border.color: Theme.line }
-    }
-    component Pill: Rectangle {
-        property string text
-        property string kind: "ok"   // ok, danger, muted
-        implicitWidth: pt.implicitWidth + 20
-        implicitHeight: 24
-        radius: 12
-        color: kind === "ok" ? Theme.okSoft : kind === "danger" ? Theme.dangerSoft : Theme.surface3
-        Text { id: pt; anchors.centerIn: parent; textFormat: Text.PlainText; text: parent.text; color: parent.kind === "ok" ? Theme.ok : parent.kind === "danger" ? Theme.danger : Theme.fg3; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
-    }
-    component ListRow: Rectangle {
-        id: lr
-        property string logo
-        property string name
-        property string sub
-        property color subColor: Theme.fg2
-        property bool chevron: true
-        property bool expanded: false
-        property bool first: false
-        default property alias trailing: tail.data
-        signal clicked()
-        Layout.fillWidth: true
-        implicitHeight: 68
-        color: "transparent"
-        // hover shows inside the row, so the group's rounded corners stay clean
-        Rectangle { anchors { fill: parent; margins: 4 } radius: 10; color: rm.containsMouse && lr.chevron ? Theme.surface2 : "transparent" }
-        Rectangle { visible: !lr.first; width: parent.width; height: 1; color: Theme.surface3 }
-        MouseArea { id: rm; anchors.fill: parent; hoverEnabled: true; enabled: lr.chevron; cursorShape: Qt.PointingHandCursor; onClicked: lr.clicked() }
-        RowLayout {
-            anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
-            spacing: 14
-            Logo { key: lr.logo }
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: lr.name; elide: Text.ElideRight; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 15; font.weight: Font.DemiBold }
-                Text { Layout.fillWidth: true; textFormat: Text.PlainText; text: lr.sub; elide: Text.ElideRight; color: lr.subColor; font.family: Theme.ui; font.pixelSize: 13 }
-            }
-            RowLayout { id: tail; spacing: 8 }
-            Icon { visible: lr.chevron; name: "chevron-right"; size: 16; color: Theme.fg3; rotation: lr.expanded ? 90 : 0 }
-        }
-        Accessible.role: Accessible.Button
-        Accessible.name: name
-    }
 
     RowLayout {
         anchors.fill: parent
@@ -270,21 +155,22 @@ QQC2.ApplicationWindow {
                     NavItem { icon: "bot"; tile: "#c1457d"; label: "Connected AI apps"; key: "connections" }
                     Header { text: "This computer" }
                     NavItem { icon: "palette"; tile: "#7b62c4"; label: "Appearance"; key: "appearance" }
+                    NavItem { icon: "monitor"; tile: "#2e8d5c"; label: "Display"; key: "display" }
+                    NavItem { icon: "volume-2"; tile: "#dc7637"; label: "Sound"; key: "sound" }
                     NavItem { icon: "wifi"; tile: "#3b74bf"; label: "Wi-Fi"; key: "wifi" }
+                    NavItem { icon: "bluetooth"; tile: "#3b74bf"; label: "Bluetooth"; key: "bluetooth" }
+                    NavItem { icon: "bell"; tile: "#d4524b"; label: "Notifications"; key: "notifications" }
+                    NavItem { icon: "battery"; tile: "#2e8d5c"; label: "Power"; key: "power" }
+                    NavItem { icon: "keyboard"; tile: "#6b7480"; label: "Keyboard"; key: "keyboard" }
+                    NavItem { icon: "mouse"; tile: "#6b7480"; label: "Mouse & touchpad"; key: "mouse" }
+                    NavItem { icon: "printer"; tile: "#6b7480"; label: "Printers"; key: "printers" }
+                    Header { text: "You" }
+                    NavItem { icon: "users"; tile: "#8b7652"; label: "Your account"; key: "account" }
+                    NavItem { icon: "clock"; tile: "#56616e"; label: "Date & time"; key: "clock" }
+                    NavItem { icon: "accessibility"; tile: "#3b74bf"; label: "Accessibility"; key: "accessibility" }
+                    Header { text: "System" }
                     NavItem { icon: "refresh-cw"; tile: "#56616e"; label: "Updates"; key: "updates" }
                     NavItem { icon: "info"; tile: "#8b8b86"; label: "About"; key: "about" }
-                    Header { text: "More" }
-                    NavItem { icon: "monitor"; tile: "#2e8d5c"; label: "Display"; kcm: "kcm_kscreen" }
-                    NavItem { icon: "volume-2"; tile: "#dc7637"; label: "Sound"; kcm: "kcm_pulseaudio" }
-                    NavItem { icon: "bluetooth"; tile: "#3b74bf"; label: "Bluetooth"; kcm: "kcm_bluetooth" }
-                    NavItem { icon: "bell"; tile: "#d4524b"; label: "Notifications"; kcm: "kcm_notifications" }
-                    NavItem { icon: "users"; tile: "#8b7652"; label: "Users"; kcm: "kcm_users" }
-                    NavItem { icon: "clock"; tile: "#56616e"; label: "Date & time"; kcm: "kcm_clock" }
-                    NavItem { icon: "keyboard"; tile: "#6b7480"; label: "Keyboard"; kcm: "kcm_keyboard" }
-                    NavItem { icon: "mouse"; tile: "#6b7480"; label: "Mouse & touchpad"; kcm: "kcm_mouse" }
-                    NavItem { icon: "battery"; tile: "#2e8d5c"; label: "Power"; kcm: "kcm_powerdevilprofilesconfig" }
-                    NavItem { icon: "printer"; tile: "#6b7480"; label: "Printers"; kcm: "kcm_printer_manager" }
-                    NavItem { icon: "accessibility"; tile: "#3b74bf"; label: "Accessibility"; kcm: "kcm_access" }
                 }
             }
         }
@@ -913,6 +799,19 @@ QQC2.ApplicationWindow {
                         }
                     }
                 }
+
+                // the computer's other areas: one page each, in their own files
+                DisplayPage { visible: win.page === "display"; Layout.fillWidth: true }
+                SoundPage { visible: win.page === "sound"; Layout.fillWidth: true }
+                BluetoothPage { visible: win.page === "bluetooth"; Layout.fillWidth: true }
+                NotifsPage { visible: win.page === "notifications"; Layout.fillWidth: true }
+                PowerPage { visible: win.page === "power"; Layout.fillWidth: true }
+                KeyboardPage { visible: win.page === "keyboard"; Layout.fillWidth: true }
+                MousePage { visible: win.page === "mouse"; Layout.fillWidth: true }
+                PrintersPage { visible: win.page === "printers"; Layout.fillWidth: true }
+                UsersPage { visible: win.page === "account"; Layout.fillWidth: true }
+                ClockPage { visible: win.page === "clock"; Layout.fillWidth: true }
+                AccessPage { visible: win.page === "accessibility"; Layout.fillWidth: true }
 
                 // Updates (real)
                 ColumnLayout {

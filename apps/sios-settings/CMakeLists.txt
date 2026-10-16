@@ -14,7 +14,9 @@ find_package(KF6CoreAddons REQUIRED)
 
 qt_standard_project_setup(REQUIRES 6.6)
 
-qt_add_executable(sios-settings src/main.cpp src/system.cpp src/system.h src/broker.cpp src/broker.h)
+# every area of the computer (display, sound, Bluetooth...) is its own pair of files
+file(GLOB SIOS_SETTINGS_SRC RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.cpp src/*.h)
+qt_add_executable(sios-settings ${SIOS_SETTINGS_SRC})
 
 # the QML lives in src/qml but belongs at the module's top level
 set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

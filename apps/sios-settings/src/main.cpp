@@ -2,6 +2,17 @@
 // Wi-Fi, updates, about) and the icon service.
 #include "broker.h"
 #include "system.h"
+#include "display.h"
+#include "sound.h"
+#include "bluetooth.h"
+#include "notifs.h"
+#include "power.h"
+#include "clock.h"
+#include "keyboard.h"
+#include "mouse.h"
+#include "access.h"
+#include "users.h"
+#include "printers.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -134,7 +145,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     QCommandLineParser args;
-    args.addOption({QStringLiteral("page"), QStringLiteral("Open on a page: appearance, wifi, updates, about, brain, permissions, connections"), QStringLiteral("page")});
+    args.addOption({QStringLiteral("page"), QStringLiteral("Open on a page: appearance, display, sound, wifi, bluetooth, notifications, power, keyboard, mouse, printers, account, clock, accessibility, updates, about, brain, permissions, connectors, connections"), QStringLiteral("page")});
     args.process(app);
     if (qgetenv("SIOS_WINDOW") != "1" && brokerOpens(QStringLiteral("settings"), args.value(QStringLiteral("page"))))
         return 0;
@@ -144,11 +155,47 @@ int main(int argc, char *argv[])
 
     System system;
     Broker broker;
+    // the areas of the computer, one per page (made before the engine, so they outlive it);
+    // their notes and errors go out as system's
+    DisplayArea displayArea;
+    QObject::connect(&displayArea, &Area::message, &system, &System::message);
+    SoundArea soundArea;
+    QObject::connect(&soundArea, &Area::message, &system, &System::message);
+    BluetoothArea bluetoothArea;
+    QObject::connect(&bluetoothArea, &Area::message, &system, &System::message);
+    NotifsArea notifsArea;
+    QObject::connect(&notifsArea, &Area::message, &system, &System::message);
+    PowerArea powerArea;
+    QObject::connect(&powerArea, &Area::message, &system, &System::message);
+    ClockArea clockArea;
+    QObject::connect(&clockArea, &Area::message, &system, &System::message);
+    KeyboardArea keyboardArea;
+    QObject::connect(&keyboardArea, &Area::message, &system, &System::message);
+    MouseArea mouseArea;
+    QObject::connect(&mouseArea, &Area::message, &system, &System::message);
+    AccessArea accessArea;
+    QObject::connect(&accessArea, &Area::message, &system, &System::message);
+    UsersArea usersArea;
+    QObject::connect(&usersArea, &Area::message, &system, &System::message);
+    PrintersArea printersArea;
+    QObject::connect(&printersArea, &Area::message, &system, &System::message);
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
     engine.addImageProvider(QStringLiteral("theme"), new ThemeIconProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("system"), &system);
     engine.rootContext()->setContextProperty(QStringLiteral("broker"), &broker);
+    engine.rootContext()->setContextProperty(QStringLiteral("display"), &displayArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("sound"), &soundArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("bluetooth"), &bluetoothArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("notifs"), &notifsArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("power"), &powerArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("clock"), &clockArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("keyboard"), &keyboardArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("mouse"), &mouseArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("access"), &accessArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("users"), &usersArea);
+    engine.rootContext()->setContextProperty(QStringLiteral("printers"), &printersArea);
+
     engine.rootContext()->setContextProperty(QStringLiteral("startPage"), args.value(QStringLiteral("page")));
     engine.rootContext()->setContextProperty(QStringLiteral("waker"), &waker);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);

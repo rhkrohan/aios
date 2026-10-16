@@ -4,7 +4,7 @@
 //   updates     the image this computer runs (rpm-ostree / bootc); checking
 //               and installing ask for an administrator through pkexec
 //   about       name, version, processor, memory, storage
-//   kde pages   everything else opens the matching page of KDE's System Settings
+//   (display, sound, Bluetooth and the rest are areas of their own: area.h)
 #pragma once
 
 #include <QObject>
@@ -47,7 +47,6 @@ public:
     Q_INVOKABLE void checkForUpdate();
     Q_INVOKABLE void installUpdate();
     Q_INVOKABLE void restart();
-    Q_INVOKABLE void openKdePage(const QString &kcm);
 
 Q_SIGNALS:
     void appearanceChanged();

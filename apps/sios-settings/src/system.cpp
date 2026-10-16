@@ -268,7 +268,3 @@ QVariantMap System::about() const
             {QStringLiteral("kernel"), QSysInfo::kernelVersion()}};
 }
 
-void System::openKdePage(const QString &kcm)
-{
-    QProcess::startDetached(QStringLiteral("systemsettings"), {kcm});
-}
