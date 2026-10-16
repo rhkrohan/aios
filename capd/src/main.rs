@@ -25,6 +25,7 @@ mod runner;
 mod search;
 mod security;
 mod state;
+mod terminal;
 mod token;
 mod tools;
 
@@ -101,6 +102,8 @@ fn main() {
     let cmd = args.first().map(String::as_str).unwrap_or("help");
     match cmd {
         "serve" => serve(),
+        // inside a terminal command's sandbox (D89): start its stages, write the result
+        "pipeline-run" => std::process::exit(terminal::pipeline_run(std::path::Path::new(&args.get(1).cloned().unwrap_or_default()), &args.get(2).cloned().unwrap_or_default())),
         "seed" => seed(),
         // every tool with its exact argument schema, in MCP form (for docs and llm/)
         "catalog" => {

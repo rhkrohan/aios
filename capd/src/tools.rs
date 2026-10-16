@@ -66,6 +66,10 @@ pub const TOOLS: &[ToolSpec] = &[
     ToolSpec { name: "memory.save", level: Level::Reversible, egress: false, path_args: &[], about: "Remember a fact or preference the owner stated. Never passwords or keys (refused)." },
     ToolSpec { name: "memory.forget", level: Level::Reversible, egress: false, path_args: &[], about: "Forget one memory by id." },
     ToolSpec { name: "people.resolve", level: Level::Read, egress: false, path_args: &[], about: "Turn a name or role (\"Sara\", \"my accountant\") into people with emails." },
+    // terminal commands (D89): every program on the image, sandboxed; the class comes from
+    // the command catalog per call (terminal.rs). terminal.read takes only read-only commands.
+    ToolSpec { name: "terminal.read", level: Level::Read, egress: false, path_args: &["cwd"], about: "Run a read-only command (ls, du, git status, grep...) in a sandbox that sees only the given folders, with no network. Words, never a shell line." },
+    ToolSpec { name: "terminal.run", level: Level::Irreversible, egress: false, path_args: &["cwd"], about: "Run any allowed command or pipeline in a sandbox; it asks as its command's class says (changes once per plan, can't-undo and sending always)." },
 ];
 
 /// Names from before the catalog rename (D36). Still accepted everywhere a tool
@@ -165,7 +169,7 @@ pub fn targets_of<'a>(spec: &ToolSpec, args: &'a Value) -> Vec<&'a str> {
 pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     // looking up
     "files.list", "files.find", "files.show", "files.preview", "apps.list", "apps.open", "apps.focus", "apps.arrange",
-    "system.state", "system.notify", "network.list", "memory.search", "people.resolve",
+    "system.state", "system.notify", "network.list", "memory.search", "people.resolve", "terminal.read",
     // settings
     "settings.set_theme", "settings.set_volume", "settings.set_brightness", "settings.set_wallpaper", "settings.dnd",
     "network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind",

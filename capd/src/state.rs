@@ -139,6 +139,8 @@ pub struct State {
     /// Each agent's latest live log, read by its watcher outside the lock: agent id ->
     /// (run id, entries). The Agents app reads it from here, cheaply.
     pub live: HashMap<String, (String, Vec<Value>)>,
+    /// Terminal commands running for an AI (D89): job id -> (the pass that started it, its folder).
+    terminal_jobs: HashMap<String, (String, PathBuf)>,
 }
 
 fn load_or_create(path: &Path, make: impl FnOnce() -> String) -> std::io::Result<String> {
@@ -203,6 +205,7 @@ impl State {
             sec: crate::security::SecState::load(dir),
             agents: crate::agents::Registry::open(dir),
             live: HashMap::new(),
+            terminal_jobs: HashMap::new(),
             memory: {
                 let mut m = crate::memory::MemStore::open(&dir.join("memory.json"));
                 if let Ok(b) = std::fs::read(dir.join("people.json")) {
@@ -716,6 +719,8 @@ impl State {
             }
             "call" => self.call(p),
             "await" => self.await_answer(p),
+            // a terminal command's result, for the pass that started it (D89)
+            "terminal.result" => self.terminal_result(p),
             "pending" => Ok(json!({ "passes": self.ungranted.iter().collect::<Vec<_>>(), "calls": self
                 .pending
                 .iter()
@@ -1171,6 +1176,33 @@ impl State {
                 return Assessed { cap, decision: Decision::Block, checks, reason: e, target: String::new() };
             }
         }
+        // a terminal command: its class in the command catalog decides, per call (D89)
+        let mut level = spec.map(|s| s.level);
+        let mut egress = spec.map(|s| s.egress).unwrap_or(false);
+        if tool.starts_with("terminal.") && tok.is_ok() {
+            use crate::terminal::Class;
+            let refuse = |cap: Cap, e: String| {
+                let checks = vec![crate::policy::Check { id: "command".into(), result: crate::policy::Res::Fail, detail: e.clone() }];
+                Assessed { cap, decision: Decision::Block, checks, reason: e, target: String::new() }
+            };
+            match crate::terminal::classify(args) {
+                Err(e) | Ok((Class::Block, e)) => return refuse(cap, e),
+                Ok((c, why)) => {
+                    if tool == "terminal.read" && c != Class::R {
+                        return refuse(cap, format!("{why}: more than reading, so it's terminal.run (which asks as it should)"));
+                    }
+                    if let Err(e) = crate::terminal::stdin_ok(args["stdin"].as_str().unwrap_or("")) {
+                        return refuse(cap, e);
+                    }
+                    level = Some(match c {
+                        Class::R => crate::policy::Level::Read,
+                        Class::C => crate::policy::Level::Reversible,
+                        _ => crate::policy::Level::Irreversible,
+                    });
+                    egress = c == Class::S;
+                }
+            }
+        }
         // a connector's tool: installed, switched on, and allowed for this AI by the owner (D81)
         if self.connectors.catalog.get(tool.split('.').next().unwrap_or("")).is_some() {
             if let Err(e) = self.connectors.allows(&tool, &cap.principal) {
@@ -1230,17 +1262,17 @@ impl State {
                 }
             }
         }
-        if spec.map(|s| s.egress).unwrap_or(false) {
+        if egress {
             for t in &tlist {
                 for l in self.meta.labels_at(t) {
                     carrying.push((t.clone(), l));
                 }
             }
         }
-        let attaching_untrusted = spec.map(|s| s.egress).unwrap_or(false) && tlist.iter().any(|t| self.meta.untrusted_at(t));
+        let attaching_untrusted = egress && tlist.iter().any(|t| self.meta.untrusted_at(t));
 
         // roles: what this identity may do, here, now
-        let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: spec.map(|s| s.level).unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
+        let iam = self.iam.decide(&cap.principal, &crate::iam::Action { tool: &tool, level: level.unwrap_or(crate::policy::Level::Irreversible), places: &tlist, tainted: session.map(|s| s.tainted).unwrap_or(false) || attaching_untrusted });
         let facts = Facts {
             stopped: self.sec.stopped.is_some(),
             token: tok.as_ref().map(|_| ()).map_err(|e| e.clone()),
@@ -1248,8 +1280,8 @@ impl State {
             paused: self.iam.is_paused(&cap.principal) || self.paused_in_chain(&cap.id).is_some(),
             iam: (iam.result, iam.detail),
             tool: &tool,
-            level: spec.map(|s| s.level),
-            egress: spec.map(|s| s.egress).unwrap_or(false),
+            level,
+            egress: egress,
             cap_tools: &cap.tools,
             cap_paths: &cap.paths,
             no_egress: cap.no_egress,
@@ -1282,6 +1314,15 @@ impl State {
         let sid = self.session_of(cap);
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
+        } else if tool.starts_with("terminal.") {
+            // what a command prints is untrusted: the goal is tainted before it starts
+            let session = self.sessions.entry(sid.clone()).or_default();
+            session.tainted = true;
+            let src = format!("terminal:{}", crate::terminal::stages(args).ok().and_then(|s| s.first().map(|a| a[0].clone())).unwrap_or_default());
+            if !session.read.iter().any(|x| x.0 == src) {
+                session.read.push((src, vec![], true));
+            }
+            self.terminal_start(cap, args)?
         } else if crate::connectors::spec(tool).is_some() {
             // anything a service sends back, an answer or an error in its own words, is
             // untrusted: the goal is tainted before it's asked, so no path skips that (D81)
@@ -2203,6 +2244,91 @@ impl State {
         }
     }
 
+    /// Start a command in its sandbox (D89): it sees only this pass's folders (writable only
+    /// past R), never dot folders or off-limits places, and the network only for S. Returns
+    /// at once; the result comes from terminal.result.
+    fn terminal_start(&mut self, cap: &Cap, args: &Value) -> Result<tools::Outcome, String> {
+        use crate::terminal::Class;
+        let (class, _) = crate::terminal::classify(args)?;
+        if class == Class::Block {
+            return Err("that command isn't allowed".into());
+        }
+        let root = self.root.canonicalize().map_err(|e| e.to_string())?;
+        let cwd = crate::fsguard::resolve(&self.root, args["cwd"].as_str().unwrap_or("")).map_err(|e| e.to_string())?;
+        if !cwd.real.is_dir() {
+            return Err(format!("{} isn't a folder", cwd.rel));
+        }
+        let writable = class != Class::R;
+        // the pass's folders; "the whole home" means its visible top-level folders, never dot folders
+        let mut binds: Vec<(PathBuf, bool)> = Vec::new();
+        for p in &cap.paths {
+            if p.is_empty() {
+                for e in std::fs::read_dir(&root).map_err(|e| e.to_string())?.flatten() {
+                    let n = e.file_name().to_string_lossy().to_string();
+                    if !n.starts_with('.') && e.file_type().is_ok_and(|t| t.is_dir()) {
+                        binds.push((root.join(n), writable));
+                    }
+                }
+            } else if let Ok(r) = crate::fsguard::resolve(&self.root, p) {
+                if r.real.exists() {
+                    binds.push((r.real.clone(), writable));
+                }
+            }
+        }
+        if !binds.iter().any(|(b, _)| cwd.real.starts_with(b)) {
+            binds.push((cwd.real.clone(), writable));
+        }
+        let hide: Vec<PathBuf> = self.meta.blocked.iter().filter_map(|b| crate::fsguard::resolve(&self.root, b).ok()).map(|r| r.real).filter(|p| p.exists()).collect();
+        let id = random_hex(8);
+        let out_dir = self.dir.join("terminal").join(&id);
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            std::fs::DirBuilder::new().recursive(true).mode(0o700).create(out_dir.join("home")).map_err(|e| e.to_string())?;
+        }
+        let job = crate::terminal::Job {
+            id: id.clone(),
+            stages: crate::terminal::stages(args)?,
+            stdin: args["stdin"].as_str().unwrap_or("").to_string(),
+            cwd: cwd.real.clone(),
+            binds,
+            hide,
+            network: class == Class::S,
+            timeout: args["timeout"].as_u64().unwrap_or(30),
+            out_dir: out_dir.clone(),
+            home: out_dir.join("home"),
+            capd: std::env::current_exe().map_err(|e| e.to_string())?,
+        };
+        let unit_args = crate::terminal::unit_args(&job)?;
+        let argv: Vec<&str> = unit_args.iter().map(String::as_str).collect();
+        let o = crate::exec::run("/usr/bin/systemd-run", &argv, None, std::time::Duration::from_secs(20))?;
+        if o.code != Some(0) {
+            let _ = std::fs::remove_dir_all(&out_dir);
+            return Err(format!("couldn't start the command's sandbox: {}", o.stderr.trim().chars().take(200).collect::<String>()));
+        }
+        self.terminal_jobs.insert(id.clone(), (cap.id.clone(), out_dir));
+        let result = json!({ "job": id, "state": "running", "class": class.name(), "network": class == Class::S });
+        Ok(tools::Outcome { result, undo: None, read: vec![], wrote: None })
+    }
+
+    /// A command's result, once: only for the pass that started it. Output is untrusted data.
+    fn terminal_result(&mut self, p: &Value) -> Result<Value, String> {
+        let cap = self.check_token(p["cap"].as_str().unwrap_or(""))?;
+        let id = p["job"].as_str().unwrap_or("").to_string();
+        let (owner, dir) = self.terminal_jobs.get(&id).cloned().ok_or("no such command")?;
+        if owner != cap.id {
+            return Err("no such command".into());
+        }
+        if crate::security::unit_active(&crate::terminal::unit(&id)) {
+            return Ok(json!({ "state": "running" }));
+        }
+        let r = crate::terminal::read_result(&dir).unwrap_or(json!({ "exit": -1, "error": "the command ended without a result (stopped, out of time or out of memory)", "untrusted": true }));
+        let _ = std::fs::remove_dir_all(&dir);
+        self.terminal_jobs.remove(&id);
+        let mut r = r;
+        r["state"] = json!("done");
+        Ok(r)
+    }
+
     /// The undo journal on disk (undo.json, owner-only): the newest 500 changes, so
     /// "undo that" still works after the broker restarts.
     fn save_undo(&self) {
@@ -2428,6 +2554,28 @@ mod tests {
         let again = State::open(&dir, &root).unwrap();
         let ops: Vec<&str> = again.undo.iter().map(|(o, _, _)| o.as_str()).collect();
         assert_eq!(ops, ["op1", "op2"], "kept what's sane, dropped the rest");
+    }
+
+    #[test]
+    fn terminal_commands_ask_as_their_class_says_and_reading_never_changes_anything() {
+        let mut r = rig();
+        let tok = r.mint(json!({ "principal": "sios", "goal": "g", "tools": ["terminal.read", "terminal.run"], "paths": [""], "ttl_secs": 600 }));
+        let d = |r: &Rig, tool: &str, args: Value| r.st.assess(&tok, tool, &args, true).decision;
+        assert_eq!(d(&r, "terminal.read", json!({ "argv": ["ls", "-la"], "cwd": "Documents" })), Decision::Allow);
+        assert_eq!(d(&r, "terminal.read", json!({ "argv": ["git", "status"], "cwd": "Projects" })), Decision::Allow);
+        // more than reading is never terminal.read
+        assert_eq!(d(&r, "terminal.read", json!({ "argv": ["mkdir", "x"], "cwd": "Documents" })), Decision::Block);
+        assert_eq!(d(&r, "terminal.read", json!({ "pipeline": [["ls"], ["rm", "x"]], "cwd": "Documents" })), Decision::Block, "the highest stage wins");
+        // can't-undo and sending always ask; unknown programs and sudo are refused
+        assert_eq!(d(&r, "terminal.run", json!({ "argv": ["rm", "-rf", "x"], "cwd": "Documents" })), Decision::Ask);
+        assert_eq!(d(&r, "terminal.run", json!({ "argv": ["git", "push"], "cwd": "Projects" })), Decision::Ask);
+        assert_eq!(d(&r, "terminal.run", json!({ "argv": ["sudo", "ls"], "cwd": "Documents" })), Decision::Block);
+        assert_eq!(d(&r, "terminal.run", json!({ "argv": ["nosuch"], "cwd": "Documents" })), Decision::Block);
+        assert_eq!(d(&r, "terminal.run", json!({ "argv": ["/bin/ls"], "cwd": "Documents" })), Decision::Block, "no paths for programs");
+        // the owner's off-limits places stay off-limits as the working folder
+        assert_eq!(d(&r, "terminal.read", json!({ "argv": ["ls"], "cwd": "Documents/Taxes" })), Decision::Block);
+        // its result belongs to the pass that started it
+        assert!(r.agent("terminal.result", json!({ "cap": tok, "job": "nope" }))["error"].is_string());
     }
 
     // ---- C1: connectors

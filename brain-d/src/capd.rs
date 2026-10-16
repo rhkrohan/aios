@@ -55,6 +55,23 @@ impl Capd {
     pub fn tool(&self, cap: &str, tool: &str, args: &Value, dry_run: bool) -> Result<Value, String> {
         self.call("call", json!({ "cap": cap, "tool": tool, "args": args, "dry_run": dry_run }))
     }
+
+    /// A terminal command starts in the background (D89): wait for its result, asking the
+    /// broker every 300 ms, for at most 130 s (its own limit is 120). Anything else is as is.
+    pub fn terminal_finish(&self, cap: &str, tool: &str, result: &Value, as_agent: bool) -> Value {
+        let Some(job) = result["job"].as_str().filter(|_| tool.starts_with("terminal.")) else { return result.clone() };
+        let t = std::time::Instant::now();
+        loop {
+            let params = json!({ "cap": cap, "job": job });
+            let v = if as_agent { self.call_as_agent("terminal.result", params) } else { self.call("terminal.result", params) };
+            match v {
+                Ok(v) if v["state"] == "done" => return v,
+                Ok(_) if t.elapsed() < Duration::from_secs(130) => std::thread::sleep(Duration::from_millis(300)),
+                Ok(_) => return json!({ "error": "the command is still running after 130 s" }),
+                Err(e) => return json!({ "error": e }),
+            }
+        }
+    }
 }
 
 /// A one-off call to brain-d's socket, for the command line (widgets).

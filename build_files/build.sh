@@ -135,6 +135,15 @@ for f in konsoleui.rc sessionui.rc; do
     ! grep -q "<ToolBar" "/usr/share/kxmlgui5/konsole/$f"
 done
 
+### Terminal commands for AIs (D89): the command catalog
+# Every program on the image, typed, with its risk class (build_files/cmdcat).
+# Made here, inside the image, so it describes exactly what ships; capd reads it.
+# --help for programs without a man page runs in a bwrap sandbox when the build
+# allows one, and is skipped otherwise.
+mkdir -p /usr/share/sios/commands
+python3 /ctx/cmdcat/cmdcat.py --rules /ctx/cmdcat/rules.toml --out /usr/share/sios/commands/catalog.json
+python3 -c "import json,sys; d=json.load(open('/usr/share/sios/commands/catalog.json')); n=len(d['commands']); print('command catalog:', n, d['counts']); sys.exit(0 if n > 1500 and d['commands']['sudo']['class'] == 'block' and d['commands']['ls']['class'] == 'R' else 1)"
+
 ### Files (Dolphin) like the preview's Files app
 # Toolbar: back, forward, path, search, sort, grid, list, new folder, details
 # (/usr/share/kxmlgui5/dolphin/dolphinui.rc); defaults in dolphinrc; the

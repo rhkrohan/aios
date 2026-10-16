@@ -231,6 +231,8 @@ fn raise(name: &'static str, page: &str) {
 /// Stop: every agent sandbox freezes where it is (the cgroup freezer).
 pub fn freeze_agents() {
     let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "freeze", "sios-agents.slice"], None, Duration::from_secs(5));
+    // terminal commands an AI started just end (D89)
+    let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", "sios-terminal.slice"], None, Duration::from_secs(10));
 }
 
 /// Resume after Stop: frozen agent runs end (they don't just carry on).

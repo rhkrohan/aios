@@ -118,6 +118,18 @@ fn schema(t: &ToolSpec, cap: &Cap) -> Value {
             "additionalProperties": false
         }),
         "apps.list" | "network.list" | "system.state" => json!({ "type": "object", "properties": {}, "required": [], "additionalProperties": false }),
+        "terminal.read" | "terminal.run" => json!({
+            "type": "object",
+            "properties": {
+                "argv": { "type": "array", "items": { "type": "string" }, "description": "One command as words: the program's plain name, then its arguments. Never a shell line." },
+                "pipeline": { "type": "array", "items": { "type": "array", "items": { "type": "string" } }, "description": "Commands joined by pipes, each as words. Give argv or pipeline, not both." },
+                "cwd": path("Folder to run in; the command sees only this pass's folders."),
+                "stdin": { "type": "string", "description": "Text for the first command's input (up to 64 KB)." },
+                "timeout": { "type": "integer", "description": "Seconds, 1 to 120 (default 30)." }
+            },
+            "required": ["cwd"],
+            "additionalProperties": false
+        }),
         "memory.forget" => json!({ "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"], "additionalProperties": false }),
         "network.connect_wifi" => json!({ "type": "object", "properties": { "ssid": { "type": "string", "description": "Network name." } }, "required": ["ssid"], "additionalProperties": false }),
         // an installed connector's tool: the schema SIOS wrote for it (C1, D80)

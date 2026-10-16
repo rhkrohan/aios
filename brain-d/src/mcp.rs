@@ -85,12 +85,19 @@ fn approval_tool() -> Value {
 }
 
 /// Wait up to `limit` for the owner to answer a call that asked.
-fn wait_approval(approval: &str, limit: Duration) -> Result<String, String> {
+fn wait_approval(approval: &str, limit: Duration, finish: Option<(&str, &str)>) -> Result<String, String> {
     let t = Instant::now();
     loop {
         let v = capd_link().call_as_agent("await", json!({ "approval": approval }))?;
         match v["state"].as_str() {
-            Some("approved") => return Ok(format!("The owner approved it.\n{}", v["result"])),
+            Some("approved") => {
+                // a terminal command the owner allowed: its result, not just its start
+                let result = match finish {
+                    Some((cap, tool)) => capd_link().terminal_finish(cap, tool, &v["result"], true),
+                    None => v["result"].clone(),
+                };
+                return Ok(format!("The owner approved it.\n{result}"));
+            }
             Some("denied") => return Err(format!("The owner said no: {}", v["reason"].as_str().unwrap_or("denied"))),
             _ if t.elapsed() > limit => {
                 return Ok(format!("Still waiting for the owner on their screen (approval {approval}). Call {APPROVAL_TOOL} with this id to follow it; don't send the call again."))
@@ -106,9 +113,9 @@ fn typed_call(session: &Session, name: &str, args: &Value) -> Result<String, Str
     match v["decision"].as_str().unwrap_or("") {
         "allow" => match v.get("error").filter(|e| !e.is_null()) {
             Some(e) => Err(e.as_str().unwrap_or("it failed").to_string()),
-            None => Ok(v["result"].to_string()),
+            None => Ok(capd_link().terminal_finish(&session.cap, name, &v["result"], true).to_string()),
         },
-        "ask" => wait_approval(v["approval"].as_str().unwrap_or(""), Duration::from_secs(50)),
+        "ask" => wait_approval(v["approval"].as_str().unwrap_or(""), Duration::from_secs(50), Some((&session.cap, name))),
         _ => Err(format!("Blocked by SIOS: {}. Don't try another way around it; tell the owner what you couldn't do.", v["reason"].as_str().unwrap_or("not allowed").trim_end_matches('.'))),
     }
 }
@@ -289,7 +296,7 @@ pub fn run(_brain: Brain) {
                 } else if let Some((s, agent)) = session.as_ref().and_then(|s| s.agent.clone().map(|a| (s, a))).filter(|_| ["sios_report", "sios_ask_owner", "sios_done"].contains(&name)) {
                     agent_call(s, &agent, name, args)
                 } else if name == APPROVAL_TOOL && session.is_some() {
-                    wait_approval(args["approval"].as_str().unwrap_or(""), Duration::from_secs(50))
+                    wait_approval(args["approval"].as_str().unwrap_or(""), Duration::from_secs(50), None)
                 } else {
                     call_tool(name, args, &client)
                 };

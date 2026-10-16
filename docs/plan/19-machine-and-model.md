@@ -119,7 +119,7 @@ Each track: a short plan, tests, a security review, llm examples, ticks, Learned
   6. **Later:** browser, and `apps.act` via AT-SPI as a last resort.
 
 ### L2. Every terminal command: a generated, typed command catalog
-- **Generator `tools/cmdcat/`** (Python). It runs at image build time in `build_files/build.sh`, inside the image itself, so it describes exactly what ships. For each program in `/usr/bin` and `/usr/libexec` that people can run:
+- **Generator `build_files/cmdcat/`** (Python). It runs at image build time in `build_files/build.sh`, inside the image itself, so it describes exactly what ships. For each program in `/usr/bin` and `/usr/libexec` that people can run:
   - package and summary (`rpm -qf`, `whatis`);
   - subcommands and flags with value types, from three sources in priority order:
     1. fish-style declarative completions (fish installed only in the build stage);
@@ -127,7 +127,7 @@ Each track: a short plan, tests, a security review, llm examples, ticks, Learned
     3. `--help`, run under `bwrap` with no network, a read-only filesystem and a 2 s limit;
   - examples from tldr-pages (CC-BY 4.0: attribution in `/usr/share/licenses/sios/THIRD-PARTY.txt`).
 - **Output:** `/usr/share/sios/commands/catalog.json`, versioned with the image (read-only under `/usr`).
-- **Risk rules,** in a hand-written `tools/cmdcat/rules.toml` with per-subcommand and per-flag patterns. Examples:
+- **Risk rules,** in a hand-written `build_files/cmdcat/rules.toml` with per-subcommand and per-flag patterns. Examples:
   - `git status` = R, `git commit` = C, `git push` = S;
   - `rm` = X (the broker offers `files.trash` instead);
   - `curl` / `wget` = S;
@@ -242,7 +242,7 @@ Each track: a short plan, tests, a security review, llm examples, ticks, Learned
 ## Critical files
 - **capd:** `capd/src/tools.rs`, `manifest.rs`, `policy.rs`, `state.rs`; new `types.rs` and `terminal.rs`; `gateway/mod.rs`.
 - **brain-d:** `plan.rs`, `goal.rs`, `briefing.rs`, `routines.rs`; new `flow.rs` and `router.rs`.
-- **New:** `tools/cmdcat/` (generator, `rules.toml`).
+- **New:** `build_files/cmdcat/` (generator, `rules.toml`).
 - **Image:** `build_files/build.sh`; `system_files/usr/share/sios/commands/`; the `sios-llm.service` unit.
 - **llm:** `llm/export.py`, `llm/gen/`, `llm/eval/`, `llm/prompts/`, `llm/tools/`, `llm/README.md`.
 - **Docs:** `docs/plan/19-machine-and-model.md`, `11-decisions.md`, `16-tool-catalog.md`, `changelog.md`; `docs/phases/phase-2.md`; `TASKS.md`.

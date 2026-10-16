@@ -228,7 +228,8 @@ fn run_inner(r: &mut Run, turn: &mut Turn, last_goal: Option<String>) -> Result<
         // 3. the least pass this plan needs, then a dry run of every step
         let (tools, paths) = plan::pass_for(&plan, |p| r.ctx.root.join(p).symlink_metadata().ok().map(|m| m.is_dir()));
         // sending mail, or asking a connected service (it talks to the internet)
-        let egress = tools.iter().any(|t| t == "mail.send" || r.is_conn(t));
+        // (a command may send only if its class is S: the broker decides that per call)
+        let egress = tools.iter().any(|t| t == "mail.send" || r.is_conn(t) || t == "terminal.run");
         let n = plan.steps.len() as u64;
         // SIOS acts for the owner under one stable identity, whatever model it runs on
         let ai = if r.principal == "owner" { "sios".to_string() } else { r.principal.clone() };
@@ -399,13 +400,14 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
             emit(r.g, json!({ "t": "step", "n": n, "kind": "compose", "decision": "allow", "chars": text.len(), "preview": text.chars().take(160).collect::<String>(), "ms": ms(t) }));
             continue;
         }
-        // a service's answer only ever goes in the reply to the owner, never into another
-        // step's arguments (a PR title can't become a file's contents or an email's body)
-        let usable: Vec<(usize, String)> = texts.iter().filter(|(k, _)| !plan.steps.get(k - 1).is_some_and(|p| r.is_conn(&p.tool))).cloned().collect();
-        // ...and what goes out to a service is exactly what the owner saw in the plan: nothing
-        // found or written on this computer is filled into its arguments
-        if r.is_conn(&s.tool) && s.args_json.contains("{{") {
-            return Ok(Outcome::Failed(format!("step {n} ({}) can't use earlier results: a service only gets words you saw in the plan", s.tool)));
+        // a service's answer, or what a command printed, only ever goes in the reply to the owner,
+        // never into another step's arguments (a PR title can't become a file's contents or an email)
+        let reply_only = |tool: &str| r.is_conn(tool) || tool.starts_with("terminal.");
+        let usable: Vec<(usize, String)> = texts.iter().filter(|(k, _)| !plan.steps.get(k - 1).is_some_and(|p| reply_only(&p.tool))).cloned().collect();
+        // ...and what goes out to a service, or into a command, is exactly what the owner saw
+        // in the plan: nothing found or written on this computer is filled into its arguments
+        if reply_only(&s.tool) && s.args_json.contains("{{") {
+            return Ok(Outcome::Failed(format!("step {n} ({}) can't use earlier results: it only gets words you saw in the plan", s.tool)));
         }
         let args: Value = serde_json::from_str(&plan::fill(&s.args_json, &usable, true)).map_err(|e| format!("step {n} arguments: {e}"))?;
         let mut res = r.ctx.capd.tool(token, &s.tool, &args, false)?;
@@ -424,7 +426,10 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
                 }
             };
         }
-        let err = res.get("error").filter(|e| !e.is_null()).cloned().or_else(|| res["result"].get("error").cloned());
+        if res["decision"] == "allow" {
+            res["result"] = r.ctx.capd.terminal_finish(token, &s.tool, &res["result"], false);
+        }
+        let err = res.get("error").filter(|e| !e.is_null()).cloned().or_else(|| res["result"].get("error").cloned().filter(|e| !e.is_null()));
         emit(r.g, json!({ "t": "step", "n": n, "tool": s.tool, "args": args, "decision": res["decision"], "reason": res["reason"], "error": err, "result": res["result"], "ms": ms(t) }));
         if let Some(effect) = res["result"].get("effect") {
             emit(r.g, json!({ "t": "effect", "effect": effect }));
@@ -441,6 +446,12 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
             texts.push((n, found_text(&res["result"])));
         } else if r.is_conn(&s.tool) {
             texts.push((n, res["result"]["text"].as_str().unwrap_or("").chars().take(1500).collect()));
+        } else if s.tool.starts_with("terminal.") {
+            // what it printed (and why it failed, if it did), for the reply only
+            let out = res["result"]["stdout"].as_str().unwrap_or("");
+            let failed = res["result"]["exit"].as_i64().unwrap_or(0) != 0;
+            let text = if failed { format!("{out}\n(exit {}) {}", res["result"]["exit"], res["result"]["stderr"].as_str().unwrap_or("")) } else { out.to_string() };
+            texts.push((n, text.trim().chars().take(1500).collect()));
         }
         *done_steps += 1;
         done_log.push(format!("  step {n}: {} {} -> ok", s.tool, s.args_json));

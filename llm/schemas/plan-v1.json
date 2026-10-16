@@ -77,6 +77,8 @@
               "apps.list",
               "network.list",
               "system.state",
+              "terminal.read",
+              "terminal.run",
               ""
             ],
             "description": "For tool steps. Empty for compose."

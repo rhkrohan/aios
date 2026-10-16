@@ -1,0 +1,572 @@
+# Risk rules for the SIOS command catalog (D89). Read by build_files/cmdcat/cmdcat.py at
+# image build; the broker only ever sees the result in catalog.json.
+#
+# Classes: R reads only (runs without asking, sandboxed, no network)
+#          C changes something on this computer (asks once per plan)
+#          X can't be undone (always asks)
+#          S sends something out of the computer (always asks; network only then)
+#          ask: not reviewed yet (asks), block: never for an AI
+# A program, subcommand or flag with no rule is "ask". The highest class in a
+# command (its default, its subcommand, any flag) wins, and in a pipeline the
+# highest stage wins. Arguments are never run through a shell.
+
+[block]
+why = "changes who you are or the whole system: only you, in your own terminal"
+names = [
+  "sudo", "su", "pkexec", "run0", "doas", "sudoedit", "visudo", "passwd", "chpasswd", "chage", "usermod", "useradd", "userdel",
+  "groupadd", "groupdel", "gpasswd", "newgrp", "chsh", "chfn",
+  "bash", "sh", "zsh", "fish", "dash", "ksh", "csh", "tcsh", "busybox", "script", "expect", "eval", "exec", "xargs", "env", "nohup",
+  "setsid", "unshare", "nsenter", "chroot", "systemd-run", "flatpak-spawn", "toolbox", "distrobox", "podman", "docker", "bwrap",
+  "dd", "mkfs", "mkfs.ext4", "mkfs.btrfs", "mkfs.vfat", "mkfs.xfs", "mkswap", "fdisk", "sfdisk", "gdisk", "parted", "wipefs", "blkdiscard",
+  "mount", "umount", "losetup", "cryptsetup", "lvm", "swapon", "swapoff",
+  "shutdown", "reboot", "poweroff", "halt", "init", "telinit",
+  "rpm-ostree", "bootc", "ostree", "dnf", "dnf5", "rpm", "grubby", "grub2-mkconfig", "efibootmgr", "dracut", "kexec",
+  "insmod", "rmmod", "modprobe", "sysctl", "setenforce", "iptables", "nft", "firewall-cmd", "ip6tables",
+  "crontab", "at", "batch", "loginctl", "machinectl", "ssh-keygen", "ssh-add", "gpg", "gpg2", "secret-tool", "kwallet-query",
+  "kill", "killall", "pkill", "xkill", "less", "more", "most", "vi", "vim", "nano", "emacs", "top", "htop", "watch", "screen", "tmux",
+]
+
+# programs not asked for --help even without a man page (they act instead of helping)
+[no_help]
+names = ["konsole", "plasmashell", "kwin_wayland", "Xwayland", "startplasma-wayland", "sddm", "firefox", "kate", "dolphin"]
+
+# ---- files and text: reading
+[commands.ls]
+class = "R"
+[commands.cat]
+class = "R"
+[commands.head]
+class = "R"
+[commands.tail]
+class = "R"
+flags = { "-f" = "block", "--follow" = "block", "-F" = "block" }
+why = "following a file never ends; use a plain read"
+[commands.wc]
+class = "R"
+[commands.sort]
+class = "R"
+flags = { "-o" = "C", "--output" = "C" }
+[commands.uniq]
+class = "R"
+[commands.cut]
+class = "R"
+[commands.tr]
+class = "R"
+[commands.nl]
+class = "R"
+[commands.paste]
+class = "R"
+[commands.join]
+class = "R"
+[commands.column]
+class = "R"
+[commands.fold]
+class = "R"
+[commands.fmt]
+class = "R"
+[commands.rev]
+class = "R"
+[commands.tac]
+class = "R"
+[commands.comm]
+class = "R"
+[commands.diff]
+class = "R"
+[commands.cmp]
+class = "R"
+[commands.grep]
+class = "R"
+[commands.egrep]
+class = "R"
+[commands.fgrep]
+class = "R"
+[commands.rg]
+class = "R"
+[commands.find]
+class = "R"
+flags = { "-delete" = "X", "-exec" = "block", "-execdir" = "block", "-ok" = "block", "-okdir" = "block", "-fprint" = "C", "-fprintf" = "C", "-fls" = "C" }
+why = "find can run other programs; use a pipeline instead"
+[commands.locate]
+class = "R"
+[commands.tree]
+class = "R"
+[commands.file]
+class = "R"
+[commands.stat]
+class = "R"
+[commands.du]
+class = "R"
+[commands.df]
+class = "R"
+[commands.realpath]
+class = "R"
+[commands.readlink]
+class = "R"
+[commands.basename]
+class = "R"
+[commands.dirname]
+class = "R"
+[commands.md5sum]
+class = "R"
+[commands.sha1sum]
+class = "R"
+[commands.sha256sum]
+class = "R"
+[commands.sha512sum]
+class = "R"
+[commands.b2sum]
+class = "R"
+[commands.cksum]
+class = "R"
+[commands.base64]
+class = "R"
+[commands.base32]
+class = "R"
+[commands.od]
+class = "R"
+[commands.hexdump]
+class = "R"
+[commands.xxd]
+class = "R"
+[commands.strings]
+class = "R"
+[commands.jq]
+class = "R"
+[commands.yq]
+class = "R"
+flags = { "-i" = "C", "--inplace" = "C" }
+[commands.sed]
+class = "R"
+flags = { "-i" = "C", "--in-place" = "C" }
+[commands.awk]
+class = "R"
+flags = { "-i" = "C" }
+why = "awk -i inplace rewrites files"
+[commands.gawk]
+class = "R"
+flags = { "-i" = "C" }
+[commands.iconv]
+class = "R"
+flags = { "-o" = "C" }
+[commands.pdftotext]
+class = "R"
+[commands.pdfinfo]
+class = "R"
+[commands.exiftool]
+class = "R"
+flags = { "-overwrite_original" = "C", "-all=" = "C" }
+[commands.identify]
+class = "R"
+[commands.ffprobe]
+class = "R"
+[commands.mediainfo]
+class = "R"
+[commands.echo]
+class = "R"
+[commands.printf]
+class = "R"
+[commands.seq]
+class = "R"
+[commands.yes]
+class = "block"
+why = "never ends"
+[commands.true]
+class = "R"
+[commands.false]
+class = "R"
+[commands.test]
+class = "R"
+[commands.expr]
+class = "R"
+[commands.bc]
+class = "R"
+[commands.factor]
+class = "R"
+[commands.numfmt]
+class = "R"
+[commands.date]
+class = "R"
+flags = { "-s" = "block", "--set" = "block" }
+[commands.cal]
+class = "R"
+[commands.sleep]
+class = "R"
+
+# ---- files: changing
+[commands.mkdir]
+class = "C"
+[commands.touch]
+class = "C"
+[commands.cp]
+class = "C"
+[commands.mv]
+class = "C"
+[commands.ln]
+class = "C"
+[commands.rmdir]
+class = "C"
+[commands.rm]
+class = "X"
+why = "deletes for good; SIOS offers files.trash instead"
+[commands.shred]
+class = "X"
+[commands.truncate]
+class = "X"
+[commands.tee]
+class = "C"
+[commands.chmod]
+class = "C"
+[commands.chown]
+class = "C"
+[commands.chgrp]
+class = "C"
+[commands.split]
+class = "C"
+[commands.csplit]
+class = "C"
+[commands.install]
+class = "C"
+[commands.rename]
+class = "C"
+[commands.tar]
+class = "C"
+flags = { "-t" = "R", "--list" = "R" }
+why = "creates or unpacks archives; listing only reads"
+[commands.zip]
+class = "C"
+[commands.unzip]
+class = "C"
+flags = { "-l" = "R", "-t" = "R" }
+[commands.gzip]
+class = "C"
+flags = { "-l" = "R", "-t" = "R", "-c" = "R" }
+[commands.gunzip]
+class = "C"
+flags = { "-l" = "R", "-t" = "R", "-c" = "R" }
+[commands.zcat]
+class = "R"
+[commands.xz]
+class = "C"
+flags = { "-l" = "R", "-t" = "R", "-c" = "R" }
+[commands.xzcat]
+class = "R"
+[commands.zstd]
+class = "C"
+flags = { "-l" = "R", "-t" = "R", "-c" = "R" }
+[commands.bzip2]
+class = "C"
+[commands.7z]
+class = "C"
+sub = { l = "R", t = "R" }
+[commands.convert]
+class = "C"
+[commands.magick]
+class = "C"
+[commands.ffmpeg]
+class = "C"
+[commands.pandoc]
+class = "C"
+[commands.qpdf]
+class = "C"
+[commands.pdfunite]
+class = "C"
+[commands.pdfseparate]
+class = "C"
+[commands.patch]
+class = "C"
+flags = { "--dry-run" = "R" }
+
+# ---- the system: reading
+[commands.pwd]
+class = "R"
+[commands.whoami]
+class = "R"
+[commands.id]
+class = "R"
+[commands.groups]
+class = "R"
+[commands.uname]
+class = "R"
+[commands.hostname]
+class = "R"
+sub_default = "block"
+why = "renaming the computer is yours to do"
+[commands.hostnamectl]
+class = "R"
+needs_sub = true
+sub = { status = "R" }
+sub_default = "block"
+[commands.uptime]
+class = "R"
+[commands.free]
+class = "R"
+[commands.vmstat]
+class = "R"
+[commands.nproc]
+class = "R"
+[commands.arch]
+class = "R"
+[commands.lscpu]
+class = "R"
+[commands.lsblk]
+class = "R"
+[commands.lsusb]
+class = "R"
+[commands.lspci]
+class = "R"
+[commands.lsmod]
+class = "R"
+[commands.lsof]
+class = "R"
+[commands.ps]
+class = "R"
+[commands.pgrep]
+class = "R"
+[commands.pidof]
+class = "R"
+[commands.which]
+class = "R"
+[commands.whereis]
+class = "R"
+[commands.type]
+class = "R"
+[commands.whatis]
+class = "R"
+[commands.apropos]
+class = "R"
+[commands.man]
+class = "R"
+flags = { "-P" = "block", "--pager" = "block", "-H" = "block" }
+[commands.tldr]
+class = "R"
+[commands.locale]
+class = "R"
+[commands.timedatectl]
+class = "R"
+needs_sub = true
+sub = { status = "R", show = "R", "list-timezones" = "R" }
+sub_default = "block"
+[commands.journalctl]
+class = "R"
+flags = { "-f" = "block", "--follow" = "block", "--vacuum-size" = "block", "--vacuum-time" = "block", "--rotate" = "block", "--flush" = "block" }
+[commands.systemctl]
+class = "ask"
+needs_sub = true
+sub = { status = "R", "list-units" = "R", "list-unit-files" = "R", "list-timers" = "R", "is-active" = "R", "is-enabled" = "R", "is-failed" = "R", show = "R", cat = "R", "list-dependencies" = "R" }
+sub_default = "block"
+flags = { "--user" = "R" }
+why = "system services are yours; the AI may read their state"
+[commands.loginctl]
+class = "R"
+[commands.free-space]
+class = "R"
+[commands.findmnt]
+class = "R"
+[commands.blkid]
+class = "R"
+[commands.dmesg]
+class = "R"
+flags = { "-C" = "block", "--clear" = "block", "-w" = "block", "--follow" = "block" }
+[commands.sensors]
+class = "R"
+[commands.upower]
+class = "R"
+[commands.powerprofilesctl]
+class = "R"
+sub = { list = "R", get = "R", set = "C" }
+
+# ---- network
+[commands.ip]
+class = "R"
+needs_sub = true
+sub = { addr = "R", address = "R", a = "R", link = "R", l = "R", route = "R", r = "R", neigh = "R", n = "R" }
+flags = { add = "block", del = "block", set = "block", flush = "block", change = "block", replace = "block" }
+why = "the AI may look at the network, never reconfigure it"
+[commands.ss]
+class = "R"
+[commands.netstat]
+class = "R"
+[commands.nmcli]
+class = "R"
+needs_sub = true
+sub = { general = "R", g = "R", device = "R", d = "R", connection = "R", c = "R", radio = "R", r = "R", monitor = "block" }
+flags = { up = "C", down = "C", connect = "C", disconnect = "C", delete = "X", modify = "C", add = "C", on = "C", off = "C" }
+[commands.resolvectl]
+class = "R"
+[commands.ping]
+class = "S"
+why = "sends packets out"
+[commands.traceroute]
+class = "S"
+[commands.mtr]
+class = "S"
+[commands.dig]
+class = "S"
+[commands.host]
+class = "S"
+[commands.nslookup]
+class = "S"
+[commands.curl]
+class = "S"
+why = "talks to the internet; the answer is untrusted data"
+[commands.wget]
+class = "S"
+[commands.ssh]
+class = "S"
+[commands.scp]
+class = "S"
+[commands.sftp]
+class = "S"
+[commands.rsync]
+class = "C"
+why = "local copies change files; a host:path destination sends out (the broker treats any host: argument as S)"
+[commands.nc]
+class = "S"
+[commands.ncat]
+class = "S"
+[commands.wget2]
+class = "S"
+
+# ---- desktop and settings
+[commands.xdg-open]
+class = "C"
+why = "opens an app the owner sees"
+[commands.notify-send]
+class = "R"
+[commands.kreadconfig6]
+class = "R"
+[commands.kwriteconfig6]
+class = "C"
+[commands.kscreen-doctor]
+class = "R"
+flags = { "--json" = "R", "-j" = "R", "--outputs" = "R", "-o" = "R" }
+sub_default = "C"
+why = "listing reads; output.* settings change the screen"
+[commands.wpctl]
+class = "R"
+needs_sub = true
+sub = { status = "R", inspect = "R", "get-volume" = "R", "set-volume" = "C", "set-mute" = "C", "set-default" = "C", "set-profile" = "C" }
+[commands.pactl]
+class = "R"
+needs_sub = true
+sub = { info = "R", list = "R", "get-sink-volume" = "R", "get-sink-mute" = "R", "set-sink-volume" = "C", "set-sink-mute" = "C", "set-default-sink" = "C", "set-default-source" = "C", subscribe = "block" }
+sub_default = "ask"
+[commands.pw-dump]
+class = "R"
+[commands.busctl]
+class = "R"
+needs_sub = true
+sub = { list = "R", tree = "R", introspect = "R", status = "R", "get-property" = "R", call = "block", "set-property" = "block", monitor = "block", capture = "block" }
+why = "D-Bus calls can do anything; the AI uses SIOS's typed tools instead"
+[commands.gdbus]
+class = "block"
+[commands.qdbus]
+class = "block"
+[commands.qdbus6]
+class = "block"
+[commands.dbus-send]
+class = "block"
+[commands.plasma-apply-colorscheme]
+class = "C"
+flags = { "--list-schemes" = "R" }
+[commands.plasma-apply-lookandfeel]
+class = "C"
+flags = { "--list" = "R", "-l" = "R" }
+[commands.plasma-apply-wallpaperimage]
+class = "C"
+[commands.flatpak]
+class = "ask"
+needs_sub = true
+sub = { list = "R", info = "R", search = "S", remotes = "R", history = "R", ps = "R", install = "S", update = "S", uninstall = "C", run = "C", kill = "C" }
+sub_default = "block"
+why = "installing reaches Flathub; SIOS's Store and apps.install are the safer way"
+[commands.lpstat]
+class = "R"
+[commands.lp]
+class = "C"
+why = "prints on paper"
+[commands.lpr]
+class = "C"
+[commands.cancel]
+class = "C"
+[commands.lpadmin]
+class = "block"
+[commands.bluetoothctl]
+class = "R"
+needs_sub = true
+sub = { show = "R", list = "R", devices = "R", info = "R", power = "C", connect = "C", disconnect = "C", pair = "C", trust = "C", remove = "X", scan = "C" }
+sub_default = "block"
+
+# ---- developer
+[commands.git]
+class = "ask"
+needs_sub = true
+sub = { status = "R", log = "R", diff = "R", show = "R", blame = "R", "ls-files" = "R", "rev-parse" = "R", describe = "R", shortlog = "R", grep = "R", branch = "R", tag = "R", remote = "R", config = "R", stash = "C", add = "C", commit = "C", checkout = "C", switch = "C", restore = "C", merge = "C", rebase = "C", "cherry-pick" = "C", revert = "C", init = "C", mv = "C", rm = "C", reset = "C", clean = "X", gc = "C", worktree = "C", fetch = "S", pull = "S", push = "S", clone = "S", "ls-remote" = "S", submodule = "S", "send-email" = "S", archive = "C" }
+flags = { "--force" = "X", "-f" = "X", "--hard" = "X", "--force-with-lease" = "X", "-D" = "X", "--delete" = "X", "--global" = "C", "--system" = "block" }
+why = "reading a repo is free; changing it asks; anything to or from a remote sends out"
+[commands.make]
+class = "X"
+why = "runs whatever the Makefile says"
+[commands.cmake]
+class = "X"
+[commands.ninja]
+class = "X"
+[commands.cargo]
+class = "X"
+sub = { tree = "R", metadata = "R" }
+why = "builds run code from the project; fetching crates sends out"
+[commands.rustc]
+class = "C"
+[commands.gcc]
+class = "C"
+[commands.cc]
+class = "C"
+[commands.clang]
+class = "C"
+[commands.go]
+class = "X"
+sub = { version = "R", env = "R", list = "R", doc = "R", vet = "R" }
+[commands.python3]
+class = "X"
+flags = { "--version" = "R", "-V" = "R" }
+why = "runs any code"
+[commands.python]
+class = "X"
+flags = { "--version" = "R", "-V" = "R" }
+[commands.node]
+class = "X"
+flags = { "--version" = "R", "-v" = "R" }
+[commands.npm]
+class = "X"
+sub = { ls = "R", list = "R", view = "S", outdated = "S", install = "S", ci = "S", publish = "S", run = "X", test = "X" }
+[commands.npx]
+class = "X"
+[commands.pip]
+class = "X"
+sub = { list = "R", show = "R", freeze = "R", install = "S", download = "S" }
+[commands.pip3]
+class = "X"
+sub = { list = "R", show = "R", freeze = "R", install = "S", download = "S" }
+[commands.perl]
+class = "X"
+[commands.ruby]
+class = "X"
+[commands.lua]
+class = "X"
+[commands.java]
+class = "X"
+[commands.gdb]
+class = "block"
+[commands.strace]
+class = "block"
+[commands.ltrace]
+class = "block"
+[commands.claude]
+class = "block"
+why = "Claude Code runs as an agent in its own workspace (Agents app), not inside a command"
+[commands.code]
+class = "C"
+[commands.gh]
+class = "S"
+sub = { status = "S" }
+why = "talks to GitHub; SIOS's GitHub connector is the read-only way"
