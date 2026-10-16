@@ -61,12 +61,15 @@ void BtAgent::ask(const QString &kind, const QDBusObjectPath &device, const QStr
         return;
     // every question gets its own number; the window answers that number only
     ++m_seq;
+    // whatever was still waiting is turned down first, so an answer can only ever
+    // reach the question on screen (a code shown for reading is not a question)
+    if (m_pending.type() == QDBusMessage::MethodCallMessage)
+        bus().send(m_pending.createErrorReply(QStringLiteral("org.bluez.Error.Canceled"), QStringLiteral("replaced")));
+    m_pending = QDBusMessage();
+    m_kind = kind;
     if (kind != QLatin1String("display")) {
-        if (m_pending.type() == QDBusMessage::MethodCallMessage)
-            bus().send(m_pending.createErrorReply(QStringLiteral("org.bluez.Error.Canceled"), QStringLiteral("replaced")));
         setDelayedReply(true);
         m_pending = message();
-        m_kind = kind;
     }
     m_area->put(QStringLiteral("prompt"), QVariantMap{{QStringLiteral("id"), m_seq}, {QStringLiteral("kind"), kind}, {QStringLiteral("device"), m_area->nameOf(device.path())}, {QStringLiteral("code"), code}});
 }
@@ -76,6 +79,11 @@ void BtAgent::answer(quint64 id, bool ok, const QString &value)
     // an answer to an older question (one that was replaced or cancelled) does nothing
     if (id != m_seq)
         return;
+    // a code shown for reading has nothing to approve: closing it only clears it
+    if (m_kind == QLatin1String("display")) {
+        m_area->put(QStringLiteral("prompt"), QVariant());
+        return;
+    }
     if (m_pending.type() != QDBusMessage::MethodCallMessage) {
         m_area->put(QStringLiteral("prompt"), QVariant());
         return;
