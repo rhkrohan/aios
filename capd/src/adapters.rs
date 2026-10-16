@@ -375,7 +375,7 @@ fn spawn_detached(prog: &str, args: &[&str], stdin: Option<&[u8]>) -> Result<(),
 }
 
 /// Does every address this name resolves to belong to the public internet?
-fn resolves_public(name: &str) -> bool {
+pub fn resolves_public(name: &str) -> bool {
     use std::net::{IpAddr, ToSocketAddrs};
     let Ok(addrs) = (name, 443).to_socket_addrs() else { return false };
     let addrs: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();

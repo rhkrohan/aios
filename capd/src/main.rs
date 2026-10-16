@@ -522,7 +522,8 @@ fn serve() {
                             } else if method == "registry.refresh" {
                                 refresh_registry(&st)
                             } else {
-                                match registry::icon(req["params"]["url"].as_str().unwrap_or(""), &state_dir().join("registry-icons")) {
+                                let known: Vec<String> = st.lock().unwrap_or_else(|p| p.into_inner()).registry.servers.iter().filter(|s| !s.icon.is_empty()).map(|s| s.icon.clone()).collect();
+                                match registry::icon(req["params"]["url"].as_str().unwrap_or(""), &state_dir().join("registry-icons"), &known) {
                                     Ok(f) => json!({ "ok": { "file": f } }),
                                     Err(e) => json!({ "error": e }),
                                 }

@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 pub const BASE: &str = "https://registry.modelcontextprotocol.io/v0/servers";
 const PAGE: usize = 100;
-const MAX_PAGES: usize = 300;
+const MAX_PAGES: usize = 1500;
 const MAX_PAGE_BYTES: u64 = 8 << 20;
 const MAX_ICON: u64 = 256 << 10;
 /// Refreshed when older than this.
@@ -166,7 +166,12 @@ impl Cache {
             let title = s.title.to_lowercase();
             let hay = format!("{} {} {} {}", title, s.name.to_lowercase(), s.about.to_lowercase(), s.publisher.to_lowercase());
             let n = words.iter().filter(|w| hay.contains(w.as_str())).count();
-            (n == words.len()).then(|| (n * 10 + usize::from(title.starts_with(&words[0])) * 5, s))
+            // the maker's own server first: its registry-checked publisher (a domain or GitHub
+            // account the registry verified) carries the name searched for (notion.com, github.com/github)
+            let pubr = s.publisher.to_lowercase();
+            let owner = pubr.split(['/', '.']).filter(|p| !["com", "io", "app", "dev", "ai", "org", "net", "co", "github", "www"].contains(p)).collect::<Vec<_>>();
+            let official = words.iter().any(|w| owner.iter().any(|o| o == w)) || (pubr == format!("github.com/{}", words[0]));
+            (n == words.len()).then(|| (n * 10 + usize::from(official) * 100 + usize::from(title.starts_with(&words[0])) * 5, s))
         }).collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.title.cmp(&b.1.title)));
         let total = hits.len();
@@ -175,16 +180,34 @@ impl Cache {
             "about": s.about, "version": s.version, "publisher": s.publisher, "website": s.website, "repository": s.repository,
             "remotes": s.remotes, "packages": s.packages, "icon": s.icon,
             "installable": !s.remotes.is_empty(),
+            "maker": is_maker(s),
             "talks_to": s.remotes.first().and_then(|r| r.strip_prefix("https://")).and_then(|r| r.split(['/', '?']).next()).unwrap_or(""),
         })).collect();
         json!({ "servers": page, "total": total, "all": self.servers.len(), "fetched_at": self.fetched_at })
     }
 }
 
+/// Is the publisher (a domain or GitHub account the registry verified) the brand its
+/// title names? "Notion" by notion.com, "GitHub" by github.com/github.
+fn is_maker(s: &Server) -> bool {
+    let pubr = s.publisher.to_lowercase();
+    let first = s.title.to_lowercase().split_whitespace().next().unwrap_or("").to_string();
+    !first.is_empty() && pubr.split(['/', '.']).any(|p| p == first)
+}
+
 /// Fetch one icon into the cache: https only, PNG or WebP by its bytes, at most 256 KB.
 /// Returns the cached file. Runs without the broker's lock.
-pub fn icon(url: &str, dir: &Path) -> Result<PathBuf, String> {
+pub fn icon(url: &str, dir: &Path, known: &[String]) -> Result<PathBuf, String> {
     let url = https(url).ok_or("not an https address")?;
+    // only an icon a registry entry names, on a host on the internet (never this computer
+    // or the local network: security review)
+    if !known.iter().any(|k| k == &url) {
+        return Err("that isn't an icon from the MCP Registry".into());
+    }
+    let host = url.trim_start_matches("https://").split(['/', '?', '#', ':']).next().unwrap_or("");
+    if !crate::adapters::resolves_public(host) {
+        return Err("that icon isn't on the internet".into());
+    }
     let file = dir.join(format!("{}.img", &crate::audit::sha256_hex(url.as_bytes())[..32]));
     if file.exists() {
         return Ok(file);
@@ -229,5 +252,20 @@ mod tests {
         let v = c.view("linear", 0, 20);
         assert_eq!((v["total"].as_u64(), v["servers"][0]["talks_to"].as_str(), v["servers"][0]["installable"].as_bool()), (Some(1), Some("mcp.linear.app"), Some(true)));
         assert_eq!(c.view("", 0, 1)["servers"].as_array().unwrap().len(), 1);
+    }
+
+    /// Live: `cargo test registry_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn registry_live() {
+        let all = fetch().unwrap();
+        let remote = all.iter().filter(|s| !s.remotes.is_empty()).count();
+        let icons = all.iter().filter(|s| !s.icon.is_empty()).count();
+        println!("{} servers, {} reachable online, {} with a PNG/WebP icon", all.len(), remote, icons);
+        let c = Cache { fetched_at: 0, servers: all };
+        for q in ["github", "linear", "notion"] {
+            println!("{q}: {}", c.view(q, 0, 3)["servers"].as_array().unwrap().iter().map(|s| format!("{} ({})", s["title"].as_str().unwrap(), s["publisher"].as_str().unwrap())).collect::<Vec<_>>().join("; "));
+        }
+        assert!(c.servers.len() > 1000);
     }
 }
