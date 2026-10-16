@@ -188,7 +188,8 @@ pub const ACTS_WITHOUT_ASKING: &[&str] = &[
     "network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind",
     // devices (wave 1): look-ups, and settings that undo
     "system.battery", "audio.outputs", "bluetooth.devices", "printers.list", "system.update_check",
-    "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "audio.mic_mute", "keyboard.layout",
+    "power.profile", "settings.night_light", "settings.display_scale", "audio.set_output", "keyboard.layout",
+    // never audio.mic_mute: unmuting the microphone is the owner's to approve (W1 security review)
 ];
 
 pub fn acts_without_asking(name: &str) -> bool {
@@ -724,9 +725,9 @@ mod tests {
         for t in ACTS_WITHOUT_ASKING {
             let s = spec(t).unwrap_or_else(|| panic!("{t} isn't a tool"));
             assert!(!s.egress && s.level != Level::Irreversible, "{t}");
-            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "audio.mic_mute", "keyboard.layout"].contains(t), "{t}: only look-ups and settings");
+            assert!(s.level == Level::Read || t.starts_with("settings.") || ["network.wifi_power", "network.bluetooth_power", "system.lock", "system.remind", "power.profile", "audio.set_output", "keyboard.layout"].contains(t), "{t}: only look-ups and settings");
         }
-        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send"] {
+        for t in ["files.read", "files.move", "files.write", "files.trash", "network.connect_wifi", "apps.close", "memory.save", "mail.send", "audio.mic_mute", "bluetooth.connect"] {
             assert!(!acts_without_asking(t), "{t} must ask");
         }
     }

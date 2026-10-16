@@ -446,9 +446,10 @@ fn execute(r: &mut Run, plan: &Plan, token: &str, done_steps: &mut usize, done_l
             emit(r.g, json!({ "t": "step", "n": n, "kind": "compose", "decision": "allow", "chars": text.len(), "preview": text.chars().take(160).collect::<String>(), "ms": ms(t) }));
             continue;
         }
-        // a service's answer, or what a command printed, only ever goes in the reply to the owner,
-        // never into another step's arguments (a PR title can't become a file's contents or an email)
-        let reply_only = |tool: &str| r.is_conn(tool) || tool.starts_with("terminal.");
+        // a service's answer, what a command printed, or what a device calls itself only ever goes
+        // in the reply to the owner, never into another step's arguments (a PR title or a Bluetooth
+        // name can't become a file's contents or an email)
+        let reply_only = |tool: &str| r.is_conn(tool) || tool.starts_with("terminal.") || device_text(tool, &Value::Null).is_some();
         let usable: Vec<(usize, String)> = texts.iter().filter(|(k, _)| !plan.steps.get(k - 1).is_some_and(|p| reply_only(&p.tool))).cloned().collect();
         // ...and what goes out to a service, or into a command, is exactly what the owner saw
         // in the plan: nothing found or written on this computer is filled into its arguments

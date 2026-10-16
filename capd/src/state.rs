@@ -28,6 +28,9 @@ pub const OWNER_METHODS: &[&str] = &[
     "connectors.install", "connectors.remove", "connectors.set_ais", "signins.remove",
 ];
 
+/// Tools whose answers carry names devices give themselves: untrusted (W1 security review).
+const DEVICE_NAMES: [&str; 4] = ["bluetooth.devices", "audio.outputs", "printers.list", "bluetooth.connect"];
+
 /// What every AI is told while Stop is on.
 pub const STOPPED: &str = "SIOS stopped all AI. Nothing runs until the owner lets AI act again (Stop, D41).";
 
@@ -1363,6 +1366,16 @@ impl State {
     fn execute(&mut self, cap: &Cap, tool: &str, args: &Value) -> Result<Value, String> {
         let op = random_hex(6);
         let sid = self.session_of(cap);
+        // devices name themselves (a Bluetooth device nearby, a USB sound card, a network
+        // printer): what these return is untrusted, so the goal is tainted before they run
+        if DEVICE_NAMES.contains(&tool) {
+            let session = self.sessions.entry(sid.clone()).or_default();
+            session.tainted = true;
+            let src = format!("device:{tool}");
+            if !session.read.iter().any(|x| x.0 == src) {
+                session.read.push((src, vec![], true));
+            }
+        }
         let out = if tool.starts_with("memory.") || tool == "people.resolve" {
             self.memory_tool(cap, tool, args)?
         } else if tool.starts_with("terminal.") {

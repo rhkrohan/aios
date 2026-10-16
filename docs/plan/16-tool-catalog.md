@@ -89,7 +89,7 @@ Hidden folders and files (names starting with ".", such as `.ssh` or `.config`) 
 | `settings.display_scale` | scale 1 to 3, screen? | Change | Real (W1) | Makes everything on a screen bigger or smaller | `kscreen-doctor output.<name>.scale.<s>`; undo restores the old scale |
 | `audio.outputs` | none | Read | Real (W1) | Speakers, headphones, microphones and which are in use | `pactl -f json list sinks/sources` (monitor copies left out) |
 | `audio.set_output` | output | Change | Real (W1) | Plays sound through another output, only one PipeWire lists | `pactl set-default-sink` |
-| `audio.mic_mute` | on | Change | Real (W1) | Mutes or unmutes the microphone | `pactl set-source-mute @DEFAULT_SOURCE@` |
+| `audio.mic_mute` | on | Change (asks) | Real (W1) | Mutes or unmutes the microphone; always asks, since unmuting is a privacy step | `pactl set-source-mute @DEFAULT_SOURCE@` |
 | `bluetooth.devices` | none | Read | Real (W1) | Known Bluetooth devices, paired and connected | BlueZ ObjectManager over `busctl --system --json`; names are cut and only go in the reply |
 | `bluetooth.connect` | device, on | Change (asks) | Real (W1) | Connects or disconnects a device the owner already paired; pairing stays in Settings | BlueZ Device1 Connect/Disconnect |
 | `keyboard.layout` | layout | Change | Real (W1) | Switches among the owner's own layouts | `org.kde.KeyboardLayouts` setLayout over `busctl --user` |
