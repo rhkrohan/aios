@@ -65,7 +65,7 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 use crate::review::git_out;
 
 /// Things in a writable place that can run and weren't there (that way) before the task:
-/// a .git folder, or a file with an execute bit. Paths relative to the place.
+/// .git, .envrc, editor task folders and launchers, or a file with an execute bit.
 fn runnable_new(place: &Path, snapshot: &Path) -> Vec<String> {
     use std::os::unix::fs::PermissionsExt;
     let mut out = vec![];
@@ -80,12 +80,15 @@ fn runnable_new(place: &Path, snapshot: &Path) -> Vec<String> {
             let Ok(m) = e.path().symlink_metadata() else { continue };
             let rel = e.path().strip_prefix(place).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             let before = snapshot.join(&rel).symlink_metadata().ok();
-            if m.is_dir() {
-                if e.file_name() == ".git" && before.is_none() {
-                    out.push(rel);
-                } else {
-                    stack.push(e.path());
-                }
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            // things tools run by themselves when you open or enter a folder: git (folder or
+            // gitfile), direnv, editor tasks, launchers; new or changed since the snapshot
+            let auto = name == ".git" || name == ".envrc" || name == ".vscode" || name == ".idea" || name.ends_with(".desktop");
+            let changed = before.as_ref().is_none_or(|b| b.len() != m.len() || b.modified().ok() != m.modified().ok());
+            if auto && changed {
+                out.push(rel);
+            } else if m.is_dir() {
+                stack.push(e.path());
             } else if m.is_file() && m.permissions().mode() & 0o111 != 0 && !before.is_some_and(|b| b.permissions().mode() & 0o111 != 0) {
                 out.push(rel);
             }
@@ -1798,12 +1801,15 @@ impl State {
             }
             // a writable git project keeps its .git read-only for the agent: its hooks and config
             // run as the owner the next time they use git there (security review)
-            let git = real.join(".git");
-            let keep_git = pl.write && git.symlink_metadata().is_ok();
-            binds.push((real, dst.clone(), pl.write));
-            if keep_git {
-                binds.push((git, dst.join(".git"), false));
+            // checked at every run too: a folder that became a git project (or is inside one) since
+            // is given read only from now on (security review)
+            let home = self.root.canonicalize().unwrap_or_default();
+            let in_git = real.ancestors().take_while(|p| p.starts_with(&home)).any(|p| p.join(".git").symlink_metadata().is_ok());
+            let write = pl.write && !in_git;
+            if pl.write && !write {
+                snap.retain(|(n, _)| n != &pl.name);
             }
+            binds.push((real, dst.clone(), write));
         }
         (binds, hide, snap)
     }
@@ -4189,10 +4195,10 @@ mod tests {
         let w = root.join("Agents/coder/site");
         let (binds, hide, snap) = r.st.agent_place_binds(&a, &w);
         assert_eq!(binds, vec![(root.join("Pictures/Brand Kit"), root.join("Agents/coder/brand"), false), (root.join("Documents/Copy"), root.join("Agents/coder/copy"), true)]);
-        // a writable git project: its .git stays read-only inside
+        // a writable place that became a git project since is given read only (and not copied)
         std::fs::create_dir_all(root.join("Documents/Copy/.git")).unwrap();
         let (b2, _, s2) = r.st.agent_place_binds(&a, &w);
-        assert!(b2.contains(&(root.join("Documents/Copy/.git"), root.join("Agents/coder/copy/.git"), false)) && s2.is_empty());
+        assert!(b2.contains(&(root.join("Documents/Copy"), root.join("Agents/coder/copy"), false)) && s2.is_empty());
         std::fs::remove_dir_all(root.join("Documents/Copy/.git")).unwrap();
         assert_eq!(hide, vec![root.join("Agents/coder/brand/Private")], "Sensitive inside a place is hidden where the agent sees it");
         assert_eq!(snap, vec![("copy".to_string(), root.join("Documents/Copy"))], "read-and-write without git: snapshotted");
@@ -4219,6 +4225,9 @@ mod tests {
         let mut found = runnable_new(&root.join("Documents/Copy"), &mine.join("snapshots/r1/copy"));
         found.sort();
         assert_eq!(found, vec!["build.sh".to_string(), "sub/.git".to_string()]);
+        std::fs::write(root.join("Documents/Copy/.envrc"), "x").unwrap();
+        assert!(runnable_new(&root.join("Documents/Copy"), &mine.join("snapshots/r1/copy")).contains(&".envrc".to_string()));
+        std::fs::remove_file(root.join("Documents/Copy/.envrc")).unwrap();
         std::fs::remove_dir_all(root.join("Documents/Copy/sub")).unwrap();
         std::fs::remove_file(root.join("Documents/Copy/build.sh")).unwrap();
         // a read-and-write place isn't shared with another agent
