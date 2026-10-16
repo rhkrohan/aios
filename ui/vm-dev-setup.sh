@@ -12,24 +12,43 @@
 set -euo pipefail
 sudo install -d -m 755 -o root -g root /etc/sios-dev
 sudo tee /etc/sios-dev/install >/dev/null <<'HELPER'
-#!/bin/bash
-# installs SIOS's own programs from /var/tmp/sios-dev into the /usr overlay (test VM only)
-set -euo pipefail
-src=/var/tmp/sios-dev
-findmnt -n -o FSTYPE /usr | grep -q overlay || { echo "no /usr overlay: run bootc usr-overlay first"; exit 1; }
-[ -d "$src" ] && [ ! -L "$src" ] || exit 0
-# first move the whole folder somewhere only root can reach (one rename on the same disk),
-# so nothing can swap a file for a link between the check and the copy
-work=$(mktemp -d /var/roothome/sios-dev.XXXXXX)
-mv -T "$src" "$work/in"
-chown -R -h root:root "$work/in"
-for f in capd brain-d sios-agents sios-store sios-settings sios-ask sios-files sios-memory sios-monitor sios-approve; do
-  p="$work/in/$f"
-  [ -f "$p" ] && [ ! -L "$p" ] || continue
-  install -m 755 -o root -g root "$p" "/usr/bin/$f"
-  echo "installed $f $(sha256sum "$p" | cut -c1-16)" | logger -t sios-dev
-done
-rm -rf "$work"
+#!/usr/bin/python3 -I
+# Installs SIOS's own programs from /var/tmp/sios-dev into the /usr overlay (test VM only).
+# Each file is opened without following links (O_NOFOLLOW), checked through that open
+# handle (a plain file, owned by the user who ran sudo, one link, a sane size), read
+# into memory and written to /usr/bin from there: nothing swapped in the folder after
+# the check can change what is installed.
+import os, stat, subprocess, sys, hashlib
+NAMES = ["capd", "brain-d", "sios-agents", "sios-store", "sios-settings", "sios-ask", "sios-files", "sios-memory", "sios-monitor", "sios-approve"]
+if subprocess.run(["findmnt", "-n", "-o", "FSTYPE", "/usr"], capture_output=True, text=True).stdout.strip() != "overlay":
+    sys.exit("no /usr overlay: run bootc usr-overlay first")
+uid = int(os.environ.get("SUDO_UID", "-1"))
+try:
+    d = os.open("/var/tmp/sios-dev", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+except OSError:
+    sys.exit(0)
+for name in NAMES:
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=d)
+    except OSError:
+        continue
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != uid or st.st_nlink != 1 or st.st_size > 512 << 20:
+            print(f"skipped {name}: not a plain file of yours"); continue
+        data = b""
+        while chunk := os.read(fd, 1 << 20):
+            data += chunk
+    finally:
+        os.close(fd)
+    tmp = f"/usr/bin/.{name}.sios-dev"
+    with open(tmp, "wb") as out:
+        out.write(data)
+    os.chmod(tmp, 0o755)
+    os.chown(tmp, 0, 0)
+    os.replace(tmp, f"/usr/bin/{name}")
+    subprocess.run(["logger", "-t", "sios-dev", f"installed {name} {hashlib.sha256(data).hexdigest()[:16]}"])
+    print(f"installed {name}")
 HELPER
 sudo chmod 755 /etc/sios-dev/install
 echo "rohan ALL=(root) NOPASSWD: /usr/bin/bootc usr-overlay, /etc/sios-dev/install" | sudo tee /etc/sudoers.d/sios-dev >/dev/null
