@@ -6,6 +6,8 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import QtQuick.Window
+import QtQuick.Dialogs
+import QtCore
 
 Window {
     id: na
@@ -180,9 +182,20 @@ Window {
                 }
             }
         }
+        FolderDialog {
+            id: folderPick
+            title: na.coder ? "Pick its project folder" : "Pick a folder"
+            currentFolder: StandardPaths.writableLocation(StandardPaths.HomeLocation)
+            onAccepted: {
+                const home = String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/\/$/, "") + "/";
+                const picked = decodeURIComponent(String(selectedFolder));
+                folderF.text = picked.startsWith(home) ? picked.slice(home.length) : picked.replace(/^file:\/\//, "");
+            }
+        }
         RowLayout {
             spacing: 8
             Field { id: folderF; visible: na.coder || na.job === "watch"; placeholder: na.coder ? "Project folder in your home, e.g. Projects/portfolio-site" : "Folder, e.g. Downloads" }
+            Button { visible: folderF.visible; text: "Browse…"; kind: "plain"; onClicked: folderPick.open() }
             Field { id: everyF; visible: na.brain === "builtin" && na.job === "every"; placeholder: "Minutes (at least 5)"; validator: IntValidator { bottom: 5; top: 10080 } }
             Field { id: atF; visible: na.brain === "builtin" && na.job === "daily"; placeholder: "08:30" }
         }

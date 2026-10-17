@@ -24,6 +24,15 @@ Window {
     property var ctx: ({})
     property var changes: ({})
     property string changesErr: ""
+    // its desktop (D109)
+    property bool deskOn: false
+    property bool deskBusy: false
+    property string deskErr: ""
+    property var deskInfo: ({})
+    function deskAsk(what) {
+        if (what === "start") { deskBusy = true; deskErr = ""; }
+        broker.look("agents.desk", { id: agentId, do: what }, tag("desk-" + what));
+    }
     width: 1440; height: 900
     minimumWidth: 1100; minimumHeight: 680
     title: (a.name || "Agent") + " · Workspace"
@@ -41,11 +50,22 @@ Window {
             if (t === ws.tag("log")) { if (!error) ws.log_ = ok.log || []; }
             else if (t === ws.tag("ctx")) { if (!error) ws.ctx = ok; }
             else if (t === ws.tag("changes")) { if (error) { ws.changesErr = error; ws.changes = ({}); } else ws.changes = ok; }
+            else if (t.startsWith("ws-desk-") && t.endsWith("|" + ws.agentId)) {
+                const what = t.slice(8, t.indexOf("|"));
+                if (what === "start") ws.deskBusy = false;
+                if (error) { if (what !== "status") ws.deskErr = error; ws.deskOn = false; deskView.close(); return; }
+                if (what === "ticket") { ws.deskInfo = ok; deskView.open(ok.socket, ok.token); return; }
+                ws.deskOn = !!ok.on;
+                if (ws.deskOn && !deskView.connected) ws.deskAsk("ticket");
+                if (!ws.deskOn) deskView.close();
+            }
         }
     }
     Timer { interval: 1500; repeat: true; running: ws.visible && ws.working; onTriggered: ws.load() }
     onVisibleChanged: if (visible) { load(); if (tab === "review") loadChanges(); }
-    onTabChanged: if (tab === "review") loadChanges()
+    onTabChanged: { if (tab === "review") loadChanges(); if (tab === "desktop") deskAsk("status"); }
+    // closing the window lets go of the desktop's picture (the desktop itself keeps running)
+    onClosing: deskView.close()
 
     // ---------------------------------------------------------------- small pieces
     component Lab: Text { textFormat: Text.PlainText; color: Theme.fg3; font.family: Theme.ui; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 0.6; font.capitalization: Font.AllUppercase }
@@ -326,24 +346,71 @@ Window {
                     ws_: ws
                 }
 
-                // ---------------- Desktop (after its trial on the VM, D107)
+                // ---------------- Desktop (D109): its own desktop, live; you can take control
                 Rectangle {
+                    id: deskPane
                     visible: ws.tab === "desktop"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     color: "#d9dde3"
-                    Rectangle {
+                    ColumnLayout {
                         anchors { fill: parent; margins: 18 }
-                        radius: 12
-                        gradient: Gradient { GradientStop { position: 0; color: "#c9d8ee" } GradientStop { position: 1; color: "#8aa3c6" } }
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            width: 420
+                        spacing: 10
+                        // the bar: live, its size, take control, close
+                        RowLayout {
+                            visible: ws.deskOn
+                            Layout.fillWidth: true
                             spacing: 10
-                            Icon { Layout.alignment: Qt.AlignHCenter; name: "monitor"; size: 34; color: "white" }
-                            Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; text: (ws.a.name || "Its") + "'s own desktop"; color: "white"; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.DemiBold }
-                            Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; textFormat: Text.PlainText; color: "#f2f5fa"; font.family: Theme.ui; font.pixelSize: 13
-                                   text: "A separate desktop inside its sandbox, where it can open a browser and its apps, and where you can take control. It's being tried on the test computer first; it shows here when it's ready. It never sees your own screen." }
+                            Rectangle {
+                                implicitWidth: liveRow.implicitWidth + 20; implicitHeight: 28; radius: 14
+                                color: deskView.connected ? Theme.okSoft : Theme.surface3
+                                Row {
+                                    id: liveRow
+                                    anchors.centerIn: parent
+                                    spacing: 7
+                                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 8; height: 8; radius: 4; color: deskView.connected ? Theme.ok : Theme.fg3
+                                        SequentialAnimation on opacity { running: deskView.connected; loops: Animation.Infinite; NumberAnimation { to: 0.35; duration: 900 } NumberAnimation { to: 1; duration: 900 } } }
+                                    Text { textFormat: Text.PlainText; text: deskView.connected ? "Live" : "Connecting"; color: Theme.fg; font.family: Theme.ui; font.pixelSize: 12; font.weight: Font.DemiBold }
+                                }
+                            }
+                            Text { textFormat: Text.PlainText; text: (ws.deskInfo.width || 1280) + " × " + (ws.deskInfo.height || 800); color: Theme.fg3; font.family: "JetBrains Mono"; font.pixelSize: 11 }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                textFormat: Text.PlainText
+                                text: deskView.control ? "You're driving. " + (ws.a.name || "It") + " waits until you hand back." : "Watching. Take control to use it yourself."
+                                color: deskView.control ? Theme.accent : Theme.fg2; font.family: Theme.ui; font.pixelSize: 12
+                            }
+                            Item { Layout.fillWidth: true }
+                            Button { enabled: deskView.connected; text: deskView.control ? "Hand back" : "Take control"; kind: deskView.control ? "plain" : "primary"; onClicked: deskView.control = !deskView.control }
+                            Button { text: "Close"; kind: "plain"; onClicked: { deskView.close(); ws.deskAsk("stop"); } }
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 12
+                            color: "#0f1115"
+                            clip: true
+                            border.width: deskView.control ? 2 : 0
+                            border.color: Theme.accent
+                            DeskView {
+                                id: deskView
+                                anchors { fill: parent; margins: deskView.control ? 2 : 0 }
+                                visible: ws.deskOn
+                                focus: control
+                            }
+                            // closed: what it is, and the way in
+                            ColumnLayout {
+                                visible: !ws.deskOn || (!deskView.connected && deskView.error !== "")
+                                anchors.centerIn: parent
+                                width: 440
+                                spacing: 12
+                                Icon { Layout.alignment: Qt.AlignHCenter; name: "monitor"; size: 34; color: "#c9d1dc" }
+                                Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; text: (ws.a.name || "Its") + "'s own desktop"; color: "white"; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.DemiBold }
+                                Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; textFormat: Text.PlainText; color: "#aab4c3"; font.family: Theme.ui; font.pixelSize: 13
+                                       text: ws.deskErr || deskView.error || "A separate desktop inside its sandbox: a browser and its apps run here, never on your screen. It sees only its workspace and places, nothing else of your computer. You can watch, or take control." }
+                                Button { Layout.alignment: Qt.AlignHCenter; visible: !ws.deskOn; enabled: !ws.deskBusy && !!ws.host && ws.host.leftOf(ws.a) > 0; text: ws.deskBusy ? "Opening…" : "Open its desktop"; onClicked: ws.deskAsk("start") }
+                                Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; visible: !ws.deskOn && !!ws.host && ws.host.leftOf(ws.a) <= 0; textFormat: Text.PlainText; text: "It needs a work lease first: use Let it work above."; color: "#aab4c3"; font.family: Theme.ui; font.pixelSize: 12 }
+                            }
                         }
                     }
                 }

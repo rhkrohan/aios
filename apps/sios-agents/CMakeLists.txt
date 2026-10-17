@@ -9,6 +9,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg Network DBus)
+# the agent's own desktop, live (D109): VNC through a token-gated socket
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(VNCCLIENT REQUIRED IMPORTED_TARGET libvncclient)
 
 qt_standard_project_setup(REQUIRES 6.6)
 
@@ -27,10 +30,14 @@ qt_add_qml_module(sios-agents
     URI org.sios.agents
     VERSION 1.0
     QML_FILES ${SIOS_AGENTS_QML}
+    SOURCES src/deskview.h src/deskview.cpp
     RESOURCES ${SIOS_AGENTS_ICONS}
 )
 
-target_link_libraries(sios-agents PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network Qt6::DBus)
+# the QML type registration includes deskview.h by name
+target_include_directories(sios-agents PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+target_link_libraries(sios-agents PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Svg Qt6::Network Qt6::DBus PkgConfig::VNCCLIENT)
 
 install(TARGETS sios-agents RUNTIME DESTINATION bin)
 install(FILES org.sios.agents.desktop DESTINATION share/applications)

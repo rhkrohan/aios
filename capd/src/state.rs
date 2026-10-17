@@ -651,7 +651,7 @@ impl State {
                 Ok(json!({ "approvals_open": false }))
             }
             // ---- agents (A4): the owner makes them; SIOS's windows look; brain-d runs and reports
-            "agents.add" => self.agents.add(p, now()).map(|a| {
+            "agents.add" => self.agent_folder_exists(p).and_then(|_| self.agents.add(p, now())).map(|a| {
                 // its own identity: a built-in agent acts for you (and still asks), others get roles from you
                 let roles = if a.brain == "builtin" { vec![crate::iam::ACTS_FOR_YOU.into()] } else { vec![] };
                 self.iam.register(&a.id, &a.name, "agent", "Created by you", crate::iam::OWNER, roles, now());
@@ -669,7 +669,7 @@ impl State {
                 }
                 json!(a)
             }),
-            "agents.update" => self.agents.update(p).map(|a| {
+            "agents.update" => self.agent_folder_exists(p).and_then(|_| self.agents.update(p)).map(|a| {
                 // paused means paused now: passes it already holds stop working too
                 self.iam.paused.retain(|x| x != &a.id);
                 if !a.active {
@@ -1886,19 +1886,16 @@ impl State {
     /// The sandbox, the worktree and the pairing for a run; the systemd-run arguments.
     /// `ceiling`: systemd's hard stop for this unit (a run: 8 hours, its lease is a timer;
     /// the sign-in terminal: 30 minutes, no timer).
-    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str, ceiling: u64, interactive: bool) -> Result<(Vec<String>, PathBuf), String> {
-        let (project, worktree, git_dir, home, mine) = self.agent_paths(a)?;
+    /// Its own clone of the project on its own branch, made once with no hooks run, and
+    /// checked to be exactly where it should be (no link on the way). For runs and its desktop.
+    fn agent_clone(&self, a: &crate::agents::Agent) -> Result<PathBuf, String> {
+        let (project, worktree, git_dir, _, _) = self.agent_paths(a)?;
         if !git_dir.is_dir() {
             return Err("that folder isn't a git project yet: use Make it a git project".into());
         }
         // a link where its clone should be would bind something else into the sandbox
         if worktree.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) || worktree.parent().is_some_and(|p| p.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())) {
             return Err("its workspace folder was replaced by a link; remove it and try again".into());
-        }
-        let brain = crate::brains::Brain::from(&a.brain).ok_or("that agent has no coding brain")?;
-        let install = brain.find(&PathBuf::from(std::env::var("HOME").unwrap_or_default())).ok_or_else(|| format!("{} isn't installed yet: use Install {} in the Agents app", brain.label(), brain.label()))?;
-        for d in [&home, &mine.join("runs")] {
-            std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
         // its own clone on its own branch, made once, with no hooks run; the owner's
         // project and its .git never go into the sandbox (D63, security review)
@@ -1918,6 +1915,17 @@ impl State {
         let real = worktree.canonicalize().map_err(|e| e.to_string())?;
         if real != worktree {
             return Err("its workspace folder leads somewhere else (a link on the way); remove ~/Agents and try again".into());
+        }
+        Ok(worktree)
+    }
+
+    fn agent_prepare(&mut self, a: &crate::agents::Agent, task: &str, run_id: &str, ceiling: u64, interactive: bool) -> Result<(Vec<String>, PathBuf), String> {
+        let (_, worktree, _, home, mine) = self.agent_paths(a)?;
+        self.agent_clone(a)?;
+        let brain = crate::brains::Brain::from(&a.brain).ok_or("that agent has no coding brain")?;
+        let install = brain.find(&PathBuf::from(std::env::var("HOME").unwrap_or_default())).ok_or_else(|| format!("{} isn't installed yet: use Install {} in the Agents app", brain.label(), brain.label()))?;
+        for d in [&home, &mine.join("runs")] {
+            std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
         // its pairing: a fresh token each run, as a systemd credential (never in the project)
         let token = format!("sios_pair_{}", random_hex(20));
@@ -2013,6 +2021,18 @@ impl State {
         let status = |on: bool| json!({ "agent": id, "on": on, "unit": unit, "width": crate::desk::WIDTH, "height": crate::desk::HEIGHT });
         match what {
             "status" => Ok(status(crate::security::unit_active(&crate::desk::unit(a.slug())))),
+            // the way in for the Workspace's view: its socket and this start's token (this
+            // method answers SIOS's own windows only, checked where it's routed)
+            "ticket" => {
+                if !crate::security::unit_active(&crate::desk::unit(a.slug())) {
+                    return Err(format!("{}'s desktop isn't open", a.name));
+                }
+                if token_file.symlink_metadata().map(|m| !m.is_file()).unwrap_or(true) {
+                    return Err("its desktop has no token; close it and open it again".into());
+                }
+                let token = std::fs::read_to_string(&token_file).map_err(|e| e.to_string())?;
+                Ok(json!({ "socket": dir.join("vnc.sock"), "token": token.trim(), "width": crate::desk::WIDTH, "height": crate::desk::HEIGHT }))
+            }
             "stop" => {
                 let _ = crate::exec::run("/usr/bin/systemctl", &["--user", "stop", &unit], None, std::time::Duration::from_secs(20));
                 let _ = std::fs::remove_file(&token_file);
@@ -2036,10 +2056,8 @@ impl State {
                 if self.reviewing.contains(id) {
                     return Err(format!("SIOS is reading {}'s work right now; try again in a moment", a.name));
                 }
-                let (_, worktree, _, home, _) = self.agent_paths(&a)?;
-                if !worktree.is_dir() || worktree.canonicalize().ok().as_ref() != Some(&worktree) {
-                    return Err(format!("{} has no workspace yet: give it a task first", a.name));
-                }
+                let (_, _, _, home, _) = self.agent_paths(&a)?;
+                let worktree = self.agent_clone(&a)?;
                 std::fs::create_dir_all(&home).map_err(|e| e.to_string())?;
                 // its socket folder: made here, 0700, never a link
                 {
@@ -2094,7 +2112,22 @@ impl State {
                 self.record(&Self::owner_cap(), "agents.desk", id, "you", &format!("{}'s desktop was opened", a.name), &json!([]));
                 Ok(status(true))
             }
-            _ => Err("start, stop or status".into()),
+            _ => Err("start, stop, status or ticket".into()),
+        }
+    }
+
+    /// A folder an agent is given must be there (a typed name that isn't a folder made an
+    /// agent that could never work): checked by the same rules as everything else in the home.
+    fn agent_folder_exists(&self, p: &Value) -> Result<(), String> {
+        let Some(f) = p["folder"].as_str().map(|f| f.trim().trim_matches('/')).filter(|f| !f.is_empty()) else { return Ok(()) };
+        let brain = p["brain"].as_str().or_else(|| p["id"].as_str().and_then(|id| self.agents.get(id)).map(|a| a.brain.as_str())).unwrap_or("builtin").to_string();
+        let job = p["job"].as_str().unwrap_or("");
+        if brain == "builtin" && job != "watch" {
+            return Ok(());
+        }
+        match crate::fsguard::resolve(&self.root, f) {
+            Ok(r) if r.real.is_dir() => Ok(()),
+            _ => Err(format!("there's no folder called “{f}” in your home: pick it with Browse")),
         }
     }
 
