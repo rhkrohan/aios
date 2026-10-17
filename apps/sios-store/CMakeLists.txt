@@ -17,7 +17,8 @@ qt_add_executable(sios-store src/main.cpp src/catalog.cpp src/catalog.h src/brok
 
 # the QML lives in src/qml but belongs at the module's top level
 set_source_files_properties(src/qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
-file(GLOB SIOS_STORE_QML RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/qml/*.qml)
+# .js too: Connectors.qml imports Brands.js (left out, the whole window failed to load)
+file(GLOB SIOS_STORE_QML RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/qml/*.qml src/qml/*.js)
 foreach(f ${SIOS_STORE_QML})
     get_filename_component(name ${f} NAME)
     set_source_files_properties(${f} PROPERTIES QT_RESOURCE_ALIAS ${name})
