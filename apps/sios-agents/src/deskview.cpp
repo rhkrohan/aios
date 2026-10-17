@@ -29,7 +29,7 @@ char *getPassword(rfbClient *c)
 rfbBool mallocFrame(rfbClient *c)
 {
     DeskView *v = viewOf(c);
-    return v && v->resizeFrame(c->width, c->height);
+    return v && v->resizeFrame(c, c->width, c->height);
 }
 
 void gotUpdate(rfbClient *c, int x, int y, int w, int h)
@@ -141,9 +141,11 @@ void DeskView::open(const QString &socket, const QString &token)
     c->format.redShift = 16;
     c->format.greenShift = 8;
     c->format.blueShift = 0;
-    c->appData.encodingsString = "tight zrle ultra copyrect hextile zlib corre rre raw";
-    c->appData.compressLevel = 1;
-    c->appData.qualityLevel = 8;
+    // the stream comes from inside an agent's sandbox: only the two simplest encodings,
+    // so almost none of libvncclient's decoders can be reached (security review); a local
+    // socket carries raw pixels easily. A confined decoding helper is the next step (D109)
+    c->appData.encodingsString = "copyrect raw";
+    c->appData.useRemoteCursor = FALSE;
     c->GetPassword = getPassword;
     c->MallocFrameBuffer = mallocFrame;
     c->GotFrameBufferUpdate = gotUpdate;
@@ -207,13 +209,15 @@ void DeskView::setControl(bool on)
     Q_EMIT controlChanged();
 }
 
-bool DeskView::resizeFrame(int w, int h)
+bool DeskView::resizeFrame(rfbClient *c, int w, int h)
 {
-    if (w <= 0 || h <= 0 || w > 8192 || h > 8192)
+    // libvncclient asks for the picture while it starts, before m_client is set: use the
+    // client it passes. The size comes from the other end: only the desktop's own size
+    if (!c || w <= 0 || h <= 0 || w > 4096 || h > 4096 || c->format.bitsPerPixel != 32)
         return false;
     m_frame = QImage(w, h, QImage::Format_RGB32);
     m_frame.fill(Qt::black);
-    m_client->frameBuffer = m_frame.bits();
+    c->frameBuffer = m_frame.bits();
     return true;
 }
 

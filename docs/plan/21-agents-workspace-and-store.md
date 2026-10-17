@@ -88,6 +88,7 @@ The owner's ask: no new system, just an isolated desktop that the agent and the 
 - The owner's files: `ProtectHome=tmpfs`; the desktop sees exactly the agent's workspace and its Places, the same binds as its CLI.
 - Clipboard: the desktop has its own; copying out is an explicit owner button.
 - Stop, Pause and lease end freeze or stop the desktop with the rest of the agent's slice.
+- The view decodes a stream from inside the agent's sandbox (a process there could replace the sharer): the Agents window accepts only raw and copy-rect, and before D109 is done the decoding moves to its own confined helper (not one of SIOS's trusted windows, no broker socket, seccomp), which hands the window plain pixels of the desktop's fixed size only.
 - Size and time: one desktop per agent, started on first use, stopped when idle for 15 minutes; a fixed 1280x800 screen.
 
 **Tests.** Unit tests for the unit's argv and binds; on the VM, an attack list run as the agent: reach the owner's session bus, system bus, disks, other agents' desktops or ports, the owner's screen or clipboard, the VNC socket from outside, input while the owner holds control, and survive Stop. Every item must fail before this ships.

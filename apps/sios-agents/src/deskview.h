@@ -36,7 +36,7 @@ public:
 
     // from libvncclient's callbacks
     void frameChanged(int x, int y, int w, int h);
-    bool resizeFrame(int w, int h);
+    bool resizeFrame(_rfbClient *c, int w, int h);
     QByteArray password;
 
 Q_SIGNALS:
