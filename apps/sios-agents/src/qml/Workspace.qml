@@ -29,6 +29,8 @@ Window {
     property bool deskBusy: false
     property string deskErr: ""
     property var deskInfo: ({})
+    property int deskTries: 0
+    Timer { id: deskRetry; interval: 700; onTriggered: if (ws.deskOn && !deskView.connected) ws.deskAsk("ticket") }
     function deskAsk(what) {
         if (what === "start") { deskBusy = true; deskErr = ""; }
         broker.look("agents.desk", { id: agentId, do: what }, tag("desk-" + what));
@@ -54,7 +56,12 @@ Window {
                 const what = t.slice(8, t.indexOf("|"));
                 if (what === "start") ws.deskBusy = false;
                 if (error) { if (what !== "status") ws.deskErr = error; ws.deskOn = false; deskView.close(); return; }
-                if (what === "ticket") { ws.deskInfo = ok; deskView.open(ok.socket, ok.token); return; }
+                if (what === "ticket") {
+                    ws.deskInfo = ok; deskView.open(ok.socket, ok.token);
+                    // a desktop that just opened needs a few seconds before its screen is served
+                    if (!deskView.connected && ws.deskTries < 30) { ws.deskTries++; deskRetry.restart(); } else ws.deskTries = 0;
+                    return;
+                }
                 ws.deskOn = !!ok.on;
                 if (ws.deskOn && !deskView.connected) ws.deskAsk("ticket");
                 if (!ws.deskOn) deskView.close();
@@ -400,14 +407,14 @@ Window {
                             }
                             // closed: what it is, and the way in
                             ColumnLayout {
-                                visible: !ws.deskOn || (!deskView.connected && deskView.error !== "")
+                                visible: !ws.deskOn || (!deskView.connected && deskView.error !== "" && !deskRetry.running)
                                 anchors.centerIn: parent
                                 width: 440
                                 spacing: 12
                                 Icon { Layout.alignment: Qt.AlignHCenter; name: "monitor"; size: 34; color: "#c9d1dc" }
                                 Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; text: (ws.a.name || "Its") + "'s own desktop"; color: "white"; font.family: Theme.display; font.pixelSize: 22; font.weight: Font.DemiBold }
                                 Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; textFormat: Text.PlainText; color: "#aab4c3"; font.family: Theme.ui; font.pixelSize: 13
-                                       text: ws.deskErr || deskView.error || "A separate desktop inside its sandbox: a browser and its apps run here, never on your screen. It sees only its workspace and places, nothing else of your computer. You can watch, or take control." }
+                                       text: deskRetry.running ? "Starting its desktop…" : ws.deskErr || deskView.error || "A separate desktop inside its sandbox: a browser and its apps run here, never on your screen. It sees only its workspace and places, nothing else of your computer. You can watch, or take control." }
                                 Button { Layout.alignment: Qt.AlignHCenter; visible: !ws.deskOn; enabled: !ws.deskBusy && !!ws.host && ws.host.leftOf(ws.a) > 0; text: ws.deskBusy ? "Opening…" : "Open its desktop"; onClicked: ws.deskAsk("start") }
                                 Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; visible: !ws.deskOn && !!ws.host && ws.host.leftOf(ws.a) <= 0; textFormat: Text.PlainText; text: "It needs a work lease first: use Let it work above."; color: "#aab4c3"; font.family: Theme.ui; font.pixelSize: 12 }
                             }
