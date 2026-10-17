@@ -1847,7 +1847,7 @@ impl State {
         if crate::security::unit_active(&format!("{}-signin", crate::runner::unit(a.slug()))) {
             return Err(format!("close {}'s terminal first", a.name));
         }
-        if crate::security::unit_active(&crate::desk::unit(a.slug())) {
+        if !crate::desk::closed(a.slug()) {
             return Err(format!("close {}'s desktop first", a.name));
         }
         let pl = a.places.iter().find(|p| p.name == name).cloned().ok_or("no such place")?;
@@ -2476,7 +2476,7 @@ impl State {
             return Err(format!("close {}'s terminal first, then look at its changes", a.name));
         }
         // nor while its desktop is open: apps there can write its workspace too
-        if crate::security::unit_active(&crate::desk::unit(a.slug())) {
+        if !crate::desk::closed(a.slug()) {
             return Err(format!("close {}'s desktop first, then look at its changes", a.name));
         }
         if !self.reviewing.insert(a.id.clone()) {

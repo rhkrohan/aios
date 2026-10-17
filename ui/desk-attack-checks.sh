@@ -19,5 +19,8 @@ t "host via gateway :8765" "curl -s -m 3 http://\$(ip route | awk \"/default/{pr
 t "owner processes visible (kwin)" "pgrep -f kwin_wayland"
 t "signal owner plasmashell" "kill -0 $(cat $(dirname "$0")/plasma.pid)"
 t "write into /usr" "touch /usr/bin/x"
+t "write into /etc or /var" "touch /etc/sios-x || touch /var/sios-x"
+t "removable disks (/run/media)" "ls /run/media"
+t "other mounts (/mnt, /media, /srv)" "ls /mnt/ /media/ /srv/ 2>/dev/null | grep -q ."
 t "become root (sudo)" "sudo -n true"
 r "internet (allowed)" "$(curl -s -o /dev/null -w %{http_code} -m 8 https://fedoraproject.org)"

@@ -94,6 +94,13 @@ pub fn build(d: &Desk) -> Result<Vec<String>, String> {
         p(format!("InaccessiblePaths={}", q(format!("-{}", s(h)))));
     }
     for v in [
+        // the system read-only; removable disks and other mounts out of sight (security review)
+        "ProtectSystem=strict",
+        "InaccessiblePaths=-/run/media",
+        "InaccessiblePaths=-/media",
+        "InaccessiblePaths=-/mnt",
+        "InaccessiblePaths=-/var/mnt",
+        "InaccessiblePaths=-/srv",
         "PrivateTmp=yes",
         // no disks, cameras, microphones or GPU; pasta needs only its tun device
         "PrivateDevices=yes",
@@ -259,6 +266,25 @@ fn bridge(c: std::os::unix::net::UnixStream, token: &str, pass: &str) -> Result<
     Ok(())
 }
 
+/// Whether its desktop is certainly gone: systemd answered, and the unit is inactive or
+/// failed. Shutting down, frozen, unknown or no answer all count as still there (fail
+/// closed), since apps on a desktop that's closing can still write its workspace.
+pub fn closed(slug: &str) -> bool {
+    // no systemd here (the Mac, tests): no desktop can exist
+    if !Path::new("/usr/bin/systemctl").exists() {
+        return true;
+    }
+    let unit = format!("{}.service", unit(slug));
+    match crate::exec::run("/usr/bin/systemctl", &["--user", "show", "-p", "ActiveState", "--value", &unit], None, Duration::from_secs(5)) {
+        Ok(o) if o.code == Some(0) => state_closed(String::from_utf8_lossy(&o.stdout).trim()),
+        _ => false,
+    }
+}
+
+fn state_closed(state: &str) -> bool {
+    state == "inactive" || state == "failed"
+}
+
 /// The processes in its unit, from its cgroup (pasta itself stays outside; what it starts is inside).
 pub fn session_pids(unit: &str) -> Vec<u32> {
     let cg = crate::exec::run("/usr/bin/systemctl", &["--user", "show", "-p", "ControlGroup", "--value", unit], None, Duration::from_secs(5))
@@ -300,7 +326,7 @@ mod tests {
     fn the_desktop_is_sealed() {
         let a = build(&desk(&[], &[])).unwrap();
         let has = |s: &str| a.iter().any(|x| x == s);
-        for must in ["ProtectHome=tmpfs", "PrivateDevices=yes", "InaccessiblePaths=/run/dbus", "ProtectProc=invisible", "NoNewPrivileges=yes", "PrivateTmp=yes", "--slice=sios-agents.slice", "--no-map-gw"] {
+        for must in ["ProtectSystem=strict", "InaccessiblePaths=-/run/media", "InaccessiblePaths=-/mnt", "ProtectHome=tmpfs", "PrivateDevices=yes", "InaccessiblePaths=/run/dbus", "ProtectProc=invisible", "NoNewPrivileges=yes", "PrivateTmp=yes", "--slice=sios-agents.slice", "--no-map-gw"] {
             assert!(has(must), "{must}");
         }
         // every forward off, both ways
@@ -319,6 +345,14 @@ mod tests {
         let mut d = desk(&[], &[]);
         d.max_secs = 99_999;
         assert!(build(&d).unwrap().contains(&"RuntimeMaxSec=28800".to_string()));
+    }
+
+    #[test]
+    fn only_a_stopped_desktop_counts_as_closed() {
+        assert!(state_closed("inactive") && state_closed("failed"));
+        for st in ["active", "deactivating", "activating", "reloading", "refreshing", "maintenance", "", "garbage"] {
+            assert!(!state_closed(st), "{st}");
+        }
     }
 
     #[test]

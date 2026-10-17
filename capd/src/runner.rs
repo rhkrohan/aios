@@ -151,6 +151,10 @@ pub fn build(r: &Run) -> Result<Vec<String>, String> {
     for (src, dst) in r.files {
         a.extend(["-p".into(), if src == dst { format!("BindReadOnlyPaths={}", d(src)) } else { format!("BindReadOnlyPaths={}:{}", d(src), d(dst)) }]);
     }
+    // removable disks and other mounts out of sight (security review, D109)
+    for m in ["/run/media", "/media", "/mnt", "/var/mnt", "/srv"] {
+        a.extend(["-p".into(), format!("InaccessiblePaths=-{m}")]);
+    }
     a.extend([
         "-p".into(), "PrivateTmp=yes".into(),
         // other programs' /proc: root, environment and memory refused by the unit's user
@@ -435,7 +439,7 @@ mod tests {
         let a = build(&run(&p, w)).unwrap();
         assert!(a.iter().any(|x| x == "BindReadOnlyPaths=/run/user/1000/sios"), "sockets read-only");
         assert!(!a.iter().any(|x| x.contains("Projects/parser")), "the owner's project is never bound");
-        for must in ["ProtectHome=tmpfs", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectProc=invisible", "ProcSubset=pid", "MemoryMax=4G", "TasksMax=512", "--strict-mcp-config", "acceptEdits", "--slice=sios-agents.slice"] {
+        for must in ["ProtectHome=tmpfs", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectProc=invisible", "ProcSubset=pid", "MemoryMax=4G", "TasksMax=512", "InaccessiblePaths=-/run/media", "--strict-mcp-config", "acceptEdits", "--slice=sios-agents.slice"] {
             assert!(a.iter().any(|x| x == must), "{must}");
         }
         // the task is one argument, prefixed so it's never a flag, with $ and % kept literal
