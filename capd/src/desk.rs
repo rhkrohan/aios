@@ -350,8 +350,9 @@ fn bridge(c: std::os::unix::net::UnixStream, token: &str, pass: &str, kwin: Inpu
 /// failed. Shutting down, frozen, unknown or no answer all count as still there (fail
 /// closed), since apps on a desktop that's closing can still write its workspace.
 pub fn closed(slug: &str) -> bool {
-    // no systemd here (the Mac, tests): no desktop can exist
-    if !Path::new("/usr/bin/systemctl").exists() {
+    // no systemd here (the Mac, tests): no desktop can exist. The image's build container
+    // has systemctl but no user manager, which would read as "still open" in every test.
+    if cfg!(test) || !Path::new("/usr/bin/systemctl").exists() {
         return true;
     }
     let unit = format!("{}.service", unit(slug));
