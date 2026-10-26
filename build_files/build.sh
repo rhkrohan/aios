@@ -141,6 +141,10 @@ done
 rpm -q nodejs > /dev/null || dnf5 -y install nodejs npm
 test -x /usr/bin/node && test -x /usr/bin/npm
 
+### The Workspace's view of an agent's desktop (D109) reads it with libvncclient
+rpm -q libvncserver > /dev/null || dnf5 -y install libvncserver
+test -e /usr/lib64/libvncclient.so.1
+
 ### Terminal commands for AIs (D89): the command catalog
 # Every program on the image, typed, with its risk class (build_files/cmdcat).
 # Made here, inside the image, so it describes exactly what ships; capd reads it.
